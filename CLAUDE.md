@@ -2,8 +2,8 @@
 
 Seven Claude Code sessions in one Electron window. The focused session fills the left third;
 the other six live in a grid on the right and stream live, with a plugin row (Wikipedia's
-featured content, the lofi YouTube stream) beneath them. Click a tile to swap it into focus. The `+` in the grid
-starts a new session. Built by Colin (Dosha Labs) for himself.
+featured content, a lofi YouTube stream) beneath them. Click a tile to swap it into focus.
+The `+` in the grid starts a new session. A personal tool, macOS only.
 
 ## What it is, in one paragraph
 
@@ -28,7 +28,8 @@ npm run tmux -- ls   # talk to the dev profile's tmux server (tmux -L deck-dev .
 ```
 
 Verification before handing off = `npm run typecheck && npm run build && npm run smoke`.
-Colin runs the app himself; do not drive it with screenshots or automation unless asked.
+The user runs the app themselves; do not drive it with screenshots or automation unless asked.
+Requirements on the machine: macOS, tmux, Node, and the `claude` CLI logged in.
 
 ## Layout
 
@@ -64,7 +65,8 @@ scripts/smoke.mjs          the smoke test
   on this day, most read), only ones with an image, cycling every 20s; click opens the article
   via `deck:openExternal` (http(s) only). YouTube = the bare embed player for the lofi stream in
   a `<webview>` on partition `persist:youtube` (`webviewTag` is on in `index.ts`); play/pause and
-  mute drive the embed's `<video>` through `executeJavaScript`. The renderer CSP allows no
+  mute call the embed's player object (`#movie_player`) through `executeJavaScript`, never the
+  `<video>` element (the player re-applies its own mute state to it). The renderer CSP allows no
   outbound requests (feeds are fetched in main) and whitelists only `*.wikimedia.org` images.
   Spotify was tried and dropped: its web player needs Widevine, which Electron does not ship.
 - **File drops**: dragging files onto the focus pane or a tile pastes their shell-escaped paths
@@ -79,8 +81,8 @@ scripts/smoke.mjs          the smoke test
   --session-id <uuid> [--worktree]`. `exec` so the pane's process IS claude. The UUID is
   ours (`randomUUID()`), which is how fleet rows and hook payloads are matched back to a tile.
   `--worktree` lets Claude create/clean the worktree itself under `<repo>/.claude/worktrees/`.
-- **`--settings` merges** with the user's own settings (list keys combine), so Colin's global
-  Notification/Stop hooks keep firing inside deck sessions. Our hooks file only adds POSTs to
+- **`--settings` merges** with the user's own settings (list keys combine), so any global
+  Notification/Stop hooks the user has keep firing inside deck sessions. Our hooks file only adds POSTs to
   `127.0.0.1:<port>/{notification,stop,prompt}`; it must never block Claude (`; exit 0`).
 - **Status** = fleet poll (truth) + hooks (instant). Notification → attention; Stop → attention
   + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention.
@@ -99,7 +101,7 @@ scripts/smoke.mjs          the smoke test
 `~/Library/Application Support/<profile>/`
 - `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot`
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
-- `config.json` (optional) — `{ "gridColumns": 2, "defaultCwd": "/Users/colin/slay" }`
+- `config.json` (optional) — `{ "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }`
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the
 size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.
