@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { dropFilesInto, hasFiles } from '../lib/drop'
+import { dropEffectFor, dropFilesInto, hasFiles } from '../lib/drop'
 
 /**
  * Makes a pane accept Finder drops: files' paths are pasted into session `id`.
@@ -20,7 +20,7 @@ export function useDropTarget(id: string, onDropped?: () => void) {
     onDragOver: (e: React.DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return
       e.preventDefault()
-      e.dataTransfer.dropEffect = 'link'
+      e.dataTransfer.dropEffect = dropEffectFor(e.dataTransfer)
     },
     onDragLeave: (e: React.DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return
@@ -30,7 +30,7 @@ export function useDropTarget(id: string, onDropped?: () => void) {
     onDrop: (e: React.DragEvent) => {
       depth.current = 0
       setOver(false)
-      if (dropFilesInto(id, e)) onDropped?.()
+      void dropFilesInto(id, e).then((ok) => ok && onDropped?.())
     }
   }
 

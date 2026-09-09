@@ -18,6 +18,7 @@ import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
 import { setupYoutubeSession } from './youtube'
+import { keepDrop, type DroppedFile } from './drops'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -203,6 +204,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('transcript:get', (_e, id: string) => transcripts!.get(String(id ?? '')))
 
   ipcMain.handle('deck:getState', () => manager!.getState())
+  // A dropped file that lives in a temp dir (a screenshot thumbnail, a promised file) is copied somewhere that lasts.
+  ipcMain.handle('drop:keep', (_e, file: DroppedFile) => keepDrop(userData, file))
   ipcMain.handle('deck:command', (_e, cmd: DeckCommand) => runCommand(cmd))
   ipcMain.on('pty:input', (_e, id: string, data: string) => manager?.input(id, data))
   ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => manager?.resize(id, cols, rows))

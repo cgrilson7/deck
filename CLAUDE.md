@@ -186,7 +186,16 @@ scripts/smoke.mjs          the smoke test
   in the conversation view's bottom padding (`--tile-prompt-height` + gaps on `.tile-body`).
 - **File drops**: dragging files onto the focus pane or a tile pastes their shell-escaped paths
   into that session (a tile drop also focuses it). Paths come from `webUtils.getPathForFile`
-  in the preload; the renderer never sees one otherwise.
+  in the preload; the renderer never sees one otherwise. Every path goes through `drop:keep`
+  (`main/drops.ts`): a path that will stay put is returned as is; one under a temp dir is COPIED
+  to `userData/drops/` (pruned after 30 days) and the copy is pasted. That is what makes the
+  macOS screenshot thumbnail work: it is a file promise Chromium fulfils into a temp dir, sometimes
+  a beat after the drop (main waits up to 5s for the size to settle), and dragging it cancels the
+  Desktop save, so the temp file is the only copy. A File with no path at all (an image dragged out
+  of a page) ships its bytes over IPC and is written the same way.
+  While a drag hovers, the pane claims a drop effect the SOURCE allows (`dropEffectFor`): Finder
+  allows all of them, the screenshot thumbnail offers copy only, and claiming 'link' against it
+  turns the effect to 'none', so no drop event fires and the thumbnail springs back.
 - **Recent folders**: `sessions.json` keeps `recentCwds`, the last 10 folders sessions were started
   or resumed in, most recent first (`touchRecent` in `sessions.ts`); it outlives the sessions, and a
   file without it is seeded from the records. `DeckState.recent` = the first 3 that still exist. They
@@ -216,7 +225,10 @@ scripts/smoke.mjs          the smoke test
   holds a WebGL context — `mount('focus')` creates it, `unmount` disposes it (Chrome caps live
   contexts, and a parked terminal in staging is never seen, so cycling focus must not pile them
   up; context loss falls back to the DOM renderer and repaints the buffer so the pane never
-  blanks). Sizing goes through `fitStable`: it fits, then re-fits on later frames until the
+  blanks). Sizing is our own measure (`fitBox`, no fit addon: that reserves 14px for a scrollbar
+  xterm 6 draws as a fading overlay): cols/rows from the renderer's cell size, and the height
+  left below the last row goes ABOVE the first as padding on the xterm element, so Claude's
+  prompt bar sits flush with the bottom of the pane. It runs through `fitStable`: it fits, then re-fits on later frames until the
   proposed cols/rows stop changing, skipping zero-size frames, so a mount mid-layout can't leave
   the TUI a row/column off. Fonts, cursor and scrollback come from settings
   (`applyTerminalSettings` in terminals.ts).
@@ -238,6 +250,7 @@ scripts/smoke.mjs          the smoke test
 - `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot` + `recentCwds` (last 10 start folders)
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
+- `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
   translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)

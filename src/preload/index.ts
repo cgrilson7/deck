@@ -29,13 +29,19 @@ const api: DeckApi = {
     ipcRenderer.on('transcript:update', h)
     return () => ipcRenderer.removeListener('transcript:update', h)
   },
-  // Dropped File objects carry no path in an isolated renderer; the preload resolves it.
-  pathForFile: (file) => {
+  // Dropped File objects carry no path in an isolated renderer; the preload resolves it, and main
+  // decides whether that path lasts. A File without one (an image out of a page) ships its bytes.
+  keepDroppedFile: async (file) => {
+    if (!(file instanceof File)) return null
+    let path = ''
     try {
-      return file instanceof File ? webUtils.getPathForFile(file) : ''
+      path = webUtils.getPathForFile(file)
     } catch {
-      return ''
+      /* not a real file */
     }
+    let bytes: Uint8Array | undefined
+    if (!path && file.size > 0) bytes = new Uint8Array(await file.arrayBuffer())
+    return ipcRenderer.invoke('drop:keep', { name: file.name, path, bytes }) as Promise<string | null>
   },
   wikiPicture: () => ipcRenderer.invoke('wiki:picture') as Promise<WikiPicture | null>,
   wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,

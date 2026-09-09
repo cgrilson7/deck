@@ -269,8 +269,12 @@ export interface DeckApi {
   /** The tile view of a session's conversation (null until main has looked). */
   getTranscript(id: string): Promise<Transcript | null>
   onTranscript(cb: (t: Transcript) => void): () => void
-  /** Absolute path of a File dropped onto the window ('' if it has none). */
-  pathForFile(file: File): string
+  /**
+   * The path to paste for a File dropped onto the window: its own if it will stay put, else a
+   * copy main keeps (a macOS screenshot thumbnail is a promise fulfilled into a temp dir; an
+   * image dragged out of a page has no path at all). Null when there is nothing usable.
+   */
+  keepDroppedFile(file: File): Promise<string | null>
   /** Today's Wikipedia picture of the day (null if the feed has none). Cached in main. */
   wikiPicture(): Promise<WikiPicture | null>
   /** Full-text search of English Wikipedia, up to a dozen hits. */
