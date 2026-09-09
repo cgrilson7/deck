@@ -18,7 +18,8 @@ because it is the unchanged CLI in a real PTY.
 ## Commands
 
 ```bash
-npm run dev          # electron-vite dev (profile deck-dev: own tmux socket, userData, hook port)
+npm run dev          # electron-vite dev --watch (profile deck-dev: own tmux socket, userData, hook port;
+                     #   main/preload edits restart Electron, renderer edits hot-reload)
 npm run typecheck    # tsc for main/preload (tsconfig.node.json) and renderer (tsconfig.web.json)
 npm run build        # electron-vite build → out/
 npm run smoke        # tmux + login-shell env + `claude agents --json` checks, no Electron
