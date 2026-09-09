@@ -8,6 +8,7 @@ declare global {
     goBack(): void
     loadURL(url: string): Promise<void>
     getURL(): string
+    executeJavaScript(code: string): Promise<unknown>
   }
 }
 
@@ -21,6 +22,7 @@ declare module 'react' {
         partition?: string
         allowpopups?: string
         useragent?: string
+        webpreferences?: string
       }
     }
   }

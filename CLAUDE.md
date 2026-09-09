@@ -1,8 +1,8 @@
 # deck
 
 Seven Claude Code sessions in one Electron window. The focused session fills the left third;
-the other six live in a grid on the right and stream live, with a plugin row (Spotify now
-playing, YouTube) beneath them. Click a tile to swap it into focus. The `+` in the grid
+the other six live in a grid on the right and stream live, with a plugin row (Wikipedia's
+featured content, the lofi YouTube stream) beneath them. Click a tile to swap it into focus. The `+` in the grid
 starts a new session. Built by Colin (Dosha Labs) for himself.
 
 ## What it is, in one paragraph
@@ -39,14 +39,14 @@ src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resum
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
-src/main/spotify.ts        polls Spotify.app over AppleScript (1 Hz) + playpause/next/previous
+src/main/wiki.ts           fetches today's Wikipedia featured-content feed (cached 1h) for the tile
 src/main/env.ts            resolves the login-shell env so claude/tmux are found from Finder
 src/main/menu.ts           app menu = every keyboard shortcut
 src/preload/index.ts       contextBridge → window.deck (DeckApi), window.deckErrors
 src/renderer/src/App.tsx   state → FocusPane + Grid; disposes terminals that left `open`
 src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/mode, buffering
 src/renderer/src/components/        FocusPane, Grid, Tile, PlusTile (+ menu), TermHost, StatusDot,
-                                    SpotifyTile, YouTubeTile (<webview>), useDropTarget (file drops)
+                                    WikiTile, YouTubeTile (<webview>), useDropTarget (file drops)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 scripts/smoke.mjs          the smoke test
 ```
@@ -59,9 +59,13 @@ scripts/smoke.mjs          the smoke test
 - **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
   tall (`Grid.tsx`, `.grid-col` in styles.css). Sessions with `attention` sort first, then slot
   order (`App.tsx`). The first empty cell is the `+`; at cap the `+` disappears.
-- **Plugins**: Spotify = the desktop app driven by AppleScript (the web player needs Widevine,
-  which Electron lacks); YouTube = a `<webview>` on partition `persist:youtube` (`webviewTag`
-  is on in `index.ts`). The renderer CSP whitelists `https://i.scdn.co` for artwork.
+- **Plugins**: Wikipedia = cards from the featured feed (picture of the day, featured article,
+  on this day, most read), only ones with an image, cycling every 20s; click opens the article
+  via `deck:openExternal` (http(s) only). YouTube = the bare embed player for the lofi stream in
+  a `<webview>` on partition `persist:youtube` (`webviewTag` is on in `index.ts`); play/pause and
+  mute drive the embed's `<video>` through `executeJavaScript`. The renderer CSP allows no
+  outbound requests (feeds are fetched in main) and whitelists only `*.wikimedia.org` images.
+  Spotify was tried and dropped: its web player needs Widevine, which Electron does not ship.
 - **File drops**: dragging files onto the focus pane or a tile pastes their shell-escaped paths
   into that session (a tile drop also focuses it). Paths come from `webUtils.getPathForFile`
   in the preload; the renderer never sees one otherwise.

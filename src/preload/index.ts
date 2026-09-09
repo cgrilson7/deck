@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckState, SpotifyState } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckState, WikiItem } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -25,13 +25,8 @@ const api: DeckApi = {
   bell: (id) => ipcRenderer.send('deck:bell', id),
   // Dropped File objects carry no path in an isolated renderer; the preload resolves it.
   pathForFile: (file) => webUtils.getPathForFile(file),
-  onSpotify: (cb) => {
-    const h = (_e: unknown, state: SpotifyState) => cb(state)
-    ipcRenderer.on('spotify:state', h)
-    void ipcRenderer.invoke('spotify:getState').then((s: SpotifyState) => cb(s))
-    return () => ipcRenderer.removeListener('spotify:state', h)
-  },
-  spotify: (cmd) => ipcRenderer.send('spotify:command', cmd)
+  wikiFeatured: () => ipcRenderer.invoke('wiki:featured') as Promise<WikiItem[]>,
+  openExternal: (url) => ipcRenderer.send('deck:openExternal', url)
 }
 
 contextBridge.exposeInMainWorld('deck', api)

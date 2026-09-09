@@ -56,25 +56,17 @@ export type DeckCommand =
   | { type: 'kill'; id: string }
   | { type: 'forget'; id: string }
 
-/** What the Spotify tile shows; polled from the desktop app over AppleScript. */
-export interface SpotifyState {
-  /** false = Spotify.app is not running. */
-  running: boolean
-  state: 'playing' | 'paused' | 'stopped'
-  track: string
-  artist: string
-  album: string
-  artworkUrl: string
-  /** seconds */
-  position: number
-  /** seconds */
-  duration: number
-  trackId: string
-  /** 0..100 */
-  volume: number
+/** One card in the Wikipedia tile, from the featured-content feed. */
+export interface WikiItem {
+  kind: 'potd' | 'tfa' | 'onthisday' | 'mostread'
+  /** Small label over the title: "picture of the day", "on this day · 1969", ... */
+  tag: string
+  title: string
+  summary: string
+  imageUrl: string
+  /** Opened in the browser on click. */
+  url: string
 }
-
-export type SpotifyCommand = 'playpause' | 'next' | 'previous' | 'open'
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -88,6 +80,7 @@ export interface DeckApi {
   bell(id: string): void
   /** Absolute path of a File dropped onto the window ('' if it has none). */
   pathForFile(file: File): string
-  onSpotify(cb: (state: SpotifyState) => void): () => void
-  spotify(cmd: SpotifyCommand): void
+  /** Today's Wikipedia featured content, only items that have an image. Cached in main. */
+  wikiFeatured(): Promise<WikiItem[]>
+  openExternal(url: string): void
 }
