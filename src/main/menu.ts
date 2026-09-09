@@ -1,10 +1,32 @@
 // App menu = the keyboard. Accelerators here fire even while an xterm has keyboard focus
 // (the renderer's xterm key handler declines these combos so they reach Electron).
 
-import { app, Menu, type MenuItemConstructorOptions } from 'electron'
-import { CAP, type DeckCommand } from '@shared/types'
+import { app, Menu, nativeTheme, type MenuItemConstructorOptions } from 'electron'
+import { CAP, type DeckCommand, type DeckSettings, type UiEvent } from '@shared/types'
+import { THEMES, type Appearance } from '@shared/themes'
 
-export function buildMenu(run: (cmd: DeckCommand) => void): void {
+export interface MenuHandlers {
+  run(cmd: DeckCommand): void
+  settings(): DeckSettings
+  patch(p: Partial<DeckSettings>): void
+  ui(ev: UiEvent): void
+}
+
+/** Rebuilt on every settings change so the checkmarks in View reflect the live values. */
+export function buildMenu({ run, settings, patch, ui }: MenuHandlers): void {
+  const s = settings()
+  const appearanceItem = (label: string, value: Appearance): MenuItemConstructorOptions => ({
+    label,
+    type: 'radio',
+    checked: s.appearance === value,
+    click: () => patch({ appearance: value })
+  })
+  const themeItems: MenuItemConstructorOptions[] = THEMES.map((t) => ({
+    label: t.name,
+    type: 'radio',
+    checked: s.theme === t.id,
+    click: () => patch({ theme: t.id })
+  }))
   const slotItems: MenuItemConstructorOptions[] = []
   for (let n = 1; n <= CAP; n++) {
     slotItems.push({ label: `Focus slot ${n}`, accelerator: `CmdOrCtrl+${n}`, click: () => run({ type: 'focus', slot: n }) })
@@ -13,7 +35,12 @@ export function buildMenu(run: (cmd: DeckCommand) => void): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
-      submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }]
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => ui({ type: 'openSettings' }) },
+        { type: 'separator' },
+        { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }]
     },
     {
       label: 'Session',
@@ -37,7 +64,30 @@ export function buildMenu(run: (cmd: DeckCommand) => void): void {
     },
     {
       label: 'View',
-      submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'togglefullscreen' }]
+      submenu: [
+        { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
+        { type: 'separator' },
+        { label: 'Theme', submenu: themeItems },
+        {
+          label: 'Appearance',
+          submenu: [appearanceItem('Follow System', 'system'), appearanceItem('Light', 'light'), appearanceItem('Dark', 'dark')]
+        },
+        {
+          label: 'Toggle Light / Dark',
+          accelerator: 'CmdOrCtrl+Shift+L',
+          click: () => {
+            const cur = settings().appearance
+            // From `system`, jump to the opposite of what is showing now.
+            const dark = cur === 'dark' || (cur === 'system' && nativeTheme.shouldUseDarkColors)
+            patch({ appearance: dark ? 'light' : 'dark' })
+          }
+        },
+        { type: 'separator' },
+        { label: 'Refresh UI (sessions keep running)', accelerator: 'CmdOrCtrl+R', click: () => run({ type: 'refreshUi' }) },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
     },
     { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }] }
   ]

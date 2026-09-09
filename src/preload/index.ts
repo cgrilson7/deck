@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckState, WikiItem } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, Lang, TranslateResult, UiEvent, VocabResult, VocabWord, WikiItem } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -24,9 +24,31 @@ const api: DeckApi = {
   setTitle: (id, title) => ipcRenderer.send('deck:setTitle', id, title),
   bell: (id) => ipcRenderer.send('deck:bell', id),
   // Dropped File objects carry no path in an isolated renderer; the preload resolves it.
-  pathForFile: (file) => webUtils.getPathForFile(file),
+  pathForFile: (file) => {
+    try {
+      return file instanceof File ? webUtils.getPathForFile(file) : ''
+    } catch {
+      return ''
+    }
+  },
   wikiFeatured: () => ipcRenderer.invoke('wiki:featured') as Promise<WikiItem[]>,
-  openExternal: (url) => ipcRenderer.send('deck:openExternal', url)
+  openExternal: (url) => ipcRenderer.send('deck:openExternal', url),
+  translate: (text: string, hint: Lang) => ipcRenderer.invoke('translate:run', text, hint) as Promise<TranslateResult>,
+  vocab: (word: string, hint: Lang, counterpart?: string) => ipcRenderer.invoke('vocab:lookup', word, hint, counterpart) as Promise<VocabResult>,
+  vocabWords: () => ipcRenderer.invoke('vocab:words') as Promise<VocabWord[]>,
+  getSettings: () => ipcRenderer.invoke('settings:get') as Promise<DeckSettings>,
+  setSettings: (patch) => ipcRenderer.invoke('settings:set', patch) as Promise<DeckSettings>,
+  onSettings: (cb) => {
+    const h = (_e: unknown, s: DeckSettings) => cb(s)
+    ipcRenderer.on('settings:changed', h)
+    return () => ipcRenderer.removeListener('settings:changed', h)
+  },
+  chooseDefaultCwd: () => ipcRenderer.invoke('settings:chooseDefaultCwd') as Promise<string>,
+  onUi: (cb) => {
+    const h = (_e: unknown, ev: UiEvent) => cb(ev)
+    ipcRenderer.on('deck:ui', h)
+    return () => ipcRenderer.removeListener('deck:ui', h)
+  }
 }
 
 contextBridge.exposeInMainWorld('deck', api)

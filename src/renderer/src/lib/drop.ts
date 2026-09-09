@@ -12,7 +12,12 @@ export function droppedPaths(dt: DataTransfer | null): string[] {
   if (!dt) return []
   const out: string[] = []
   for (const f of Array.from(dt.files)) {
-    const p = window.deck.pathForFile(f)
+    let p = ''
+    try {
+      p = window.deck.pathForFile(f)
+    } catch {
+      /* not a real file (an image dragged out of a page, say): skip it */
+    }
     if (p) out.push(p)
   }
   return out
@@ -24,10 +29,13 @@ export function hasFiles(dt: DataTransfer | null): boolean {
 
 /** Drop handler for a pane: writes the escaped paths (space-separated, trailing space) into the session. */
 export function dropFilesInto(id: string, ev: React.DragEvent): boolean {
+  // Always claim a file drop, even one we can't use: the default would navigate the window to it.
+  if (hasFiles(ev.dataTransfer)) {
+    ev.preventDefault()
+    ev.stopPropagation()
+  }
   const paths = droppedPaths(ev.dataTransfer)
   if (paths.length === 0) return false
-  ev.preventDefault()
-  ev.stopPropagation()
   pasteText(id, paths.map(shellEscapePath).join(' ') + ' ')
   return true
 }

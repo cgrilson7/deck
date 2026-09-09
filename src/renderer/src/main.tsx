@@ -1,6 +1,8 @@
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { writeData } from './lib/terminals'
+import { bootSettings } from './lib/theme'
+import { installFoxSheet } from './lib/fox'
 import './styles.css'
 
 // Subscribe to pty output before React mounts anything, so nothing is dropped:
@@ -11,4 +13,6 @@ window.deck.onPtyData(writeData)
 window.addEventListener('dragover', (e) => e.preventDefault())
 window.addEventListener('drop', (e) => e.preventDefault())
 
-createRoot(document.getElementById('root')!).render(<App />)
+// Theme (and the fox sheet) first, then paint: the CSS variables are set before the first frame.
+installFoxSheet()
+void bootSettings().then(() => createRoot(document.getElementById('root')!).render(<App />))

@@ -1,6 +1,6 @@
 # deck
 
-Seven Claude Code sessions in one window. One in focus on the left third, six streaming live in a grid on the right, and a row beneath them with Wikipedia's featured content and a lofi stream. Click a tile to swap it in. `+` starts a session.
+Seven Claude Code sessions in one window. One in focus on the left third, six streaming live in a grid on the right, and a row beneath them with Wikipedia's featured content and a lofi stream. The last two grid cells are a Spanish vocabulary builder (a new SAT-level word every 30s, paired with the SAT word it translates and defined in both languages at once from Wiktionary, with synonyms and etymology) and an English ⇄ Spanish translator. Click a tile to swap it in. `+` starts a session.
 
 ## Requirements
 
@@ -27,7 +27,13 @@ npm run dev
 Sessions run inside tmux on a private socket, so quitting deck never kills a conversation. Optional settings live in `~/Library/Application Support/deck/config.json`:
 
 ```json
-{ "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }
+{ "theme": "cream", "appearance": "system", "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }
 ```
 
 See `CLAUDE.md` for how it works inside.
+
+## Data credits
+
+- Vocabulary word list: Spanish lemmas and glosses from [doozan/spanish_data](https://github.com/doozan/spanish_data) (`es-en.data`, English Wiktionary's Spanish entries, CC BY-SA; `frequency.csv`, CC-BY-4.0, built on [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords), OpenSubtitles 2018), matched against the SAT lists in [lrojas94/SAT-Words](https://github.com/lrojas94/SAT-Words) (freevocabulary.com, majortests.com) and filtered with [first20hours/google-10000-english](https://github.com/first20hours/google-10000-english).
+- The fox: ["2D Pixel Art Fox Sprites" by Elthen](https://elthen.itch.io/2d-pixel-art-fox-sprites), the sheet slay's Village uses; it stands in for Claude Code's banner mascot and keeps the empty focus pane company.
+- Definitions, synonyms, etymology: [Wiktionary](https://www.wiktionary.org) (CC BY-SA) via [kaikki.org](https://kaikki.org) exports; extra English synonyms from [Datamuse](https://www.datamuse.com/api/).

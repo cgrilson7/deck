@@ -6,37 +6,40 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
-import { CAP } from '@shared/types'
+import { CAP, DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
+import { themeById, type TermPalette } from '@shared/themes'
+import { watchClaudeBanner } from './fox'
 
 export type Mode = 'focus' | 'tile'
 
-export const FONT_SIZE: Record<Mode, number> = { focus: 13, tile: 9 }
-export const FONT_FAMILY = "'SF Mono', Menlo, Monaco, 'Courier New', monospace"
+/** Live terminal preferences: settings + the current theme's palette. Applied to every xterm. */
+const prefs = {
+  fontSize: { focus: DEFAULT_SETTINGS.focusFontSize, tile: DEFAULT_SETTINGS.tileFontSize } as Record<Mode, number>,
+  fontFamily: DEFAULT_SETTINGS.fontFamily,
+  cursorBlink: DEFAULT_SETTINGS.cursorBlink,
+  cursorStyle: DEFAULT_SETTINGS.cursorStyle,
+  scrollback: DEFAULT_SETTINGS.scrollback,
+  // Palette background MUST equal --panel (themes.ts guarantees it) or tiles show a seam.
+  theme: themeById(DEFAULT_SETTINGS.theme).light.term as TermPalette
+}
 
-// Cream light theme to match Claude Code's light TUI. Change here only.
-export const THEME = {
-  background: '#f7f3ea',
-  foreground: '#2b2a26',
-  cursor: '#c8552d',
-  cursorAccent: '#f7f3ea',
-  selectionBackground: '#d8cfb8',
-  selectionForeground: '#2b2a26',
-  black: '#2b2a26',
-  red: '#c8552d',
-  green: '#4f7d3a',
-  yellow: '#b5831c',
-  blue: '#3a6ea8',
-  magenta: '#8d5a9e',
-  cyan: '#2f7f87',
-  white: '#d9d2c2',
-  brightBlack: '#7a766c',
-  brightRed: '#e0623a',
-  brightGreen: '#5f9648',
-  brightYellow: '#cf9a2a',
-  brightBlue: '#4a83c4',
-  brightMagenta: '#a56cb8',
-  brightCyan: '#3a9aa3',
-  brightWhite: '#faf7f0'
+/** Push settings + palette into the prefs and every live terminal (fonts refit afterwards). */
+export function applyTerminalSettings(s: DeckSettings, palette: TermPalette): void {
+  prefs.fontSize = { focus: s.focusFontSize, tile: s.tileFontSize }
+  prefs.fontFamily = s.fontFamily
+  prefs.cursorBlink = s.cursorBlink
+  prefs.cursorStyle = s.cursorStyle
+  prefs.scrollback = s.scrollback
+  prefs.theme = palette
+  for (const [id, e] of entries) {
+    e.term.options.theme = palette
+    e.term.options.fontFamily = s.fontFamily
+    e.term.options.cursorBlink = s.cursorBlink
+    e.term.options.cursorStyle = s.cursorStyle
+    e.term.options.scrollback = s.scrollback
+    if (e.mode) e.term.options.fontSize = prefs.fontSize[e.mode]
+    refit(id)
+  }
 }
 
 interface Entry {
@@ -46,6 +49,7 @@ interface Entry {
   webgl: WebglAddon | null
   mode: Mode | null
   host: HTMLElement | null
+  fox: { dispose(): void } // Foxtrot over the Claude Code banner (lib/fox.ts)
 }
 
 const entries = new Map<string, Entry>()
@@ -68,7 +72,7 @@ function isDeckShortcut(ev: KeyboardEvent): boolean {
   if (/^[1-9]$/.test(k) && Number(k) <= CAP) return true
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
-  return l === 'n' || l === 'w' || l === 'o' || l === 'q'
+  return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || k === ','
 }
 
 export function ensureTerminal(id: string): Entry {
@@ -80,12 +84,12 @@ export function ensureTerminal(id: string): Entry {
   stagingEl().appendChild(el)
 
   const term = new Terminal({
-    fontSize: FONT_SIZE.tile,
-    fontFamily: FONT_FAMILY,
-    theme: THEME,
-    cursorBlink: true,
-    cursorStyle: 'bar',
-    scrollback: 5000,
+    fontSize: prefs.fontSize.tile,
+    fontFamily: prefs.fontFamily,
+    theme: prefs.theme,
+    cursorBlink: prefs.cursorBlink,
+    cursorStyle: prefs.cursorStyle,
+    scrollback: prefs.scrollback,
     allowProposedApi: true,
     macOptionIsMeta: false,
     allowTransparency: false
@@ -101,7 +105,7 @@ export function ensureTerminal(id: string): Entry {
   term.onBell(() => window.deck.bell(id))
   term.attachCustomKeyEventHandler((ev) => !(ev.metaKey && isDeckShortcut(ev)))
 
-  const entry: Entry = { term, fit, el, webgl: null, mode: null, host: null }
+  const entry: Entry = { term, fit, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term) }
   entries.set(id, entry)
 
   const buf = pending.get(id)
@@ -135,7 +139,7 @@ export function mount(id: string, host: HTMLElement, mode: Mode): void {
 
 function applyMode(e: Entry, mode: Mode): void {
   e.mode = mode
-  e.term.options.fontSize = FONT_SIZE[mode]
+  e.term.options.fontSize = prefs.fontSize[mode]
   if (mode === 'focus') {
     if (!e.webgl) {
       try {
@@ -192,6 +196,7 @@ export function unmount(id: string, host: HTMLElement): void {
 export function dispose(id: string): void {
   const e = entries.get(id)
   if (e) {
+    e.fox.dispose()
     e.webgl?.dispose()
     e.term.dispose()
     e.el.remove()

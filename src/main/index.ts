@@ -1,14 +1,18 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand } from '@shared/types'
+import type { DeckCommand, DeckSettings, Lang, UiEvent } from '@shared/types'
+import { CAP } from '@shared/types'
+import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
 import { HooksServer } from './hooks'
 import { buildMenu } from './menu'
 import { SessionManager } from './sessions'
+import { SettingsStore } from './settings'
 import { Tmux } from './tmux'
+import { translate } from './translate'
+import { lookupVocab } from './dictionary'
+import { vocabWords } from './vocabwords'
 import { wikiFeatured } from './wiki'
 import { setupYoutubeSession } from './youtube'
 
@@ -24,27 +28,17 @@ if (!app.requestSingleInstanceLock({ profile })) {
   app.quit()
 }
 
-interface Config {
-  gridColumns: number
-  defaultCwd: string
-}
-
-function loadConfig(userData: string): Config {
-  const defaults: Config = { gridColumns: 2, defaultCwd: homedir() }
-  const p = join(userData, 'config.json')
-  if (!existsSync(p)) return defaults
-  try {
-    return { ...defaults, ...(JSON.parse(readFileSync(p, 'utf8')) as Partial<Config>) }
-  } catch {
-    return defaults
-  }
-}
-
 let win: BrowserWindow | null = null
 let manager: SessionManager | null = null
+let settings: SettingsStore | null = null
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+}
+
+/** Window background = the live theme's gutter color, so resizes and boot never flash. */
+function windowBackground(s: DeckSettings): string {
+  return resolveVariant(s.theme, s.appearance, nativeTheme.shouldUseDarkColors).bg
 }
 
 function createWindow(): void {
@@ -56,7 +50,7 @@ function createWindow(): void {
     title: 'Deck',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
-    backgroundColor: '#efe9dc',
+    backgroundColor: windowBackground(settings!.get()),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -74,6 +68,13 @@ function createWindow(): void {
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+/** Reload the renderer, then reattach the ptys once it is listening again so every terminal repaints. */
+function refreshUi(): void {
+  if (!win || win.isDestroyed()) return
+  win.webContents.once('did-finish-load', () => manager?.reattachAll())
+  win.webContents.reload()
 }
 
 async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -112,6 +113,9 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
       case 'forget':
         manager.forget(cmd.id)
         break
+      case 'refreshUi':
+        refreshUi()
+        break
     }
     return { ok: true }
   } catch (err) {
@@ -121,10 +125,28 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
   }
 }
 
+function menuHandlers() {
+  return {
+    run: (cmd: DeckCommand) => void runCommand(cmd),
+    settings: () => settings!.get(),
+    patch: (p: Partial<DeckSettings>) => void settings!.update(p),
+    ui: (ev: UiEvent) => send('deck:ui', ev)
+  }
+}
+
 app.whenReady().then(async () => {
   const env = shellEnv()
   const userData = app.getPath('userData')
-  const config = loadConfig(userData)
+  settings = new SettingsStore(userData)
+  // Drives the traffic lights / native dialogs, and what `system` resolves to in the renderer.
+  nativeTheme.themeSource = settings.get().appearance
+  settings.onChange((s) => {
+    nativeTheme.themeSource = s.appearance
+    win?.setBackgroundColor(windowBackground(s))
+    send('settings:changed', s)
+    buildMenu(menuHandlers())
+  })
+  nativeTheme.on('updated', () => settings && win?.setBackgroundColor(windowBackground(settings.get())))
   const tmux = new Tmux(profile, join(app.getAppPath(), 'tmux.conf'), env)
 
   const hooks = new HooksServer(HOOK_PORT, userData, (event, payload) => manager?.onHook(event, payload))
@@ -136,8 +158,15 @@ app.whenReady().then(async () => {
     userDataDir: userData,
     hooksSettingsPath: hooks.settingsPath,
     profile,
-    gridColumns: config.gridColumns,
-    defaultCwd: config.defaultCwd,
+    defaults: () => {
+      const s = settings!.get()
+      return { cwd: s.defaultCwd, worktree: s.worktreeByDefault }
+    },
+    // The vocabulary and translator tiles each take a grid cell, so each costs a session slot while shown.
+    cap: () => {
+      const s = settings!.get()
+      return CAP - Number(s.showTranslate) - Number(s.showVocab)
+    },
     events: {
       state: (state) => send('deck:state', state),
       data: (id, data) => send('pty:data', id, data),
@@ -152,13 +181,24 @@ app.whenReady().then(async () => {
   ipcMain.on('deck:setTitle', (_e, id: string, title: string) => manager?.setTitle(id, title))
   ipcMain.on('deck:bell', (_e, id: string) => manager?.bell(id))
 
+  ipcMain.handle('settings:get', () => settings!.get())
+  ipcMain.handle('settings:set', (_e, patch: Partial<DeckSettings>) => settings!.update(patch ?? {}))
+  ipcMain.handle('settings:chooseDefaultCwd', async () => {
+    const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'], title: 'Default folder for new sessions' })
+    return r.canceled || r.filePaths.length === 0 ? '' : r.filePaths[0]
+  })
+
   ipcMain.handle('wiki:featured', () => wikiFeatured())
+  const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
+  ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
+  ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
+  ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env))
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
 
   setupYoutubeSession()
-  buildMenu((cmd) => void runCommand(cmd))
+  buildMenu(menuHandlers())
   createWindow()
   await manager.init()
 

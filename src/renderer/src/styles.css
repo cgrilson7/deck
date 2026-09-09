@@ -1,6 +1,8 @@
 :root {
+  /* Defaults = Cream light. Every value below is overwritten from shared/themes.ts at boot
+     (lib/theme.ts); --panel always equals the xterm background or tiles show a seam. */
   --bg: #efe9dc;
-  --panel: #f7f3ea; /* must equal THEME.background in lib/terminals.ts */
+  --panel: #f7f3ea;
   --ink: #2b2a26;
   --muted: #7a766c;
   --line: #d9d2c2;
@@ -59,12 +61,127 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 14px 0 84px;
+  padding: 0 10px 0 84px;
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
+  position: relative;
+  z-index: 5;
 }
-.topbar button {
+.topbar button,
+.topbar .popover {
   -webkit-app-region: no-drag;
+}
+.bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  transition: background 100ms ease, color 100ms ease;
+}
+.bar-btn:hover,
+.bar-btn.on {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.bar-btn.icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.theme-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+  z-index: 10;
+}
+.theme-pop {
+  width: 240px;
+}
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  text-align: left;
+}
+.theme-row:hover {
+  background: var(--bg);
+}
+.theme-row.on {
+  color: var(--accent);
+}
+.theme-row .name {
+  flex: 1;
+  color: var(--ink);
+}
+.swatches {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+.swatches i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+.seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.seg:hover {
+  color: var(--ink);
+}
+.seg.on {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 .wordmark {
   font-weight: 700;
@@ -97,7 +214,7 @@ button {
   color: var(--muted);
 }
 
-/* ---- layout: focus column = first third, grid = the rest ---- */
+/* ---- layout: focus column (width from settings, default a third), grid = the rest ---- */
 .main {
   flex: 1;
   min-height: 0;
@@ -142,11 +259,12 @@ button {
   min-height: 0;
   min-width: 0;
 }
-/* Plugin row: one grid row tall, split in two. */
+/* Plugin row: one grid row tall, split between whichever plugins are on. */
 .plugins {
   flex: 1 1 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   min-height: 0;
   min-width: 0;
@@ -167,7 +285,7 @@ button {
 .focus.drop-over {
   border-color: var(--accent);
   border-style: dashed;
-  box-shadow: 0 0 0 1px var(--accent), inset 0 0 0 999px rgba(200, 85, 45, 0.06);
+  box-shadow: 0 0 0 1px var(--accent), inset 0 0 0 999px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .tile-blank {
   background: transparent;
@@ -266,7 +384,7 @@ button {
   border: 1.5px solid var(--idle);
 }
 .dot-attention {
-  box-shadow: 0 0 0 3px rgba(211, 64, 42, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blocked) 25%, transparent);
 }
 @keyframes pulse {
   0%,
@@ -560,4 +678,419 @@ button {
 }
 .wiki-nav button:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---- compact mode: tighter chrome, plugin row hidden (Grid.tsx) ---- */
+.app.compact .topbar {
+  height: 34px;
+}
+.app.compact .main {
+  gap: 5px;
+  padding: 5px;
+}
+.app.compact .grid-col,
+.app.compact .grid {
+  gap: 5px;
+}
+.app.compact .pane-head {
+  padding: 3px 8px;
+}
+.app.compact .termhost {
+  padding: 4px 3px 3px 6px;
+}
+
+/* ---- translator: two stacked boxes, English over Spanish, a thin strip between ---- */
+.translate {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+  cursor: default;
+  user-select: text;
+}
+.xl-box {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  border: 1px solid transparent;
+  transition: border-color 120ms ease;
+}
+.xl-box:focus-within {
+  border-color: var(--accent);
+}
+.xl-box.dirty {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.xl-lang {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.xl-box textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 15px/1.35 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+}
+.xl-box textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+.xl-mid {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+  min-height: 18px;
+}
+.xl-status {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.xl-status.err {
+  color: var(--blocked);
+  white-space: normal;
+  line-height: 1.2;
+}
+.xl-reset {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.xl-reset:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ---- vocabulary builder: search + transport on top, one merged bilingual card, a countdown line ---- */
+.vocab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 8px 10px;
+  gap: 6px;
+  cursor: default;
+  user-select: text;
+}
+.vb-search {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  border: 1px solid transparent;
+}
+.vb-search:focus-within {
+  border-color: var(--accent);
+}
+.vb-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 12px/1.3 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+}
+.vb-search input::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+.vb-nav {
+  display: flex;
+  gap: 2px;
+}
+.vb-nav button {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.vb-nav button:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.vb-err {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--blocked);
+  padding: 0 4px;
+}
+.vb-card {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+  transition: opacity 150ms ease;
+}
+.vb-card.busy {
+  opacity: 0.55;
+}
+.vb-head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.vb-headword {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.vb-dot {
+  color: var(--muted);
+}
+.vb-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--ink);
+}
+.vb-word.plain {
+  font-weight: 600;
+  color: var(--accent);
+  cursor: default;
+}
+.vb-word svg {
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.vb-word:hover {
+  color: var(--accent);
+}
+.vb-word:hover svg {
+  opacity: 1;
+}
+.vb-ipa,
+.vb-formof {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vb-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink);
+  padding-right: 2px;
+}
+.vb-body p {
+  margin: 0 0 4px;
+}
+.vb-posline {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vb-defs {
+  margin: 0 0 4px;
+  padding-left: 18px;
+}
+.vb-defs li {
+  margin: 0 0 1px;
+}
+.vb-defs li::marker {
+  color: var(--muted);
+  font-size: 10px;
+}
+.vb-example {
+  color: color-mix(in srgb, var(--ink) 80%, var(--muted));
+  font-style: italic;
+}
+.vb-extrans {
+  font-style: normal;
+  color: var(--muted);
+}
+.vb-pos {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-right: 6px;
+}
+.vb-syn,
+.vb-etym {
+  color: color-mix(in srgb, var(--ink) 75%, var(--muted));
+}
+.vb-etym {
+  font-size: 11px;
+}
+/* The countdown: a hairline along the bottom that drains over one cycle. */
+.vb-timer {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  opacity: 0.5;
+  transform-origin: left;
+  animation: vb-drain linear forwards;
+}
+.vb-timer.paused {
+  animation-play-state: paused;
+  opacity: 0.2;
+}
+@keyframes vb-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ── Foxtrot (lib/fox.ts) ─────────────────────────────────────────────────────
+   The element is the ART box of one frame (22×18 sheet px × --fox-scale); the
+   sheet is offset so the frame's empty top and left margins fall outside it.
+   The animation steps background-position-x one 32px frame at a time. */
+.fox {
+  --fox-scale: 2;
+  --fox-row: 0;
+  --fox-frames: 5;
+  --fox-ms: 1400ms;
+  --fox-px: calc(32px * var(--fox-scale));
+  width: calc(22px * var(--fox-scale));
+  height: calc(18px * var(--fox-scale));
+  flex-shrink: 0;
+  background-image: var(--fox-sheet);
+  background-repeat: no-repeat;
+  background-size: calc(14 * var(--fox-px)) calc(7 * var(--fox-px));
+  background-position: calc(-4px * var(--fox-scale)) calc((var(--fox-row) * -32px - 14px) * var(--fox-scale));
+  image-rendering: pixelated;
+  animation: fox-cycle var(--fox-ms) steps(var(--fox-frames)) infinite;
+  pointer-events: none;
+}
+@keyframes fox-cycle {
+  from {
+    background-position-x: calc(-4px * var(--fox-scale));
+  }
+  to {
+    background-position-x: calc((-4px - 32px * var(--fox-frames)) * var(--fox-scale));
+  }
+}
+.fox-idle {
+  --fox-row: 0;
+  --fox-frames: 5;
+  --fox-ms: 1400ms;
+}
+.fox-look {
+  --fox-row: 1;
+  --fox-frames: 14;
+  --fox-ms: 3200ms;
+}
+.fox-run {
+  --fox-row: 2;
+  --fox-frames: 8;
+  --fox-ms: 550ms;
+}
+.fox-leap {
+  --fox-row: 3;
+  --fox-frames: 11;
+  --fox-ms: 750ms;
+}
+.fox-alert {
+  --fox-row: 4;
+  --fox-frames: 5;
+  --fox-ms: 900ms;
+}
+.fox-sleep {
+  --fox-row: 5;
+  --fox-frames: 6;
+  --fox-ms: 2000ms;
+}
+.fox-down {
+  /* one-shot: 6 jumps land on the 7th frame and hold there */
+  --fox-row: 6;
+  --fox-frames: 6;
+  --fox-ms: 1000ms;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fox {
+    animation: none;
+  }
+}
+
+/* The banner cover: an xterm decoration over Claude Code's mascot cells (3 rows
+   from column 0), painted in the terminal background with the fox standing on
+   its last row. Pose follows the pane's status classes. */
+.fox-cover {
+  background: var(--panel);
+  pointer-events: none;
+}
+.fox-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  --fox-row: 0;
+  --fox-frames: 5;
+  --fox-ms: 1400ms;
+}
+.status-busy .fox-banner {
+  --fox-row: 2;
+  --fox-frames: 8;
+  --fox-ms: 550ms;
+}
+.status-idle .fox-banner {
+  --fox-row: 5;
+  --fox-frames: 6;
+  --fox-ms: 2000ms;
+}
+.status-blocked .fox-banner,
+.attention .fox-banner {
+  --fox-row: 4;
+  --fox-frames: 5;
+  --fox-ms: 900ms;
+}
+.status-dead .fox-banner {
+  --fox-row: 6;
+  --fox-frames: 6;
+  --fox-ms: 1000ms;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
 }

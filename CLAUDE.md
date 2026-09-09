@@ -41,14 +41,24 @@ src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
 src/main/wiki.ts           fetches today's Wikipedia featured-content feed (cached 1h) for the tile
+src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
+src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
+src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
+scripts/lemmas.py          regenerates data/esLemmas.ts from doozan/spanish_data frequency.csv
 src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
+src/main/settings.ts       SettingsStore: userData/config.json merged over DEFAULT_SETTINGS, sanitized, broadcast
+src/shared/themes.ts       theme families (light + dark variant each): CSS chrome colors + xterm palette
 src/main/env.ts            resolves the login-shell env so claude/tmux are found from Finder
 src/main/menu.ts           app menu = every keyboard shortcut
 src/preload/index.ts       contextBridge → window.deck (DeckApi), window.deckErrors
 src/renderer/src/App.tsx   state → FocusPane + Grid; disposes terminals that left `open`
 src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/mode, buffering
+src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
+src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
+src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/components/        FocusPane, Grid, Tile, PlusTile (+ menu), TermHost, StatusDot,
-                                    WikiTile, YouTubeTile (<webview>), useDropTarget (file drops)
+                                    WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 scripts/smoke.mjs          the smoke test
 ```
@@ -57,6 +67,9 @@ scripts/smoke.mjs          the smoke test
 
 - **Cap = 7** (`CAP` in `src/shared/types.ts`). Slots 1..7 are sticky while open: a session keeps its
   number until parked/killed; a new session takes the lowest free slot. ⌘1–7 = focus slot.
+  The live cap is `SessionManagerOptions.cap()` = CAP minus one per grid-cell plugin tile that
+  is on (`showVocab`, `showTranslate`; both on by default, so 5). Turning one on with every
+  slot open leaves the top slot open (and the grid a cell over) until that session is parked.
   A saved record whose slot is above the cap is parked on load.
 - **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
   tall (`Grid.tsx`, `.grid-col` in styles.css). Sessions with `attention` sort first, then slot
@@ -69,6 +82,52 @@ scripts/smoke.mjs          the smoke test
   `<video>` element (the player re-applies its own mute state to it). The renderer CSP allows no
   outbound requests (feeds are fetched in main) and whitelists only `*.wikimedia.org` images.
   Spotify was tried and dropped: its web player needs Widevine, which Electron does not ship.
+- **Translator** (`TranslateTile`, last grid cell): languagelog (~/languagelog) boiled down to two
+  boxes, English over Spanish. Typing into either box translates after a 700ms pause or ⏎ (⇧⏎ =
+  newline); the API's detected language decides which box the text belongs in, so Spanish typed
+  into the English box is moved down and its English put on top. Reset / Esc / 5 idle minutes
+  empty both boxes; the last pair stays as placeholders (localStorage). Backend is Google Cloud
+  Translation v2 in `main/translate.ts` (one call, a second only when the text was already in
+  the target language), keyed by `translateApiKey` in config.json, else `$GOOGLE_CLOUD_API_KEY`.
+  A finished translation is announced on `lib/bus.ts`.
+- **Vocabulary builder** (`VocabTile`, the cell left of the translator): a new Spanish word every
+  `vocabCycleSeconds` (30), shown as ONE merged bilingual entry: both headwords with IPA, then
+  the English and Spanish definitions interleaved, synonyms interleaved, etymologies run
+  together, one example sentence. Redundancy is deliberate. ‹ › step, ⏸ holds (persisted), the
+  search line or a one-or-two-word translation next door shows that word now and restarts the
+  clock. Supply (`main/vocabwords.ts`): `data/esLemmas.ts`, ~3000 SAT-level Spanish content
+  words: every lemma in English Wiktionary's Spanish entries (doozan/spanish_data `es-en.data`)
+  whose gloss is an SAT word (freevocabulary.com's 5000 minus everyday English per
+  google-10000-english, plus majortests.com's list), attested in doozan's subtitle frequency
+  list at content-word rank 4000+, ordered by that rank; each row carries the SAT word it
+  matched, which the tile passes to the lookup as the English headword ("perspicaz" ↔
+  "perspicacious", not the translator's "insightful"). Regenerate with `scripts/lemmas.py`
+  (its docstring lists the downloads). Plus the Spanish side of every ≤3-word row in
+  languagelog's SQLite file (`languagelogDb`, read with the `sqlite3` CLI, read-only; missing
+  = skipped). The renderer keeps a shuffled queue in localStorage (every word once per pass;
+  your own words first, then list order blurred: position × 0.5–1.5; queued words the supply
+  no longer has are dropped on load) and prefetches the next word.
+  Definitions come from `main/dictionary.ts`: Wiktionary via kaikki.org's per-word JSONL
+  exports (`/dictionary/English|Spanish/meaning/<c>/<cc>/<word>.jsonl`, case-sensitive, so it
+  retries lowercased) for English glosses, IPA, etymology (the "Etymology tree" preamble is
+  stripped), examples and sense synonyms of both languages; Spanish Wiktionary
+  (`/eswiktionary/Español/...`) for Spanish-language definitions and fuller Spanish synonyms;
+  Datamuse (`rel_syn`, WordNet-based, no key) tops up English synonyms. The counterpart word
+  comes from the translator when a key is set, else whichever Wiktionary has the word. Pure
+  inflections ("corría") are followed to their lemma (one hop) and the lemma is what gets
+  translated. Results are cached in main.
+- **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
+  "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
+  `src/renderer/src/assets/fox.png`; recolors are fine in-product, don't ship it standalone). Used
+  sparingly, two places only: the empty focus pane, and over Claude Code's startup banner, where it
+  REPLACES the CLI's pixel mascot. The CLI is untouched: `watchClaudeBanner` scans the viewport on
+  every xterm render for the banner's first two rows (`▐▛█…` / `▝▜█…`), registers a marker + decoration
+  (3 rows × the logo width) that xterm scrolls, hides and disposes with the line, paints it `--panel`,
+  and stands the fox on it. The pose follows the pane's classes: busy runs, idle sleeps, blocked /
+  attention sits up alert, dead lies down, else the tail wags. `.fox` elements are the ART box of a
+  frame (22×18 sheet px × `--fox-scale`), animated by stepping `background-position-x` one frame
+  (32px × scale) at a time; row / frame count / duration are CSS variables (`.fox-idle`, `.fox-run`,
+  …); the sheet is a `--fox-sheet` data: URL set at boot (`installFoxSheet`, CSP allows `img-src data:`).
 - **File drops**: dragging files onto the focus pane or a tile pastes their shell-escaped paths
   into that session (a tile drop also focuses it). Paths come from `webUtils.getPathForFile`
   in the preload; the renderer never sees one otherwise.
@@ -91,8 +150,17 @@ scripts/smoke.mjs          the smoke test
   Two profiles never see each other's sessions, so a Claude session working ON deck can run
   `npm run dev` without colliding with the instance it is running inside.
 - **Renderer**: grid tiles use xterm's DOM renderer; only the focus pane loads the WebGL addon
-  (Chrome caps live WebGL contexts). Tile fonts 9px, focus 13px (`FONT_SIZE` in terminals.ts).
-  `THEME.background` must equal `--panel` in styles.css or tiles show a seam.
+  (Chrome caps live WebGL contexts). Fonts, cursor and scrollback come from settings
+  (`applyTerminalSettings` in terminals.ts).
+- **Themes**: `shared/themes.ts` is the catalog; every family has a light and a dark variant and
+  `appearance` (light / dark / system) picks one. The renderer writes the variant's colors into
+  CSS variables on `<html>` and the palette into every xterm (`lib/theme.ts`); main uses the same
+  resolver for the window background and `nativeTheme.themeSource`. A variant's `panel` IS the
+  xterm background (`variant()` enforces it) or tiles show a seam. Never hard-code a color in
+  styles.css; use the variables (`color-mix` for tints).
+- **Refresh UI** (⌘R, top bar): reloads the renderer, then main kills every pty client so
+  `handlePtyExit` reattaches and tmux repaints. Sessions and conversations are untouched; a plain
+  reload without the reattach leaves the terminals blank until something redraws.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
   decline them). Add to both.
 
@@ -101,7 +169,9 @@ scripts/smoke.mjs          the smoke test
 `~/Library/Application Support/<profile>/`
 - `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot`
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
-- `config.json` (optional) — `{ "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }`
+- `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
+  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate…);
+  written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the
 size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.

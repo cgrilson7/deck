@@ -1,6 +1,7 @@
 import type { SessionView } from '@shared/types'
 import { StatusDot } from './StatusDot'
 import { TermHost } from './TermHost'
+import { Fox } from './Fox'
 import { shortPath } from '../lib/format'
 import { useDropTarget } from './useDropTarget'
 
@@ -8,6 +9,7 @@ export function FocusPane({ session }: { session: SessionView | null }) {
   if (!session) {
     return (
       <section className="focus focus-empty">
+        <Fox anim="idle" scale={3} />
         <button className="plus plus-big" onClick={(e) => window.deck.command({ type: 'new', worktree: e.altKey })} title="New session (⌘N) · ⌥-click for a worktree">
           +
         </button>

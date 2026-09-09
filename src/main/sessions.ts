@@ -6,7 +6,7 @@ import * as pty from 'node-pty'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CAP, type DeckState, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
+import { type DeckState, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
 import type { FleetEntry } from './fleet'
 import type { HookEvent, HookPayload } from './hooks'
 import { Tmux, shq } from './tmux'
@@ -18,6 +18,9 @@ interface Runtime {
   title: string
   pty?: pty.IPty
   userDetached: boolean
+  /** Last size the renderer asked for, so a reattach starts at the right size. */
+  cols?: number
+  rows?: number
 }
 
 export interface SessionEvents {
@@ -32,8 +35,10 @@ export interface SessionManagerOptions {
   userDataDir: string
   hooksSettingsPath: string
   profile: string
-  gridColumns: number
-  defaultCwd: string
+  /** Live settings: where a new session starts when nothing is focused, and the --worktree default. */
+  defaults: () => { cwd: string; worktree: boolean }
+  /** Live slot cap: CAP, minus one per plugin tile (vocabulary, translator) occupying a grid cell. */
+  cap: () => number
   events: SessionEvents
 }
 
@@ -60,7 +65,7 @@ export class SessionManager {
     for (const rec of this.records) {
       const alive = await this.o.tmux.hasSession(rec.tmuxName)
       this.rt.set(rec.id, { status: alive ? 'unknown' : 'idle', attention: false, tmuxAlive: alive, title: '', userDetached: false })
-      if (rec.slot !== null && rec.slot > CAP) rec.slot = null // cap shrank since this was saved
+      if (rec.slot !== null && rec.slot > this.o.cap()) rec.slot = null // cap shrank since this was saved
       if (rec.slot !== null) {
         if (alive) this.attach(rec.id)
         else rec.slot = null // tmux server gone (reboot); parked, resumable via --resume
@@ -69,6 +74,18 @@ export class SessionManager {
     this.ensureFocus()
     this.save()
     this.broadcast()
+  }
+
+  /**
+   * Refresh: kill every pty client; handlePtyExit sees the tmux session alive and not
+   * user-detached, and attaches a fresh one, which makes tmux repaint the whole screen.
+   * Nothing inside tmux notices.
+   */
+  reattachAll(): void {
+    for (const rec of this.records) {
+      const r = this.rt.get(rec.id)
+      if (rec.slot !== null && r?.pty) r.pty.kill()
+    }
   }
 
   /** App is quitting: drop the pty clients but keep slots, so relaunch reattaches in place. */
@@ -82,10 +99,11 @@ export class SessionManager {
 
   async newSession(opts: { cwd?: string; worktree?: boolean }): Promise<SessionRecord> {
     const slot = this.freeSlot()
-    if (slot === null) throw new Error(`All ${CAP} slots are open. Close one first.`)
-    const cwd = opts.cwd ?? this.focusedCwd() ?? this.o.defaultCwd
+    if (slot === null) throw new Error(`All ${this.o.cap()} slots are open. Close one first.`)
+    const defaults = this.o.defaults()
+    const cwd = opts.cwd ?? this.focusedCwd() ?? defaults.cwd
     if (!existsSync(cwd)) throw new Error(`Folder does not exist: ${cwd}`)
-    const worktree = !!opts.worktree
+    const worktree = opts.worktree ?? defaults.worktree
     const id = randomBytes(3).toString('hex')
     const rec: SessionRecord = {
       id,
@@ -118,7 +136,7 @@ export class SessionManager {
       return
     }
     const slot = this.freeSlot()
-    if (slot === null) throw new Error(`All ${CAP} slots are open. Close one first.`)
+    if (slot === null) throw new Error(`All ${this.o.cap()} slots are open. Close one first.`)
     r.tmuxAlive = await this.o.tmux.hasSession(rec.tmuxName)
     if (!r.tmuxAlive) {
       if (!existsSync(rec.cwd)) throw new Error(`Folder no longer exists: ${rec.cwd}`)
@@ -207,6 +225,8 @@ export class SessionManager {
   resize(id: string, cols: number, rows: number): void {
     const r = this.rt.get(id)
     if (!r?.pty || cols < 2 || rows < 2) return
+    r.cols = cols
+    r.rows = rows
     try {
       r.pty.resize(cols, rows)
     } catch {
@@ -305,11 +325,10 @@ export class SessionManager {
       }
     })
     return {
-      cap: CAP,
+      cap: this.o.cap(),
       focusSlot: this.focusSlot,
       open: views.filter((v) => v.slot !== null).sort((a, b) => a.slot! - b.slot!),
       parked: views.filter((v) => v.slot === null).sort((a, b) => b.createdAt - a.createdAt),
-      gridColumns: this.o.gridColumns,
       profile: this.o.profile
     }
   }
@@ -328,8 +347,8 @@ export class SessionManager {
     r.userDetached = false
     const p = pty.spawn('tmux', [...this.o.tmux.cliPrefix, 'attach-session', '-t', rec.tmuxName], {
       name: 'xterm-256color',
-      cols: SPAWN_COLS,
-      rows: SPAWN_ROWS,
+      cols: r.cols ?? SPAWN_COLS,
+      rows: r.rows ?? SPAWN_ROWS,
       cwd: this.o.env.HOME ?? '/',
       env: this.o.env as Record<string, string>
     })
@@ -390,7 +409,7 @@ export class SessionManager {
 
   private freeSlot(): number | null {
     const used = new Set(this.records.map((r) => r.slot))
-    for (let n = 1; n <= CAP; n++) if (!used.has(n)) return n
+    for (let n = 1; n <= this.o.cap(); n++) if (!used.has(n)) return n
     return null
   }
 
