@@ -1,5 +1,5 @@
 import type { SessionView } from '@shared/types'
-import { StatusDot } from './StatusDot'
+import { FoxStatus } from './FoxStatus'
 import { TermHost } from './TermHost'
 import { Fox } from './Fox'
 import { shortPath } from '../lib/format'
@@ -24,7 +24,7 @@ export function FocusPane({ session }: { session: SessionView | null }) {
     <section className={`focus status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''}`} {...drop.handlers}>
       <header className="pane-head">
         <span className="slot">{s.slot}</span>
-        <StatusDot status={s.status} attention={s.attention} />
+        <FoxStatus id={s.id} status={s.status} attention={s.attention} />
         <span className="name" title={s.name}>
           {s.name}
         </span>

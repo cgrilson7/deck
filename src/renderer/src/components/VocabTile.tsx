@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ExternalLink, Pause, Play, Search, SkipBack, SkipForward } from 'lucide-react'
-import type { Lang, VocabEntry, VocabResult, VocabStats, VocabWord } from '@shared/types'
+import { ExternalLink, Heart, Pause, Play, Search, SkipBack, SkipForward } from 'lucide-react'
+import type { Lang, SavedWord, VocabEntry, VocabResult, VocabStats, VocabWord } from '@shared/types'
 import { onTranslation } from '../lib/bus'
 import { useSettings } from '../lib/theme'
 
@@ -61,6 +61,8 @@ export function VocabTile() {
   const [err, setErr] = useState<string | null>(null)
   const [tick, setTick] = useState(0) // restarts the countdown bar
   const [stats, setStats] = useState<VocabStats | null>(null)
+  /** The store row of the word on screen, once it is recorded; drives the ♥. */
+  const [saved, setSaved] = useState<SavedWord | null>(null)
   const supply = useRef<VocabWord[]>([])
   const queue = useRef<string[]>(read<string[]>(KEY_QUEUE, []))
   const history = useRef<string[]>([])
@@ -75,6 +77,7 @@ export function VocabTile() {
     const mine = ++seq.current
     setBusy(true)
     setErr(null)
+    setSaved(null)
     setTick((t) => t + 1)
     try {
       const r = await window.deck.vocab(w, hint, hint === 'es' ? counterpart(w) : undefined)
@@ -87,7 +90,10 @@ export function VocabTile() {
       // Shown = seen: store it (with the full entry) for flash cards. Prefetches never get here.
       window.deck
         .saveWord(r, translationId)
-        .then(() => window.deck.vocabStats())
+        .then((sw) => {
+          if (mine === seq.current && sw.id) setSaved(sw)
+          return window.deck.vocabStats()
+        })
         .then(setStats)
         .catch(() => undefined)
     } catch (e) {
@@ -159,6 +165,20 @@ export function VocabTile() {
     })
   }
 
+  /** ♥: keep this word. It is already in the store; this marks it worth revisiting and puts it in every pass. */
+  const toggleLike = () => {
+    if (!saved) return
+    const liked = !saved.liked
+    setSaved({ ...saved, liked })
+    window.deck
+      .setWordLiked(saved.id, liked)
+      .then(() => window.deck.vocabStats())
+      .then(setStats)
+      .then(() => window.deck.vocabWords())
+      .then((ws) => (supply.current = ws))
+      .catch(() => undefined)
+  }
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     void lookup(query, /[áéíóúñü]/i.test(query) ? 'es' : 'en')
@@ -173,7 +193,7 @@ export function VocabTile() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-          placeholder={stats ? `look up a word… · ${stats.words} words, ${stats.translations} translations saved` : 'look up a word, either language…'}
+          placeholder={stats ? `look up a word… · ${stats.words} words, ${stats.translations} translations, ${stats.liked} ♥` : 'look up a word, either language…'}
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
@@ -191,7 +211,7 @@ export function VocabTile() {
         </span>
       </form>
       {err && <div className="vb-err">{err}</div>}
-      {result ? <Merged r={result} busy={busy} /> : <div className="plugin-empty">{busy ? '…' : 'vocabulary'}</div>}
+      {result ? <Merged r={result} busy={busy} liked={saved?.liked ?? false} onLike={saved ? toggleLike : null} /> : <div className="plugin-empty">{busy ? '…' : 'vocabulary'}</div>}
       <div key={tick} className={`vb-timer ${paused ? 'paused' : ''}`} style={{ animationDuration: `${cycleSeconds}s` }} />
     </div>
   )
@@ -211,7 +231,7 @@ const glossesOf = (e: VocabEntry | null, native: boolean) => (e ? (native ? e.na
 const posOf = (e: VocabEntry | null, native: boolean) => (e ? (native ? e.native : e.senses).map((s) => s.pos) : [])
 
 /** The two entries as one: both headwords, then everything else mixed, English and Spanish alternating. */
-function Merged({ r, busy }: { r: VocabResult; busy: boolean }) {
+function Merged({ r, busy, liked, onLike }: { r: VocabResult; busy: boolean; liked: boolean; onLike: (() => void) | null }) {
   const { en, es } = r
   // Spanish first: the Spanish word is the one being learned. English glosses of the Spanish
   // entry stand in for a missing English headword ("gustar" → "to like, to please").
@@ -238,6 +258,9 @@ function Merged({ r, busy }: { r: VocabResult; busy: boolean }) {
         ))}
         {!en && enHead && <span className="vb-headword"><span className="vb-dot">·</span><span className="vb-word plain">{enHead}</span></span>}
         <span className="vb-ipa">{heads.map((e) => e.ipa).filter(Boolean).join('  ')}</span>
+        <button className={`vb-like ${liked ? 'on' : ''}`} onClick={onLike ?? undefined} disabled={!onLike} title={liked ? 'Liked: kept in every pass. Click to unlike.' : 'Like: keep this word and bring it back in every pass'}>
+          <Heart size={14} fill={liked ? 'currentColor' : 'none'} />
+        </button>
       </header>
       <div className="vb-body">
         {pos.length > 0 && <p className="vb-posline">{pos.join(' · ')}</p>}

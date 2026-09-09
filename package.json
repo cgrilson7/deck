@@ -2,7 +2,7 @@
   "name": "deck",
   "version": "0.1.0",
   "private": true,
-  "description": "Nine Claude Code sessions in one window: one in focus on the left, the rest live in a grid on the right.",
+  "description": "Seven Claude Code sessions in one window: one in focus on the left, the rest live in a grid on the right.",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --watch",
@@ -12,7 +12,17 @@
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty",
     "smoke": "node scripts/smoke.mjs",
-    "tmux": "tmux -L deck-dev"
+    "tmux": "tmux -L deck-dev",
+    "dist": "electron-vite build && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.catalystdatascience.deck",
+    "productName": "Deck",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["out/**", "build/icon.png"],
+    "extraResources": ["tmux.conf"],
+    "asarUnpack": ["**/node_modules/node-pty/**"],
+    "mac": { "icon": "build/icon.icns", "category": "public.app-category.developer-tools", "target": ["dir"] }
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

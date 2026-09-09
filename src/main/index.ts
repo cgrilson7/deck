@@ -23,6 +23,10 @@ const profile = process.env.DECK_PROFILE ?? (app.isPackaged ? 'deck' : 'deck-dev
 const HOOK_PORT = profile === 'deck' ? 47800 : 47801
 
 app.setName('Deck')
+// The Dock icon. A packaged build carries build/icon.icns in its bundle; under `npm run dev` the
+// process is Electron's own bundle (Electron icon, "Electron" in the menu bar), so set the icon
+// by hand. The menu-bar name only changes with a real bundle (`npm run dist`).
+const iconPath = join(app.getAppPath(), 'build', 'icon.png')
 app.setPath('userData', join(app.getPath('appData'), profile))
 
 if (!app.requestSingleInstanceLock({ profile })) {
@@ -137,6 +141,7 @@ function menuHandlers() {
 }
 
 app.whenReady().then(async () => {
+  if (!app.isPackaged) app.dock?.setIcon(iconPath)
   const env = shellEnv()
   const userData = app.getPath('userData')
   settings = new SettingsStore(userData)
@@ -149,7 +154,7 @@ app.whenReady().then(async () => {
     buildMenu(menuHandlers())
   })
   nativeTheme.on('updated', () => settings && win?.setBackgroundColor(windowBackground(settings.get())))
-  const tmux = new Tmux(profile, join(app.getAppPath(), 'tmux.conf'), env)
+  const tmux = new Tmux(profile, join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 'tmux.conf'), env)
 
   const hooks = new HooksServer(HOOK_PORT, userData, (event, payload) => manager?.onHook(event, payload))
   await hooks.start()
@@ -194,10 +199,12 @@ app.whenReady().then(async () => {
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
   ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
   ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
-  ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env))
   store = new VocabStore(userData)
+  // Liked words ride along with the user's own languagelog words: front of the queue, every pass.
+  ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env, store!.likedWords()))
   ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) => store!.saveTranslation(r, supersede ?? null))
   ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null) => store!.saveWord(r, translationId ?? null))
+  ipcMain.handle('store:liked', (_e, id: number, liked: boolean) => store!.setLiked(id, !!liked))
   ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

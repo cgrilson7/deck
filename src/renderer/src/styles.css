@@ -357,7 +357,7 @@ button {
   color: var(--blocked);
 }
 
-/* ---- status dot ---- */
+/* ---- parked-session dot (PlusTile menu; open sessions show Foxtrot instead) ---- */
 .dot {
   flex: 0 0 auto;
   width: 9px;
@@ -365,35 +365,9 @@ button {
   border-radius: 50%;
   background: var(--idle);
 }
-.dot-busy {
-  background: var(--busy);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-.dot-blocked {
-  background: var(--blocked);
-}
-.dot-starting {
-  background: var(--starting);
-  animation: pulse 0.8s ease-in-out infinite;
-}
-.dot-dead {
-  background: var(--dead);
-}
 .dot-unknown {
   background: transparent;
   border: 1.5px solid var(--idle);
-}
-.dot-attention {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blocked) 25%, transparent);
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
 }
 
 /* ---- terminals ---- */
@@ -899,6 +873,28 @@ button {
 .vb-word:hover svg {
   opacity: 1;
 }
+.vb-like {
+  margin-left: auto;
+  align-self: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  transition: color 120ms ease, transform 120ms ease;
+}
+.vb-like:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.vb-like:not(:disabled):hover {
+  color: var(--accent);
+  transform: scale(1.15);
+}
+.vb-like.on {
+  color: var(--accent);
+}
 .vb-ipa,
 .vb-formof {
   font-size: 11px;
@@ -1053,6 +1049,57 @@ button {
   .fox {
     animation: none;
   }
+}
+
+/* ---- fox status (FoxStatus.tsx): Foxtrot in every pane head, in place of a dot.
+   The pose is the status (run / sleep / alert / look / down); a bark is a hop on the
+   wrapper (the fox itself owns the sprite animation) plus slay's comic bursts: three
+   words in Press Start 2P (OFL, bundled: CSP font-src is self + data:), scattered by
+   --rot/--dx/--dy, each one `fox-bark` for BARK_LIFE_MS, staggered by animation-delay. ---- */
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('./assets/press-start-2p.woff2') format('woff2');
+  font-display: block;
+}
+.fox-status {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 18px;
+}
+.fox-status .fox {
+  --fox-scale: 1;
+}
+.fox-status .bark {
+  position: absolute;
+  left: 18px;
+  top: 1px;
+  z-index: 3;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 2px 2px 0 var(--panel), -2px 2px 0 var(--panel), 2px -2px 0 var(--panel), -2px -2px 0 var(--panel);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: fox-bark 620ms ease-out both;
+}
+.fox-status.barking {
+  animation: fox-hop 1.2s ease-out;
+}
+@keyframes fox-hop {
+  0%, 20%, 43%, 66%, 100% { transform: none; }
+  10%, 33%, 56% { transform: translateY(-3px); }
+}
+/* slay's dfc-bark, verbatim: pop in big, settle, drift up and fade. */
+@keyframes fox-bark {
+  0% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(0.3); }
+  16% { opacity: 1; transform: translate(var(--dx), calc(var(--dy) - 4px)) rotate(var(--rot)) scale(1.12); }
+  28% { transform: translate(var(--dx), calc(var(--dy) - 5px)) rotate(var(--rot)) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) - 10px)) rotate(var(--rot)) scale(1); }
 }
 
 /* The banner cover: an xterm decoration over Claude Code's mascot cells (3 rows

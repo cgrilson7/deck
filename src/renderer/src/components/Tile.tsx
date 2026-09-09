@@ -1,5 +1,5 @@
 import type { SessionView } from '@shared/types'
-import { StatusDot } from './StatusDot'
+import { FoxStatus } from './FoxStatus'
 import { TermHost } from './TermHost'
 import { useDropTarget } from './useDropTarget'
 
@@ -15,7 +15,7 @@ export function Tile({ session: s }: { session: SessionView }) {
     >
       <header className="pane-head">
         <span className="slot">{s.slot}</span>
-        <StatusDot status={s.status} attention={s.attention} />
+        <FoxStatus id={s.id} status={s.status} attention={s.attention} />
         <span className="name">{s.name}</span>
         {s.worktree && <span className="badge">wt</span>}
       </header>

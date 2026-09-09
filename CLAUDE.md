@@ -25,6 +25,8 @@ npm run build        # electron-vite build → out/
 npm run smoke        # tmux + login-shell env + `claude agents --json` checks, no Electron
 npm run rebuild      # electron-rebuild node-pty (postinstall does this already)
 npm run tmux -- ls   # talk to the dev profile's tmux server (tmux -L deck-dev ...)
+npm run dist         # electron-vite build + electron-builder --mac → dist/ (needs `npm i -D electron-builder`;
+                     #   the `build` block in package.json: productName Deck, build/icon.icns, tmux.conf as an extraResource)
 ```
 
 Verification before handing off = `npm run typecheck && npm run build && npm run smoke`.
@@ -57,10 +59,12 @@ src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
-src/renderer/src/components/        FocusPane, Grid, Tile, PlusTile (+ menu), TermHost, StatusDot,
+src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
+src/renderer/src/components/        FocusPane, Grid, Tile, PlusTile (+ menu), TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
+build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test
 ```
 
@@ -126,12 +130,21 @@ scripts/smoke.mjs          the smoke test
   `seen` count. `words` gets every word the vocabulary tile actually shows (never prefetches)
   with the full `VocabResult` as JSON, `translation_id` when it came from the translator, and
   SM-2 columns (`due`, `interval`, `ease`, `reps`, `lapses`, `known`) that nothing drives yet;
-  `reviews` is the per-grade history for later. Unique on (es, en). Counts show in the vocab
+  `reviews` is the per-grade history for later. Unique on (es, en). The ♥ on the card sets
+  `liked` (added by a guarded `alter table` in `MIGRATIONS`); liked words are merged into the
+  vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the vocab
   tile's search placeholder. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
   "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
-  `src/renderer/src/assets/fox.png`; recolors are fine in-product, don't ship it standalone). Used
-  sparingly, two places only: the empty focus pane, and over Claude Code's startup banner, where it
+  `src/renderer/src/assets/fox.png`; recolors are fine in-product, don't ship it standalone). It IS
+  the status indicator: every pane head shows a 22×18 fox (`FoxStatus`) in place of a dot, running
+  while Claude works, asleep while it waits, sitting up alert when it needs you, looking around while
+  starting, lying down when the pane died. It barks the way slay's fox does, SILENTLY: a hop and
+  three comic bursts ("YIP!" "ARF!" "CHRRP!", Press Start 2P, bundled in assets/, 280ms apart,
+  620ms each; `lib/bark.ts`; off = `foxBark` false / View ▸ Fox Barks) on the TRANSITION into needing you and
+  when a turn finishes (busy → idle); never on mount, so a boot full of waiting sessions is quiet, and
+  a hook plus the fleet poll agreeing within 3s is one bark. It also sits in the empty focus pane, is
+  the app icon (`build/icon.png`), and stands over Claude Code's startup banner, where it
   REPLACES the CLI's pixel mascot. The CLI is untouched: `watchClaudeBanner` scans the viewport on
   every xterm render for the banner's first two rows (`▐▛█…` / `▝▜█…`), registers a marker + decoration
   (3 rows × the logo width) that xterm scrolls, hides and disposes with the line, paints it `--panel`,
@@ -156,7 +169,8 @@ scripts/smoke.mjs          the smoke test
   Notification/Stop hooks the user has keep firing inside deck sessions. Our hooks file only adds POSTs to
   `127.0.0.1:<port>/{notification,stop,prompt}`; it must never block Claude (`; exit 0`).
 - **Status** = fleet poll (truth) + hooks (instant). Notification → attention; Stop → attention
-  + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention.
+  + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention. Shown by
+  Foxtrot's pose in the pane head (see Foxtrot), not a dot.
 - **Profiles**: `deck` when packaged, `deck-dev` under `npm run dev`, or `DECK_PROFILE=x`.
   Profile = tmux socket name = userData folder name; hook port 47800 (deck) / 47801 (others).
   Two profiles never see each other's sessions, so a Claude session working ON deck can run
@@ -183,7 +197,7 @@ scripts/smoke.mjs          the smoke test
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
-  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate…);
+  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the

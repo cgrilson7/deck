@@ -92,6 +92,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),
     vocabCycleSeconds: clampInt(raw.vocabCycleSeconds, 5, 600, d.vocabCycleSeconds),
-    languagelogDb: typeof raw.languagelogDb === 'string' ? raw.languagelogDb.trim() : d.languagelogDb
+    languagelogDb: typeof raw.languagelogDb === 'string' ? raw.languagelogDb.trim() : d.languagelogDb,
+    foxBark: bool(raw.foxBark, d.foxBark)
   }
 }

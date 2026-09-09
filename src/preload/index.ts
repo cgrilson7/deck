@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, Lang, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiItem } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, Lang, SavedWord, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiItem } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -37,7 +37,8 @@ const api: DeckApi = {
   vocab: (word: string, hint: Lang, counterpart?: string) => ipcRenderer.invoke('vocab:lookup', word, hint, counterpart) as Promise<VocabResult>,
   vocabWords: () => ipcRenderer.invoke('vocab:words') as Promise<VocabWord[]>,
   saveTranslation: (r, supersede) => ipcRenderer.invoke('store:translation', r, supersede) as Promise<number>,
-  saveWord: (r, translationId) => ipcRenderer.invoke('store:word', r, translationId) as Promise<number>,
+  saveWord: (r, translationId) => ipcRenderer.invoke('store:word', r, translationId) as Promise<SavedWord>,
+  setWordLiked: (id, liked) => ipcRenderer.invoke('store:liked', id, liked) as Promise<void>,
   vocabStats: () => ipcRenderer.invoke('store:stats') as Promise<VocabStats>,
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<DeckSettings>,
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch) as Promise<DeckSettings>,

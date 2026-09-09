@@ -11,7 +11,7 @@
 
 import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import type { TranslateResult, VocabResult, VocabStats } from '@shared/types'
+import type { SavedWord, TranslateResult, VocabResult, VocabStats } from '@shared/types'
 
 const SCHEMA = `
 create table if not exists translations (
@@ -51,6 +51,11 @@ create table if not exists reviews (
 create index if not exists words_due on words(due);
 `
 
+/** Columns added after the first release; each is applied once to older files. */
+const MIGRATIONS: [table: string, column: string, ddl: string][] = [
+  ['words', 'liked', 'alter table words add column liked integer not null default 0']
+]
+
 const now = () => new Date().toISOString()
 
 export class VocabStore {
@@ -60,6 +65,10 @@ export class VocabStore {
     this.db = new DatabaseSync(join(userData, 'vocab.db'))
     this.db.exec('pragma journal_mode = wal; pragma foreign_keys = on;')
     this.db.exec(SCHEMA)
+    for (const [table, column, ddl] of MIGRATIONS) {
+      const cols = this.db.prepare(`pragma table_info(${table})`).all() as { name: string }[]
+      if (!cols.some((c) => c.name === column)) this.db.exec(ddl)
+    }
   }
 
   /**
@@ -92,10 +101,10 @@ export class VocabStore {
   }
 
   /** Record a word the vocabulary tile showed, with its full entry (refreshed on every sighting). */
-  saveWord(r: VocabResult, translationId: number | null): number {
+  saveWord(r: VocabResult, translationId: number | null): SavedWord {
     const es = (r.es?.word ?? '').trim()
     const en = (r.en?.word ?? r.es?.senses[0]?.glosses[0] ?? '').trim()
-    if (!es && !en) return 0
+    if (!es && !en) return { id: 0, liked: false }
     const t = now()
     this.db
       .prepare(
@@ -105,7 +114,18 @@ export class VocabStore {
            translation_id = coalesce(excluded.translation_id, translation_id)`
       )
       .run(es, en, r.source, JSON.stringify(r), translationId, t, t)
-    return (this.db.prepare('select id from words where es = ? and en = ?').get(es, en) as { id: number }).id
+    const row = this.db.prepare('select id, liked from words where es = ? and en = ?').get(es, en) as { id: number; liked: number }
+    return { id: row.id, liked: row.liked === 1 }
+  }
+
+  /** The ♥ on the vocabulary card: a word worth keeping. Liked words rejoin the cycle like your own. */
+  setLiked(id: number, liked: boolean): void {
+    this.db.prepare('update words set liked = ? where id = ?').run(liked ? 1 : 0, id)
+  }
+
+  /** Every liked word's Spanish side, newest like first, for the vocabulary supply. */
+  likedWords(): string[] {
+    return (this.db.prepare("select es from words where liked = 1 and es != '' order by last_seen desc").all() as { es: string }[]).map((r) => r.es)
   }
 
   stats(): VocabStats {
@@ -113,6 +133,7 @@ export class VocabStore {
     return {
       words: one('select count(*) n from words'),
       translations: one('select count(*) n from translations'),
+      liked: one('select count(*) n from words where liked = 1'),
       due: one("select count(*) n from words where known = 0 and (due is null or due <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))")
     }
   }

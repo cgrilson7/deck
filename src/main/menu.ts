@@ -66,6 +66,7 @@ export function buildMenu({ run, settings, patch, ui }: MenuHandlers): void {
       label: 'View',
       submenu: [
         { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
+        { label: 'Fox Barks', type: 'checkbox', checked: s.foxBark, click: () => patch({ foxBark: !settings().foxBark }) },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },
         {

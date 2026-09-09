@@ -128,8 +128,16 @@ export interface VocabResult {
 export interface VocabStats {
   words: number
   translations: number
+  /** Words with the ♥ on. */
+  liked: number
   /** Words not marked known whose review is due (all of them until flash cards schedule any). */
   due: number
+}
+
+/** What the store hands back for a word it just recorded. */
+export interface SavedWord {
+  id: number
+  liked: boolean
 }
 
 /** Everything the user can change from the settings panel. Persisted in userData/config.json. */
@@ -174,6 +182,8 @@ export interface DeckSettings {
   vocabCycleSeconds: number
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
   languagelogDb: string
+  /** Foxtrot barks (slay's silent comic bursts) when a session starts needing you or finishes a turn. */
+  foxBark: boolean
 }
 
 export const DEFAULT_SETTINGS: DeckSettings = {
@@ -199,7 +209,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
-  languagelogDb: '~/languagelog/data/languagelog.db'
+  languagelogDb: '~/languagelog/data/languagelog.db',
+  foxBark: true
 }
 
 /** One-shot UI requests from the main process (menu items) to the renderer. */
@@ -236,7 +247,9 @@ export interface DeckApi {
    */
   saveTranslation(r: TranslateResult, supersede: number | null): Promise<number>
   /** Store a word the vocabulary tile showed, linked to the translation it came from, if any. */
-  saveWord(r: VocabResult, translationId: number | null): Promise<number>
+  saveWord(r: VocabResult, translationId: number | null): Promise<SavedWord>
+  /** The ♥ on the vocabulary card. */
+  setWordLiked(id: number, liked: boolean): Promise<void>
   vocabStats(): Promise<VocabStats>
   getSettings(): Promise<DeckSettings>
   /** Merge a partial into the settings; main persists and broadcasts the result. */

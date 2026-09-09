@@ -45,7 +45,21 @@ async function languagelogWords(dbPath: string, env: NodeJS.ProcessEnv): Promise
   return out
 }
 
-export async function vocabWords(dbPath: string, env: NodeJS.ProcessEnv): Promise<VocabWord[]> {
+/**
+ * The supply, with the ♥'d words from the store treated like the user's own: promoted to the
+ * front of every pass if they are list words, added if they are not. `liked` changes at any
+ * click, so it is merged on each call over the cached base list.
+ */
+export async function vocabWords(dbPath: string, env: NodeJS.ProcessEnv, liked: string[] = []): Promise<VocabWord[]> {
+  const base = await baseWords(dbPath, env)
+  if (!liked.length) return base
+  const want = new Set(liked)
+  const have = new Set(base.map((w) => w.word))
+  const extra: VocabWord[] = liked.filter((w) => !have.has(w)).map((word) => ({ word, pos: '', rank: -1, mine: true }))
+  return [...extra, ...base.map((w) => (want.has(w.word) && !w.mine ? { ...w, mine: true } : w))]
+}
+
+async function baseWords(dbPath: string, env: NodeJS.ProcessEnv): Promise<VocabWord[]> {
   if (cache && cache.db === dbPath && Date.now() - cache.at < TTL_MS) return cache.words
   let mine: string[] = []
   try {
