@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, DeckSettings, Lang, UiEvent } from '@shared/types'
+import type { DeckCommand, DeckSettings, Lang, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
 import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
@@ -13,6 +13,7 @@ import { Tmux } from './tmux'
 import { translate } from './translate'
 import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
+import { VocabStore } from './store'
 import { wikiFeatured } from './wiki'
 import { setupYoutubeSession } from './youtube'
 
@@ -31,6 +32,7 @@ if (!app.requestSingleInstanceLock({ profile })) {
 let win: BrowserWindow | null = null
 let manager: SessionManager | null = null
 let settings: SettingsStore | null = null
+let store: VocabStore | null = null
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -193,6 +195,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
   ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
   ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env))
+  store = new VocabStore(userData)
+  ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) => store!.saveTranslation(r, supersede ?? null))
+  ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null) => store!.saveWord(r, translationId ?? null))
+  ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
@@ -209,6 +215,7 @@ app.whenReady().then(async () => {
     fleet.stop()
     hooks.stop()
     manager?.detachAll()
+    store?.close()
   })
 
   app.on('activate', () => {

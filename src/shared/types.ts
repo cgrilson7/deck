@@ -124,6 +124,14 @@ export interface VocabResult {
   es: VocabEntry | null
 }
 
+/** Row counts from the vocabulary store (userData/vocab.db). */
+export interface VocabStats {
+  words: number
+  translations: number
+  /** Words not marked known whose review is due (all of them until flash cards schedule any). */
+  due: number
+}
+
 /** Everything the user can change from the settings panel. Persisted in userData/config.json. */
 export interface DeckSettings {
   /** Theme family id (see shared/themes.ts). */
@@ -222,6 +230,14 @@ export interface DeckApi {
   vocab(word: string, hint: Lang, counterpart?: string): Promise<VocabResult>
   /** The vocabulary builder's supply: bundled frequency lemmas + the user's languagelog words. */
   vocabWords(): Promise<VocabWord[]>
+  /**
+   * Store a settled translation; resolves its row id. Pass the id this same edit produced
+   * earlier to overwrite that fragment instead of keeping both.
+   */
+  saveTranslation(r: TranslateResult, supersede: number | null): Promise<number>
+  /** Store a word the vocabulary tile showed, linked to the translation it came from, if any. */
+  saveWord(r: VocabResult, translationId: number | null): Promise<number>
+  vocabStats(): Promise<VocabStats>
   getSettings(): Promise<DeckSettings>
   /** Merge a partial into the settings; main persists and broadcasts the result. */
   setSettings(patch: Partial<DeckSettings>): Promise<DeckSettings>

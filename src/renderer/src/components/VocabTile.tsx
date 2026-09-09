@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Pause, Play, Search, SkipBack, SkipForward } from 'lucide-react'
-import type { Lang, VocabEntry, VocabResult, VocabWord } from '@shared/types'
+import type { Lang, VocabEntry, VocabResult, VocabStats, VocabWord } from '@shared/types'
 import { onTranslation } from '../lib/bus'
 import { useSettings } from '../lib/theme'
 
@@ -60,6 +60,7 @@ export function VocabTile() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [tick, setTick] = useState(0) // restarts the countdown bar
+  const [stats, setStats] = useState<VocabStats | null>(null)
   const supply = useRef<VocabWord[]>([])
   const queue = useRef<string[]>(read<string[]>(KEY_QUEUE, []))
   const history = useRef<string[]>([])
@@ -68,7 +69,7 @@ export function VocabTile() {
   // The list's SAT word for a lemma, so the English headword is "perspicacious", not "insightful".
   const counterpart = (w: string) => supply.current.find((x) => x.word === w)?.en
 
-  const lookup = useCallback(async (word: string, hint: Lang, remember = true) => {
+  const lookup = useCallback(async (word: string, hint: Lang, remember = true, translationId: number | null = null) => {
     const w = word.trim()
     if (!w) return
     const mine = ++seq.current
@@ -83,6 +84,12 @@ export function VocabTile() {
       if (remember) {
         history.current = [...history.current.filter((x) => x !== w), w].slice(-HISTORY)
       }
+      // Shown = seen: store it (with the full entry) for flash cards. Prefetches never get here.
+      window.deck
+        .saveWord(r, translationId)
+        .then(() => window.deck.vocabStats())
+        .then(setStats)
+        .catch(() => undefined)
     } catch (e) {
       if (mine === seq.current) setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -138,8 +145,12 @@ export function VocabTile() {
     return () => window.clearInterval(t)
   }, [paused, cycleSeconds, next, tick])
 
-  // Single words translated next door show up here.
-  useEffect(() => onTranslation((r) => isWordish(r.text) && void lookup(r.text, r.source)), [lookup])
+  useEffect(() => {
+    void window.deck.vocabStats().then(setStats).catch(() => undefined)
+  }, [])
+
+  // Single words translated next door show up here, linked to their stored translation.
+  useEffect(() => onTranslation((r) => isWordish(r.text) && void lookup(r.text, r.source, true, r.id)), [lookup])
 
   const togglePause = () => {
     setPaused((p) => {
@@ -162,7 +173,7 @@ export function VocabTile() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-          placeholder="look up a word, either language…"
+          placeholder={stats ? `look up a word… · ${stats.words} words, ${stats.translations} translations saved` : 'look up a word, either language…'}
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"

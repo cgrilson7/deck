@@ -6,12 +6,15 @@ import type { TranslateResult } from '@shared/types'
 
 const EVENT = 'deck:translated'
 
-export function announceTranslation(r: TranslateResult): void {
-  window.dispatchEvent(new CustomEvent<TranslateResult>(EVENT, { detail: r }))
+/** A translation plus the store row it was saved as (null when it was not saved yet). */
+export type Announced = TranslateResult & { id: number | null }
+
+export function announceTranslation(r: Announced): void {
+  window.dispatchEvent(new CustomEvent<Announced>(EVENT, { detail: r }))
 }
 
-export function onTranslation(cb: (r: TranslateResult) => void): () => void {
-  const h = (e: Event) => cb((e as CustomEvent<TranslateResult>).detail)
+export function onTranslation(cb: (r: Announced) => void): () => void {
+  const h = (e: Event) => cb((e as CustomEvent<Announced>).detail)
   window.addEventListener(EVENT, h)
   return () => window.removeEventListener(EVENT, h)
 }

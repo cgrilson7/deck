@@ -5,6 +5,8 @@ import { announceTranslation } from '../lib/bus'
 
 const DEBOUNCE_MS = 700
 const RESET_MS = 5 * 60 * 1000
+/** A translation counts as settled (and is stored) after this long with no further edits. */
+const SETTLE_MS = 4000
 const STORE_KEY = 'deck.translate.last'
 
 interface Pair {
@@ -13,6 +15,12 @@ interface Pair {
 }
 const EMPTY: Pair = { en: '', es: '' }
 const HINT: Pair = { en: 'English', es: 'Español' }
+
+/** One or two words, no sentence punctuation: vocabulary, stored at once and sent to the vocab tile. */
+function isWordish(s: string): boolean {
+  const t = s.trim()
+  return t.length > 0 && t.length <= 40 && t.split(/\s+/).length <= 2 && !/[.,;:!?¿¡"()]/.test(t)
+}
 
 function loadLast(): Pair {
   try {
@@ -41,15 +49,36 @@ export function TranslateTile() {
   const debounce = useRef<number | null>(null)
   const idle = useRef<number | null>(null)
   const seq = useRef(0)
+  /** The result waiting to be stored, and the row this edit already produced (rewritten, not duplicated). */
+  const pending = useRef<TranslateResult | null>(null)
+  const settle = useRef<number | null>(null)
+  const savedId = useRef<number | null>(null)
   const boxes = { en: useRef<HTMLTextAreaElement>(null), es: useRef<HTMLTextAreaElement>(null) }
+
+  /** Store whatever translation is waiting, now. */
+  const flush = useCallback(async (): Promise<number | null> => {
+    if (settle.current) window.clearTimeout(settle.current)
+    settle.current = null
+    const r = pending.current
+    if (!r) return savedId.current
+    pending.current = null
+    try {
+      savedId.current = (await window.deck.saveTranslation(r, savedId.current)) || null
+    } catch {
+      /* the store is best-effort */
+    }
+    return savedId.current
+  }, [])
 
   const reset = useCallback(() => {
     seq.current++ // any in-flight result is stale
     dirty.current = null
+    void flush()
+    savedId.current = null // the next thing typed is a new translation, not a rewrite of this one
     setText(EMPTY)
     setBusy(false)
     setErr(null)
-  }, [])
+  }, [flush])
 
   const touch = useCallback(() => {
     if (idle.current) window.clearTimeout(idle.current)
@@ -60,6 +89,7 @@ export function TranslateTile() {
     return () => {
       if (debounce.current) window.clearTimeout(debounce.current)
       if (idle.current) window.clearTimeout(idle.current)
+      if (settle.current) window.clearTimeout(settle.current)
     }
   }, [])
 
@@ -77,7 +107,16 @@ export function TranslateTile() {
         dirty.current = null
         setText(pair)
         setLast(pair)
-        announceTranslation(r)
+        // Single words are vocabulary: store now and tell the vocab tile. Phrases wait until the
+        // typing settles, so "where is" is rewritten by "where is the library" rather than kept.
+        pending.current = r
+        if (settle.current) window.clearTimeout(settle.current)
+        if (isWordish(r.text)) {
+          announceTranslation({ ...r, id: await flush() })
+        } else {
+          settle.current = window.setTimeout(() => void flush(), SETTLE_MS)
+          announceTranslation({ ...r, id: null })
+        }
         try {
           localStorage.setItem(STORE_KEY, JSON.stringify(pair))
         } catch {
@@ -90,7 +129,7 @@ export function TranslateTile() {
         if (mine === seq.current) setBusy(false)
       }
     },
-    [touch]
+    [touch, flush]
   )
 
   const schedule = (from: Lang, value: string) => {
@@ -112,7 +151,8 @@ export function TranslateTile() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (debounce.current) window.clearTimeout(debounce.current)
-      void run(lang, text[lang])
+      if (text[lang].trim() === (pending.current?.text ?? null)) void flush() // ⏎ on a done translation = keep it
+      else void run(lang, text[lang])
     } else if (e.key === 'Escape') {
       reset()
       e.currentTarget.blur()
@@ -129,6 +169,7 @@ export function TranslateTile() {
         onChange={onChange(lang)}
         onKeyDown={onKeyDown(lang)}
         onFocus={touch}
+        onBlur={() => void flush()}
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"

@@ -44,6 +44,7 @@ src/main/wiki.ts           fetches today's Wikipedia featured-content feed (cach
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
+src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
 scripts/lemmas.py          regenerates data/esLemmas.ts from doozan/spanish_data frequency.csv
 src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
 src/main/settings.ts       SettingsStore: userData/config.json merged over DEFAULT_SETTINGS, sanitized, broadcast
@@ -116,6 +117,17 @@ scripts/smoke.mjs          the smoke test
   comes from the translator when a key is set, else whichever Wiktionary has the word. Pure
   inflections ("corría") are followed to their lemma (one hop) and the lemma is what gets
   translated. Results are cached in main.
+- **Vocabulary store** (`main/store.ts`, `userData/vocab.db`, `node:sqlite` so nothing to rebuild):
+  the raw material for flash cards. `translations` gets every translation the translator
+  settles on: single words at once; phrases 4s after the last edit, on ⏎, on blur, or on reset.
+  Because the translator fires on typing pauses, the tile remembers the row its current edit
+  produced and passes it as `supersede`, so "where is" is rewritten into "where is the library"
+  rather than kept (a pair that already exists absorbs the fragment). Unique on (en, es) with a
+  `seen` count. `words` gets every word the vocabulary tile actually shows (never prefetches)
+  with the full `VocabResult` as JSON, `translation_id` when it came from the translator, and
+  SM-2 columns (`due`, `interval`, `ease`, `reps`, `lapses`, `known`) that nothing drives yet;
+  `reviews` is the per-grade history for later. Unique on (es, en). Counts show in the vocab
+  tile's search placeholder. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
   "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
   `src/renderer/src/assets/fox.png`; recolors are fine in-product, don't ship it standalone). Used
@@ -169,6 +181,7 @@ scripts/smoke.mjs          the smoke test
 `~/Library/Application Support/<profile>/`
 - `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot`
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
+- `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
   translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
