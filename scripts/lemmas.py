@@ -20,9 +20,10 @@ Inputs (all in one directory, DIR):
   words sooner) and gates the register.
 - The SAT lists: freevocabulary.com's 5000 words (broad, so its everyday words are dropped:
   anything in the top EVERYDAY of google-10000-english) and majortests.com's ~1000 (tight; kept
-  whole, and preferred when a Spanish word matches both).
+  whole, and preferred when a Spanish word matches both). Pairs spelled the same in both
+  languages, accents aside ("naval", "interminable"), are dropped.
 """
-import csv, json, re, sys
+import csv, json, re, sys, unicodedata
 from collections import OrderedDict
 
 MIN_RANK = 4000  # content-word frequency rank below which a Spanish word is too ordinary
@@ -66,6 +67,9 @@ for line in open(f'{d}/es-en.data', encoding='utf8'):
     elif line.startswith('    q: ') and cur['glosses']:
         cur['glosses'][-1][1] += line[7:] + ' '
 
+def plain(w):
+    return unicodedata.normalize('NFD', w).encode('ascii', 'ignore').decode()
+
 def items(gloss):
     gloss = re.sub(r'\([^)]*\)', '', gloss)
     for it in re.split(r'[,;]', gloss):
@@ -83,7 +87,7 @@ for e in entries:
         if BAD_Q.search(q):
             continue
         for it in items(g):
-            if it in sat:
+            if it in sat and plain(w) != it:  # same spelling both sides teaches nothing
                 cand = (it not in mt, gi, it)
                 if best is None or cand < best:
                     best = cand

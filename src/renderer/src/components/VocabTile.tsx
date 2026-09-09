@@ -205,7 +205,8 @@ function Merged({ r, busy }: { r: VocabResult; busy: boolean }) {
   // Spanish first: the Spanish word is the one being learned. English glosses of the Spanish
   // entry stand in for a missing English headword ("gustar" → "to like, to please").
   const enHead = en?.word ?? glossesOf(es, false).slice(0, 2).join(', ')
-  const heads = [es, en].filter((x): x is VocabEntry => !!x)
+  // One headword when both languages spell it the same ("naval"); the IPA line still shows both.
+  const heads = [es, en].filter((x): x is VocabEntry => !!x).filter((x, i, a) => i === 0 || x.word.toLowerCase() !== a[0].word.toLowerCase())
   const defs = interleave(glossesOf(en, false), es ? (es.native.length ? glossesOf(es, true) : glossesOf(es, false)) : [])
   const pos = [...new Set([...posOf(es, true), ...posOf(en, false)])].filter(Boolean).slice(0, 3)
   const syn = interleave(en?.synonyms ?? [], es?.synonyms ?? []).slice(0, 16)
@@ -215,7 +216,7 @@ function Merged({ r, busy }: { r: VocabResult; busy: boolean }) {
     <section className={`vb-card ${busy ? 'busy' : ''}`}>
       <header className="vb-head">
         {heads.map((e, i) => (
-          <span key={e.word} className="vb-headword">
+          <span key={i} className="vb-headword">
             {i > 0 && <span className="vb-dot">·</span>}
             <button className="vb-word" onClick={() => window.deck.openExternal(e.url)} title="Open on Wiktionary">
               {e.word}
