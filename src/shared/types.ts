@@ -1,7 +1,7 @@
 // Types shared by main, preload and renderer. Keep this file dependency-free.
 
-/** Hard cap on open (slotted) sessions. Slots are numbered 1..CAP and are sticky. */
-export const CAP = 9
+/** Hard cap on open (slotted) sessions: the focus pane + six grid tiles. Slots 1..CAP are sticky. */
+export const CAP = 7
 
 /** Session status as best we know it: fleet poll (`claude agents --json`) + hook events. */
 export type SessionStatus = 'starting' | 'busy' | 'idle' | 'blocked' | 'dead' | 'unknown'
@@ -56,6 +56,26 @@ export type DeckCommand =
   | { type: 'kill'; id: string }
   | { type: 'forget'; id: string }
 
+/** What the Spotify tile shows; polled from the desktop app over AppleScript. */
+export interface SpotifyState {
+  /** false = Spotify.app is not running. */
+  running: boolean
+  state: 'playing' | 'paused' | 'stopped'
+  track: string
+  artist: string
+  album: string
+  artworkUrl: string
+  /** seconds */
+  position: number
+  /** seconds */
+  duration: number
+  trackId: string
+  /** 0..100 */
+  volume: number
+}
+
+export type SpotifyCommand = 'playpause' | 'next' | 'previous' | 'open'
+
 export interface DeckApi {
   getState(): Promise<DeckState>
   onState(cb: (state: DeckState) => void): () => void
@@ -66,4 +86,8 @@ export interface DeckApi {
   onPtyExit(cb: (id: string) => void): () => void
   setTitle(id: string, title: string): void
   bell(id: string): void
+  /** Absolute path of a File dropped onto the window ('' if it has none). */
+  pathForFile(file: File): string
+  onSpotify(cb: (state: SpotifyState) => void): () => void
+  spotify(cmd: SpotifyCommand): void
 }

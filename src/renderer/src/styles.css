@@ -119,10 +119,6 @@ button {
   overflow: hidden;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-.focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
 .focus-empty {
   align-items: center;
   justify-content: center;
@@ -130,10 +126,27 @@ button {
   color: var(--muted);
 }
 
+.grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+}
 .grid {
+  flex: var(--rows) 1 0;
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+}
+/* Plugin row: one grid row tall, split in two. */
+.plugins {
+  flex: 1 1 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-height: 0;
   min-width: 0;
@@ -149,6 +162,12 @@ button {
 .focus.attention {
   border-color: var(--blocked);
   box-shadow: 0 0 0 1px var(--blocked);
+}
+.tile.drop-over,
+.focus.drop-over {
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 1px var(--accent), inset 0 0 0 999px rgba(200, 85, 45, 0.06);
 }
 .tile-blank {
   background: transparent;
@@ -389,4 +408,106 @@ button {
 .menu-x:hover {
   color: var(--blocked);
   background: var(--bg);
+}
+
+/* ---- plugins ---- */
+.tile-plugin {
+  cursor: default;
+}
+.tile-plugin:hover {
+  border-color: var(--line);
+}
+.plugin-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.spotify-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+}
+.spotify-art {
+  height: 100%;
+  max-height: 128px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--line);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.spotify-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.spotify-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-artist {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-bar {
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.spotify-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.spotify-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spotify-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.spotify-ctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.spotify-ctl button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--ink);
+}
+.spotify-ctl button:hover {
+  background: var(--bg);
+}
+.spotify-ctl .spotify-play {
+  font-size: 15px;
+}
+.youtube-view {
+  flex: 1;
+  min-height: 0;
+  background: #000;
 }

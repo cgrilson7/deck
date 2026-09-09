@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { CAP } from '@shared/types'
 
 export type Mode = 'focus' | 'tile'
 
@@ -64,7 +65,7 @@ function stagingEl(): HTMLDivElement {
 /** Cmd combos owned by the app menu; xterm must let them through. */
 function isDeckShortcut(ev: KeyboardEvent): boolean {
   const k = ev.key
-  if (/^[1-9]$/.test(k)) return true
+  if (/^[1-9]$/.test(k) && Number(k) <= CAP) return true
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
   return l === 'n' || l === 'w' || l === 'o' || l === 'q'
@@ -171,6 +172,13 @@ export function refit(id: string): void {
 
 export function focusTerminal(id: string): void {
   entries.get(id)?.term.focus()
+}
+
+/** Feed text to the session as if pasted (bracketed-paste aware, so Claude sees it as one insert). */
+export function pasteText(id: string, text: string): void {
+  const e = entries.get(id)
+  if (e) e.term.paste(text)
+  else window.deck.ptyInput(id, text)
 }
 
 /** Detach from a host (the element parks in staging until it is mounted again). */

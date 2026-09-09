@@ -1,4 +1,4 @@
-// The session manager: nine sticky slots, one tmux session + one pty per open session,
+// The session manager: CAP sticky slots, one tmux session + one pty per open session,
 // parked sessions resumable by tmux (if alive) or by `claude --resume <id>`.
 // State is authoritative here; the renderer is a view and sends commands.
 
@@ -60,6 +60,7 @@ export class SessionManager {
     for (const rec of this.records) {
       const alive = await this.o.tmux.hasSession(rec.tmuxName)
       this.rt.set(rec.id, { status: alive ? 'unknown' : 'idle', attention: false, tmuxAlive: alive, title: '', userDetached: false })
+      if (rec.slot !== null && rec.slot > CAP) rec.slot = null // cap shrank since this was saved
       if (rec.slot !== null) {
         if (alive) this.attach(rec.id)
         else rec.slot = null // tmux server gone (reboot); parked, resumable via --resume

@@ -1,11 +1,18 @@
 import type { SessionView } from '@shared/types'
 import { StatusDot } from './StatusDot'
 import { TermHost } from './TermHost'
+import { useDropTarget } from './useDropTarget'
 
 export function Tile({ session: s }: { session: SessionView }) {
   const focus = () => void window.deck.command({ type: 'focus', slot: s.slot! })
+  const drop = useDropTarget(s.id, focus) // a drop also brings the tile into focus
   return (
-    <div className={`tile status-${s.status} ${s.attention ? 'attention' : ''}`} onClick={focus} title={`Focus slot ${s.slot} (⌘${s.slot})`}>
+    <div
+      className={`tile status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''}`}
+      onClick={focus}
+      title={`Focus slot ${s.slot} (⌘${s.slot})`}
+      {...drop.handlers}
+    >
       <header className="pane-head">
         <span className="slot">{s.slot}</span>
         <StatusDot status={s.status} attention={s.attention} />

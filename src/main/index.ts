@@ -2,12 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { DeckCommand } from '@shared/types'
+import type { DeckCommand, SpotifyCommand } from '@shared/types'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
 import { HooksServer } from './hooks'
 import { buildMenu } from './menu'
 import { SessionManager } from './sessions'
+import { Spotify } from './spotify'
 import { Tmux } from './tmux'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -59,7 +60,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true // the YouTube tile
     }
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -149,15 +151,21 @@ app.whenReady().then(async () => {
   ipcMain.on('deck:setTitle', (_e, id: string, title: string) => manager?.setTitle(id, title))
   ipcMain.on('deck:bell', (_e, id: string) => manager?.bell(id))
 
+  const spotify = new Spotify(env, (state) => send('spotify:state', state))
+  ipcMain.handle('spotify:getState', () => spotify.state)
+  ipcMain.on('spotify:command', (_e, cmd: SpotifyCommand) => void spotify.command(cmd))
+
   buildMenu((cmd) => void runCommand(cmd))
   createWindow()
   await manager.init()
 
   const fleet = new Fleet(env, (entries) => manager?.onFleet(entries))
   fleet.start()
+  spotify.start()
 
   app.on('before-quit', () => {
     fleet.stop()
+    spotify.stop()
     hooks.stop()
     manager?.detachAll()
   })

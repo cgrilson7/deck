@@ -2,6 +2,7 @@ import type { SessionView } from '@shared/types'
 import { StatusDot } from './StatusDot'
 import { TermHost } from './TermHost'
 import { shortPath } from '../lib/format'
+import { useDropTarget } from './useDropTarget'
 
 export function FocusPane({ session }: { session: SessionView | null }) {
   if (!session) {
@@ -16,8 +17,9 @@ export function FocusPane({ session }: { session: SessionView | null }) {
   }
 
   const s = session
+  const drop = useDropTarget(s.id)
   return (
-    <section className={`focus status-${s.status} ${s.attention ? 'attention' : ''}`}>
+    <section className={`focus status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''}`} {...drop.handlers}>
       <header className="pane-head">
         <span className="slot">{s.slot}</span>
         <StatusDot status={s.status} attention={s.attention} />

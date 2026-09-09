@@ -1,10 +1,13 @@
 import type { DeckState, SessionView } from '@shared/types'
 import { PlusTile } from './PlusTile'
+import { SpotifyTile } from './SpotifyTile'
 import { Tile } from './Tile'
+import { YouTubeTile } from './YouTubeTile'
 
 /**
- * The right-hand grid: cap-1 cells. Sessions needing you come first, then slot order.
- * The first empty cell is the +, unless every slot is open.
+ * The right-hand column: a grid of cap-1 session cells, then a row of plugins (Spotify,
+ * YouTube) the same height as one grid row. Sessions needing you come first, then slot
+ * order. The first empty cell is the +, unless every slot is open.
  */
 export function Grid({ sessions, state }: { sessions: SessionView[]; state: DeckState }) {
   const cells = state.cap - 1
@@ -17,8 +20,14 @@ export function Grid({ sessions, state }: { sessions: SessionView[]; state: Deck
   while (items.length < cells) items.push(<div key={`blank-${items.length}`} className="tile tile-blank" />)
 
   return (
-    <section className="grid" style={{ ['--cols' as string]: cols, ['--rows' as string]: rows }}>
-      {items}
+    <section className="grid-col">
+      <div className="grid" style={{ ['--cols' as string]: cols, ['--rows' as string]: rows }}>
+        {items}
+      </div>
+      <div className="plugins">
+        <SpotifyTile />
+        <YouTubeTile />
+      </div>
     </section>
   )
 }
