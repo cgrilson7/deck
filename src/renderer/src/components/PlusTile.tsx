@@ -1,51 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DeckState } from '@shared/types'
 import { shortPath } from '../lib/format'
 
-const LONG_PRESS_MS = 450
-
 /**
- * The +: click = new session here; ⌥-click = new session in a worktree;
- * right-click or long-press = menu (folder picker + parked sessions to resume).
+ * The +: click opens the chooser (where to start: the focused session's folder, recent folders,
+ * a folder picker; a worktree toggle; parked sessions to resume). ⌘N in the menu bar is the
+ * no-questions path (focused folder, default settings).
  */
 export function PlusTile({ state }: { state: DeckState }) {
   const [menu, setMenu] = useState(false)
-  const timer = useRef<number | null>(null)
-  const longPressed = useRef(false)
-
-  const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
-
-  const cancel = () => {
-    if (timer.current) window.clearTimeout(timer.current)
-    timer.current = null
-  }
-
-  useEffect(() => cancel, [])
 
   return (
     <div className={`tile tile-plus ${menu ? 'menu-open' : ''}`}>
-      <button
-        className="plus"
-        title={`New session${cwd ? ` in ${shortPath(cwd)}` : ''} (⌘N) · ⌥-click for a worktree · hold for more`}
-        onPointerDown={() => {
-          longPressed.current = false
-          cancel()
-          timer.current = window.setTimeout(() => {
-            longPressed.current = true
-            setMenu(true)
-          }, LONG_PRESS_MS)
-        }}
-        onPointerUp={cancel}
-        onPointerLeave={cancel}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setMenu(true)
-        }}
-        onClick={(e) => {
-          if (longPressed.current) return
-          void window.deck.command({ type: 'new', worktree: e.altKey })
-        }}
-      >
+      <button className="plus" title="New session… (⌘N starts one here without asking)" onClick={() => setMenu(true)}>
         +
       </button>
       {menu && <PlusMenu state={state} onClose={() => setMenu(false)} />}
@@ -55,10 +22,14 @@ export function PlusTile({ state }: { state: DeckState }) {
 
 function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
+  const [worktree, setWorktree] = useState(false)
+  const recent = state.recent.filter((d) => d !== cwd)
   const run = (cmd: Parameters<typeof window.deck.command>[0]) => {
     onClose()
     void window.deck.command(cmd)
   }
+  /** ⌥-click flips the worktree toggle for that one pick. */
+  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -69,20 +40,30 @@ function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void })
   return (
     <div className="menu" onClick={(e) => e.stopPropagation()}>
       <div className="menu-section">
-        <button onClick={() => run({ type: 'new' })}>New session{cwd ? ` in ${shortPath(cwd)}` : ''}</button>
-        <button onClick={() => run({ type: 'new', worktree: true })}>New session in a worktree</button>
-        <button onClick={() => run({ type: 'chooseFolder' })}>New session in folder…</button>
+        <div className="menu-title">Start in</div>
+        {cwd && (
+          <button onClick={(e) => start(e, cwd)} title={cwd}>
+            <span className="cwd">{shortPath(cwd)}</span>
+            <span className="menu-hint">focused</span>
+          </button>
+        )}
+        {recent.map((dir) => (
+          <button key={dir} onClick={(e) => start(e, dir)} title={dir}>
+            <span className="cwd">{shortPath(dir)}</span>
+            <span className="menu-hint">recent</span>
+          </button>
+        ))}
+        {!cwd && recent.length === 0 && (
+          <button onClick={(e) => start(e)} title="The default folder from Settings, else your home">
+            <span className="cwd">Default folder</span>
+          </button>
+        )}
+        <button onClick={() => run({ type: 'chooseFolder', worktree })}>Choose folder…</button>
+        <label className="menu-check" title="Claude creates a git worktree under .claude/worktrees/ and works there (⌥-click any folder to flip this once)">
+          <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
+          in a new git worktree
+        </label>
       </div>
-      {state.recent.length > 0 && (
-        <div className="menu-section">
-          <div className="menu-title">Recent folders</div>
-          {state.recent.map((dir) => (
-            <button key={dir} className="menu-recent" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => run({ type: 'new', cwd: dir, worktree: e.altKey })}>
-              <span className="cwd">{shortPath(dir)}</span>
-            </button>
-          ))}
-        </div>
-      )}
       <div className="menu-section">
         <div className="menu-title">Parked{state.parked.length ? ` (${state.parked.length})` : ''}</div>
         {state.parked.length === 0 && <div className="menu-empty">Nothing parked. ⌘W parks the focused session.</div>}

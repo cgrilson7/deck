@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Heart, Pause, Play, Search, SkipBack, SkipForward } from 'lucide-react'
 import type { Lang, SavedWord, VocabEntry, VocabResult, VocabStats, VocabWord } from '@shared/types'
 import { onTranslation } from '../lib/bus'
+import { plain } from '../lib/errors'
 import { useSettings } from '../lib/theme'
 
 const KEY_LAST = 'deck.vocab.last'
@@ -97,7 +98,7 @@ export function VocabTile() {
         .then(setStats)
         .catch(() => undefined)
     } catch (e) {
-      if (mine === seq.current) setErr(e instanceof Error ? e.message : String(e))
+      if (mine === seq.current) setErr(plain(e))
     } finally {
       if (mine === seq.current) setBusy(false)
     }
@@ -137,7 +138,7 @@ export function VocabTile() {
         if (kept.length !== queue.current.length) write(KEY_QUEUE, (queue.current = kept))
         if (!result) next()
       })
-      .catch((e: unknown) => alive && setErr(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => alive && setErr(plain(e)))
     return () => {
       alive = false
     }
@@ -181,7 +182,14 @@ export function VocabTile() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    void lookup(query, /[áéíóúñü]/i.test(query) ? 'es' : 'en')
+    const q = query.trim()
+    if (!q) return
+    if (!isWordish(q)) {
+      // A dictionary, not a translator: a sentence has no Wiktionary entry.
+      setErr('one or two words at a time; the translator next door takes sentences')
+      return
+    }
+    void lookup(q, /[áéíóúñü]/i.test(q) ? 'es' : 'en')
     setQuery('')
   }
 

@@ -1,6 +1,6 @@
 # deck
 
-Seven Claude Code sessions in one window. One in focus on the left third as a terminal, the rest in a grid on the right as live conversation views (Claude's replies as markdown, a prompt bar on each), and a row beneath them with Wikipedia's picture of the day (with a search box over it) and a lofi stream. The last two grid cells are a Spanish vocabulary builder (a new SAT-level word every 30s, paired with the SAT word it translates and defined in both languages at once from Wiktionary, with synonyms and etymology) and an English ⇄ Spanish translator. Click a tile to swap it in. `+` starts a session.
+Seven Claude Code sessions in one window. One in focus on the left third as a terminal, the rest in a grid on the right as live conversation views (Claude's replies as markdown, a prompt bar on each), and a row beneath them with Wikipedia's picture of the day (with a search box over it) and a lofi stream. The last two grid cells are a Spanish vocabulary builder (a new SAT-level word every 30s, paired with the SAT word it translates and defined in both languages at once from Wiktionary, with synonyms and etymology) and an English ⇄ Spanish translator. Click a tile to swap it in. `+` asks where to start a session; ⌘N starts one in the focused folder without asking.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ npm run dev
 | ⌘] / ⌘[ | Next / previous session |
 | ⌘↩ | Jump to the session that needs you |
 | ⌘W | Park the focused session (tile closes, session lives on) |
-| right-click / hold `+` | Menu: folder picker, the 3 most recent folders, parked sessions to resume |
+| click `+` | Chooser: the focused folder, the 3 most recent, a folder picker, a worktree toggle, parked sessions to resume |
 | drop a file on a pane | Pastes its path into that session |
 
 Sessions run inside tmux on a private socket, so quitting deck never kills a conversation. Optional settings live in `~/Library/Application Support/deck/config.json`:

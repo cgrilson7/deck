@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import type { Lang, TranslateResult } from '@shared/types'
 import { announceTranslation } from '../lib/bus'
+import { plain } from '../lib/errors'
 
 const DEBOUNCE_MS = 700
 const RESET_MS = 5 * 60 * 1000
@@ -124,7 +125,7 @@ export function TranslateTile() {
         }
         touch()
       } catch (e) {
-        if (mine === seq.current) setErr(e instanceof Error ? e.message : String(e))
+        if (mine === seq.current) setErr(plain(e))
       } finally {
         if (mine === seq.current) setBusy(false)
       }

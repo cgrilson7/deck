@@ -5,7 +5,7 @@ as a real terminal; the others live in a grid on the right as conversation views
 Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
 plugin row (Wikipedia's featured content, a lofi YouTube stream) beneath them. Click a tile to
 swap it into focus.
-The `+` in the grid starts a new session. A personal tool, macOS only.
+The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. A personal tool, macOS only.
 
 ## What it is, in one paragraph
 
@@ -190,10 +190,11 @@ scripts/smoke.mjs          the smoke test
 - **Recent folders**: `sessions.json` keeps `recentCwds`, the last 10 folders sessions were started
   or resumed in, most recent first (`touchRecent` in `sessions.ts`); it outlives the sessions, and a
   file without it is seeded from the records. `DeckState.recent` = the first 3 that still exist. They
-  are offered in the `+` menu ("Recent folders", ⌥-click = worktree), in the empty focus pane, and
-  under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
+  are offered in the `+` chooser ("Start in": the focused folder, then recents, then the picker; a
+  worktree checkbox applies to whichever is picked, ⌥-click flips it once), in the empty focus pane,
+  and under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
 - **Close = park, not kill.** ⌘W / "park" kills only the pty client; the tmux session and the
-  Claude conversation stay. Parked sessions are listed under the `+` (right-click / long-press)
+  Claude conversation stay. Parked sessions are listed at the bottom of the `+` chooser
   and resume by tmux attach if alive, else `claude --resume <claudeSessionId>`.
 - **One tmux client per session, ever.** tmux sizes to the smallest attached client. Never
   attach a second client to a `deck-*` session from a terminal while the app has it open.
@@ -211,9 +212,14 @@ scripts/smoke.mjs          the smoke test
   Profile = tmux socket name = userData folder name; hook port 47800 (deck) / 47801 (others).
   Two profiles never see each other's sessions, so a Claude session working ON deck can run
   `npm run dev` without colliding with the instance it is running inside.
-- **Renderer**: only the focus pane mounts a terminal, with the WebGL addon (Chrome caps live
-  WebGL contexts; `mode: 'tile'` = DOM renderer is still supported by terminals.ts but unused).
-  Fonts, cursor and scrollback come from settings (`applyTerminalSettings` in terminals.ts).
+- **Renderer**: only the focus pane mounts a terminal, and only the mounted (focused) terminal
+  holds a WebGL context — `mount('focus')` creates it, `unmount` disposes it (Chrome caps live
+  contexts, and a parked terminal in staging is never seen, so cycling focus must not pile them
+  up; context loss falls back to the DOM renderer and repaints the buffer so the pane never
+  blanks). Sizing goes through `fitStable`: it fits, then re-fits on later frames until the
+  proposed cols/rows stop changing, skipping zero-size frames, so a mount mid-layout can't leave
+  the TUI a row/column off. Fonts, cursor and scrollback come from settings
+  (`applyTerminalSettings` in terminals.ts).
 - **Themes**: `shared/themes.ts` is the catalog; every family has a light and a dark variant and
   `appearance` (light / dark / system) picks one. The renderer writes the variant's colors into
   CSS variables on `<html>` and the palette into every xterm (`lib/theme.ts`); main uses the same

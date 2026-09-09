@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
+import { plain } from '../lib/errors'
 
 const REFRESH_MS = 60 * 60 * 1000
 const SEARCH_DEBOUNCE_MS = 350
@@ -30,7 +31,7 @@ export function WikiTile() {
           setPic(p)
           setErr(p ? null : 'No picture today')
         })
-        .catch((e: unknown) => alive && setErr(e instanceof Error ? e.message : String(e)))
+        .catch((e: unknown) => alive && setErr(plain(e)))
     void load()
     const t = window.setInterval(load, REFRESH_MS)
     return () => {
@@ -56,7 +57,7 @@ export function WikiTile() {
       })
       .catch((e: unknown) => {
         if (id !== seq.current) return
-        setErr(e instanceof Error ? e.message : String(e))
+        setErr(plain(e))
         setSearching(false)
       })
   }
@@ -85,7 +86,7 @@ export function WikiTile() {
     window.deck
       .wikiSummary(h.key)
       .then(setArticle)
-      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => setErr(plain(e)))
   }
 
   const overlay = article ? 'article' : hits || searching ? 'results' : 'picture'

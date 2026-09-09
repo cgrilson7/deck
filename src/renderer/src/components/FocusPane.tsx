@@ -14,16 +14,17 @@ export function FocusPane({ session, recent }: { session: SessionView | null; re
           +
         </button>
         <p>No session in focus. Click + or press ⌘N.</p>
-        {recent.length > 0 && (
-          <div className="recent">
-            <div className="recent-title">Or pick up where you left off</div>
-            {recent.map((dir) => (
-              <button key={dir} className="recent-dir" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => window.deck.command({ type: 'new', cwd: dir, worktree: e.altKey })}>
-                {shortPath(dir)}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="recent">
+          {recent.length > 0 && <div className="recent-title">Or pick up where you left off</div>}
+          {recent.map((dir) => (
+            <button key={dir} className="recent-dir" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => window.deck.command({ type: 'new', cwd: dir, worktree: e.altKey })}>
+              {shortPath(dir)}
+            </button>
+          ))}
+          <button className="recent-dir" onClick={(e) => window.deck.command({ type: 'chooseFolder', worktree: e.altKey })} title="Pick any folder (⌘O) · ⌥-click for a worktree">
+            Choose folder…
+          </button>
+        </div>
       </section>
     )
   }

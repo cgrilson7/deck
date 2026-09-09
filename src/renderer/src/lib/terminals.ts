@@ -52,6 +52,7 @@ interface Entry {
   mode: Mode | null
   host: HTMLElement | null
   fox: { dispose(): void } // Foxtrot over the Claude Code banner (lib/fox.ts)
+  fitRaf: number // pending fit frame (0 = none), so re-entry coalesces instead of stacking fits
 }
 
 const entries = new Map<string, Entry>()
@@ -107,7 +108,7 @@ export function ensureTerminal(id: string): Entry {
   term.onBell(() => window.deck.bell(id))
   term.attachCustomKeyEventHandler((ev) => !(ev.metaKey && isDeckShortcut(ev)))
 
-  const entry: Entry = { term, fit, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term) }
+  const entry: Entry = { term, fit, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term), fitRaf: 0 }
   entries.set(id, entry)
 
   const buf = pending.get(id)
@@ -135,45 +136,88 @@ export function mount(id: string, host: HTMLElement, mode: Mode): void {
   const e = ensureTerminal(id)
   if (e.el.parentElement !== host) host.appendChild(e.el)
   e.host = host
-  if (e.mode !== mode) applyMode(e, mode)
-  refit(id)
-}
-
-function applyMode(e: Entry, mode: Mode): void {
   e.mode = mode
   e.term.options.fontSize = prefs.fontSize[mode]
-  if (mode === 'focus') {
-    if (!e.webgl) {
+  // A GPU context is held only by the terminal in the focus pane. Grid tiles render the
+  // conversation, not a terminal, so a session parked in staging must not keep one: cycling
+  // focus across sessions would otherwise pile up contexts until Chrome drops one and blanks
+  // the pane. Recreated on the next focus mount.
+  if (mode === 'focus') ensureWebgl(e)
+  else disposeWebgl(e)
+  fitStable(id)
+}
+
+function ensureWebgl(e: Entry): void {
+  if (e.webgl) return
+  try {
+    const webgl = new WebglAddon()
+    webgl.onContextLoss(() => {
+      webgl.dispose()
+      e.webgl = null
+      // Fall back to the DOM renderer AND repaint from the buffer, else the pane stays blank
+      // until something else redraws (the bug that used to need a UI refresh).
       try {
-        const webgl = new WebglAddon()
-        webgl.onContextLoss(() => {
-          webgl.dispose()
-          e.webgl = null
-        })
-        e.term.loadAddon(webgl)
-        e.webgl = webgl
+        e.term.refresh(0, e.term.rows - 1)
       } catch {
-        e.webgl = null // DOM renderer fallback is automatic
+        /* terminal gone */
       }
-    }
-  } else if (e.webgl) {
-    // Grid tiles use the DOM renderer: Chrome caps live WebGL contexts (~16).
-    e.webgl.dispose()
-    e.webgl = null
+    })
+    e.term.loadAddon(webgl)
+    e.webgl = webgl
+  } catch {
+    e.webgl = null // DOM renderer fallback is automatic
   }
 }
 
-export function refit(id: string): void {
+function disposeWebgl(e: Entry): void {
+  if (!e.webgl) return
+  e.webgl.dispose()
+  e.webgl = null
+}
+
+/**
+ * Fit the terminal to its host, then keep fitting on later frames until the proposed
+ * dimensions stop changing (or `tries` run out). A single fit right after a mount often
+ * measures the host mid-layout (font size just changed, flex not settled, element just
+ * appended), which sizes the pane a row or column off and leaves the TUI looking shifted or
+ * scrolled. Waiting for the size to settle fixes that. Zero-size frames (not yet laid out)
+ * are skipped, not counted.
+ */
+export function fitStable(id: string, tries = 10): void {
   const e = entries.get(id)
   if (!e || !e.host) return
-  requestAnimationFrame(() => {
+  if (e.fitRaf) cancelAnimationFrame(e.fitRaf)
+  let last = ''
+  const step = (n: number): void => {
+    e.fitRaf = 0
     if (!e.host) return
+    if (e.el.clientWidth < 2 || e.el.clientHeight < 2) {
+      // Not laid out yet: wait for a real size without spending a try.
+      if (n > 0) e.fitRaf = requestAnimationFrame(() => step(n))
+      return
+    }
     try {
-      e.fit.fit()
+      const dims = e.fit.proposeDimensions()
+      if (!dims || !dims.cols || !dims.rows) {
+        if (n > 0) e.fitRaf = requestAnimationFrame(() => step(n - 1))
+        return
+      }
+      const key = `${dims.cols}x${dims.rows}`
+      e.fit.fit() // pushes the size to the pty via term.onResize when cols/rows change
+      if (key !== last && n > 0) {
+        last = key
+        e.fitRaf = requestAnimationFrame(() => step(n - 1))
+      }
     } catch {
       /* not measurable yet */
     }
-  })
+  }
+  e.fitRaf = requestAnimationFrame(() => step(tries))
+}
+
+/** Fit `id` to its current host. Kept for callers; delegates to the settling fit. */
+export function refit(id: string): void {
+  fitStable(id)
 }
 
 export function focusTerminal(id: string): void {
@@ -191,6 +235,11 @@ export function pasteText(id: string, text: string): void {
 export function unmount(id: string, host: HTMLElement): void {
   const e = entries.get(id)
   if (!e || e.host !== host) return
+  if (e.fitRaf) {
+    cancelAnimationFrame(e.fitRaf)
+    e.fitRaf = 0
+  }
+  disposeWebgl(e) // a parked terminal holds no GPU context
   stagingEl().appendChild(e.el)
   e.host = null
 }
@@ -198,6 +247,7 @@ export function unmount(id: string, host: HTMLElement): void {
 export function dispose(id: string): void {
   const e = entries.get(id)
   if (e) {
+    if (e.fitRaf) cancelAnimationFrame(e.fitRaf)
     e.fox.dispose()
     e.webgl?.dispose()
     e.term.dispose()
