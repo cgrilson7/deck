@@ -4,10 +4,20 @@ const VIDEO = 'rFZHOHl-L8A' // the lofi live stream
 // The bare embed player fills the webview edge to edge. Starts muted so autoplay is allowed.
 const EMBED = `https://www.youtube.com/embed/${VIDEO}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&iv_load_policy=3`
 
+// Drive the embed through its player object (#movie_player), not the <video> element: the
+// player owns mute/volume state and re-applies it to the element every few seconds, so a
+// direct `video.muted = false` gets undone. Player states: 1 playing, 2 paused, 3 buffering.
+const P = `const p = document.getElementById('movie_player'); const v = document.querySelector('video');`
 const JS = {
-  toggleMute: `(() => { const v = document.querySelector('video'); if (!v) return null; v.muted = !v.muted; return v.muted })()`,
-  togglePlay: `(() => { const v = document.querySelector('video'); if (!v) return null; if (v.paused) { v.play(); return true } v.pause(); return false })()`,
-  read: `(() => { const v = document.querySelector('video'); return v ? { muted: v.muted, playing: !v.paused } : null })()`
+  toggleMute: `(() => { ${P}
+    if (p && p.isMuted) { if (p.isMuted()) { p.unMute(); if (p.getVolume && p.getVolume() === 0) p.setVolume(100); return false } p.mute(); return true }
+    if (!v) return null; v.muted = !v.muted; return v.muted })()`,
+  togglePlay: `(() => { ${P}
+    if (p && p.getPlayerState) { const s = p.getPlayerState(); if (s === 1 || s === 3) { p.pauseVideo(); return false } p.playVideo(); return true }
+    if (!v) return null; if (v.paused) { v.play(); return true } v.pause(); return false })()`,
+  read: `(() => { ${P}
+    if (p && p.isMuted) { const s = p.getPlayerState(); return { muted: p.isMuted(), playing: s === 1 || s === 3 } }
+    return v ? { muted: v.muted, playing: !v.paused } : null })()`
 }
 
 /** The lofi stream, full-bleed in an Electron <webview>, with our own play/pause + mute overlaid. */
