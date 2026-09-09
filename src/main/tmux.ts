@@ -1,0 +1,79 @@
+// Thin wrapper around the deck tmux server. Every deck session is one tmux session on a
+// private socket (-L deck or -L deck-dev) so it survives the app quitting.
+
+import { execFile } from 'node:child_process'
+
+export class Tmux {
+  constructor(
+    readonly socket: string,
+    private readonly conf: string,
+    private readonly env: NodeJS.ProcessEnv
+  ) {}
+
+  /** Args to reproduce this server from a shell: `tmux -L <socket> ...` */
+  get cliPrefix(): string[] {
+    return ['-L', this.socket]
+  }
+
+  run(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      execFile(
+        'tmux',
+        ['-L', this.socket, '-f', this.conf, ...args],
+        { env: this.env, encoding: 'utf8', timeout: 10000 },
+        (err, stdout, stderr) => {
+          const code = err && typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : err ? 1 : 0
+          resolve({ code, stdout: stdout ?? '', stderr: stderr ?? '' })
+        }
+      )
+    })
+  }
+
+  // Targets are plain names: tmux matches an exact session name first, and deck names
+  // (`deck-` + 6 hex) can never be prefixes of each other. (The `=name` exact-match
+  // form is rejected by tmux 3.5a for display-message/list-panes, so it is not used.)
+  async hasSession(name: string): Promise<boolean> {
+    const r = await this.run(['has-session', '-t', name])
+    return r.code === 0
+  }
+
+  async listSessions(): Promise<string[]> {
+    const r = await this.run(['list-sessions', '-F', '#{session_name}'])
+    if (r.code !== 0) return [] // "no server running" is the normal empty case
+    return r.stdout.split('\n').map((s) => s.trim()).filter(Boolean)
+  }
+
+  /** Start a detached session running `command` (a shell string, run via sh -c). */
+  async newSession(opts: { name: string; cwd: string; command: string; cols: number; rows: number }): Promise<void> {
+    const r = await this.run([
+      'new-session', '-d',
+      '-s', opts.name,
+      '-c', opts.cwd,
+      '-x', String(opts.cols),
+      '-y', String(opts.rows),
+      opts.command
+    ])
+    if (r.code !== 0) throw new Error(`tmux new-session failed: ${r.stderr.trim() || r.stdout.trim()}`)
+  }
+
+  async killSession(name: string): Promise<void> {
+    await this.run(['kill-session', '-t', name])
+  }
+
+  /** Is the (single) pane of this session a dead pane kept by remain-on-exit? */
+  async paneDead(name: string): Promise<boolean> {
+    const r = await this.run(['display-message', '-p', '-t', name, '#{pane_dead}'])
+    return r.code === 0 && r.stdout.trim() === '1'
+  }
+
+  async panePid(name: string): Promise<number | null> {
+    const r = await this.run(['display-message', '-p', '-t', name, '#{pane_pid}'])
+    const n = Number(r.stdout.trim())
+    return r.code === 0 && Number.isFinite(n) ? n : null
+  }
+}
+
+/** POSIX single-quote a string for sh -c. */
+export function shq(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`
+}
