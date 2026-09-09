@@ -257,5 +257,8 @@ size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.
   `Sec-Fetch-Site: cross-site` + `Sec-Fetch-Dest: iframe`; a top-level <webview> navigation
   sends neither. `main/youtube.ts` rewrites them. Wikimedia thumbnails come only in fixed
   widths (250/330/500/960/1280/1920); others are HTTP 400.
+- Claude Code 2.1.2xx draws its TUI on the alternate screen (`tmux display -p '#{alternate_on}'`
+  = 1): no scrollback, the banner redrawn in place. `watchClaudeBanner` must scan whichever
+  buffer is active; a `buf.type === 'normal'` guard leaves the CLI's mascot showing.
 - Sessions started in VS Code/iTerm cannot be adopted (their PTYs belong to that app); they
   can only be resumed by id. `claude agents --json` lists them with `sessionId`.
