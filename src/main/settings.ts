@@ -87,7 +87,6 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     scrollback: clampInt(raw.scrollback, 0, 100_000, d.scrollback),
     showWiki: bool(raw.showWiki, d.showWiki),
     showYouTube: bool(raw.showYouTube, d.showYouTube),
-    wikiCycleSeconds: clampInt(raw.wikiCycleSeconds, 5, 600, d.wikiCycleSeconds),
     showTranslate: bool(raw.showTranslate, d.showTranslate),
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),

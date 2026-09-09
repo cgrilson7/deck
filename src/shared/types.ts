@@ -42,6 +42,8 @@ export interface DeckState {
   focusSlot: number | null
   open: SessionView[]
   parked: SessionView[]
+  /** The last few folders sessions were started in (most recent first, only ones that still exist). */
+  recent: string[]
   /** Which tmux socket / profile this instance runs on (deck or deck-dev). */
   profile: string
 }
@@ -59,15 +61,36 @@ export type DeckCommand =
   /** Reload the renderer and reattach every tmux client so the terminals redraw. Sessions keep running. */
   | { type: 'refreshUi' }
 
-/** One card in the Wikipedia tile, from the featured-content feed. */
-export interface WikiItem {
-  kind: 'potd' | 'tfa' | 'onthisday' | 'mostread'
-  /** Small label over the title: "picture of the day", "on this day · 1969", ... */
-  tag: string
+/** Wikipedia's picture of the day, from the featured-content feed. */
+export interface WikiPicture {
   title: string
-  summary: string
+  /** "Photo: …" credit line, '' when the feed has none. */
+  credit: string
   imageUrl: string
-  /** Opened in the browser on click. */
+  /** The file page, opened in the browser on click. */
+  url: string
+}
+
+/** One result of a Wikipedia search. */
+export interface WikiHit {
+  /** Page key (title with underscores), the argument to `wikiSummary`. */
+  key: string
+  title: string
+  /** Wikidata's one-liner ("Species of mammal"), '' when none. */
+  description: string
+  /** The matching snippet, tags stripped. */
+  excerpt: string
+  imageUrl: string | null
+  url: string
+}
+
+/** The summary of one Wikipedia page, shown inside the tile when a result is picked. */
+export interface WikiSummary {
+  title: string
+  description: string
+  /** The lead section as plain text. */
+  extract: string
+  imageUrl: string | null
   url: string
 }
 
@@ -170,8 +193,6 @@ export interface DeckSettings {
   /** Plugin row. */
   showWiki: boolean
   showYouTube: boolean
-  /** Seconds between Wikipedia cards. */
-  wikiCycleSeconds: number
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
   /** Google Cloud API key with the Cloud Translation API enabled. Falls back to $GOOGLE_CLOUD_API_KEY. */
@@ -204,13 +225,32 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   scrollback: 5000,
   showWiki: true,
   showYouTube: true,
-  wikiCycleSeconds: 20,
   showTranslate: true,
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true
+}
+
+/**
+ * A grid tile's view of a conversation, tailed from the session's transcript
+ * (~/.claude/projects/<cwd>/<claudeSessionId>.jsonl) by main/transcript.ts. Only what a
+ * glance needs: your prompts, Claude's prose (markdown), and one line per tool call.
+ */
+export type ChatBlock =
+  | { kind: 'user'; text: string; ts: number }
+  | { kind: 'text'; text: string; ts: number }
+  | { kind: 'tool'; id: string; name: string; label: string; ts: number; done: boolean; error: boolean }
+
+export interface Transcript {
+  id: string
+  /** The most recent blocks (main keeps the tail; see TRANSCRIPT_KEEP). */
+  blocks: ChatBlock[]
+  /** Claude's own title for the conversation, once it has one. */
+  title: string | null
+  /** True once the transcript file has been found (a fresh session has none until its first prompt). */
+  found: boolean
 }
 
 /** One-shot UI requests from the main process (menu items) to the renderer. */
@@ -226,10 +266,17 @@ export interface DeckApi {
   onPtyExit(cb: (id: string) => void): () => void
   setTitle(id: string, title: string): void
   bell(id: string): void
+  /** The tile view of a session's conversation (null until main has looked). */
+  getTranscript(id: string): Promise<Transcript | null>
+  onTranscript(cb: (t: Transcript) => void): () => void
   /** Absolute path of a File dropped onto the window ('' if it has none). */
   pathForFile(file: File): string
-  /** Today's Wikipedia featured content, only items that have an image. Cached in main. */
-  wikiFeatured(): Promise<WikiItem[]>
+  /** Today's Wikipedia picture of the day (null if the feed has none). Cached in main. */
+  wikiPicture(): Promise<WikiPicture | null>
+  /** Full-text search of English Wikipedia, up to a dozen hits. */
+  wikiSearch(q: string): Promise<WikiHit[]>
+  /** The lead section of one page, by key. */
+  wikiSummary(key: string): Promise<WikiSummary>
   openExternal(url: string): void
   /**
    * Detect whether `text` is English or Spanish and translate it to the other one. `hint` is the

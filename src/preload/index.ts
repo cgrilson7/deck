@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, Lang, SavedWord, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiItem } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, Lang, SavedWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -23,6 +23,12 @@ const api: DeckApi = {
   },
   setTitle: (id, title) => ipcRenderer.send('deck:setTitle', id, title),
   bell: (id) => ipcRenderer.send('deck:bell', id),
+  getTranscript: (id) => ipcRenderer.invoke('transcript:get', id) as Promise<Transcript | null>,
+  onTranscript: (cb) => {
+    const h = (_e: unknown, t: Transcript) => cb(t)
+    ipcRenderer.on('transcript:update', h)
+    return () => ipcRenderer.removeListener('transcript:update', h)
+  },
   // Dropped File objects carry no path in an isolated renderer; the preload resolves it.
   pathForFile: (file) => {
     try {
@@ -31,7 +37,9 @@ const api: DeckApi = {
       return ''
     }
   },
-  wikiFeatured: () => ipcRenderer.invoke('wiki:featured') as Promise<WikiItem[]>,
+  wikiPicture: () => ipcRenderer.invoke('wiki:picture') as Promise<WikiPicture | null>,
+  wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,
+  wikiSummary: (key: string) => ipcRenderer.invoke('wiki:summary', key) as Promise<WikiSummary>,
   openExternal: (url) => ipcRenderer.send('deck:openExternal', url),
   translate: (text: string, hint: Lang) => ipcRenderer.invoke('translate:run', text, hint) as Promise<TranslateResult>,
   vocab: (word: string, hint: Lang, counterpart?: string) => ipcRenderer.invoke('vocab:lookup', word, hint, counterpart) as Promise<VocabResult>,

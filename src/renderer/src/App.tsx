@@ -81,7 +81,7 @@ export default function App() {
         <ThemeControls open={themeOpen} onOpenChange={setThemeOpen} />
       </header>
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
-        <FocusPane session={focused} />
+        <FocusPane session={focused} recent={state.recent} />
         <Grid sessions={others} state={state} settings={settings} />
       </main>
     </div>

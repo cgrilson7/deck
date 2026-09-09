@@ -1,15 +1,21 @@
 import type { SessionView } from '@shared/types'
 import { FoxStatus } from './FoxStatus'
-import { TermHost } from './TermHost'
+import { ChatView } from './ChatView'
+import { TilePrompt } from './TilePrompt'
 import { useDropTarget } from './useDropTarget'
 
 export function Tile({ session: s }: { session: SessionView }) {
   const focus = () => void window.deck.command({ type: 'focus', slot: s.slot! })
   const drop = useDropTarget(s.id, focus) // a drop also brings the tile into focus
+  // Selecting text in the conversation should not swap the tile into focus on mouse-up.
+  const onClick = () => {
+    if (window.getSelection()?.toString()) return
+    focus()
+  }
   return (
     <div
       className={`tile status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''}`}
-      onClick={focus}
+      onClick={onClick}
       title={`Focus slot ${s.slot} (⌘${s.slot})`}
       {...drop.handlers}
     >
@@ -20,9 +26,9 @@ export function Tile({ session: s }: { session: SessionView }) {
         {s.worktree && <span className="badge">wt</span>}
       </header>
       <div className="tile-body">
-        <TermHost id={s.id} mode="tile" />
-        {/* Tiles are for watching; the overlay keeps clicks from landing in the terminal. */}
-        <div className="tile-click" />
+        {/* The conversation itself, not the CLI's screen; the terminal lives in the focus pane. */}
+        <ChatView id={s.id} status={s.status} attention={s.attention} />
+        <TilePrompt id={s.id} />
       </div>
     </div>
   )

@@ -5,7 +5,7 @@ import { Fox } from './Fox'
 import { shortPath } from '../lib/format'
 import { useDropTarget } from './useDropTarget'
 
-export function FocusPane({ session }: { session: SessionView | null }) {
+export function FocusPane({ session, recent }: { session: SessionView | null; recent: string[] }) {
   if (!session) {
     return (
       <section className="focus focus-empty">
@@ -14,6 +14,16 @@ export function FocusPane({ session }: { session: SessionView | null }) {
           +
         </button>
         <p>No session in focus. Click + or press ⌘N.</p>
+        {recent.length > 0 && (
+          <div className="recent">
+            <div className="recent-title">Or pick up where you left off</div>
+            {recent.map((dir) => (
+              <button key={dir} className="recent-dir" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => window.deck.command({ type: 'new', cwd: dir, worktree: e.altKey })}>
+                {shortPath(dir)}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
     )
   }

@@ -14,7 +14,9 @@ import { translate } from './translate'
 import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
 import { VocabStore } from './store'
-import { wikiFeatured } from './wiki'
+import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
+import { TranscriptWatcher } from './transcript'
+import { homedir } from 'node:os'
 import { setupYoutubeSession } from './youtube'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -37,6 +39,7 @@ let win: BrowserWindow | null = null
 let manager: SessionManager | null = null
 let settings: SettingsStore | null = null
 let store: VocabStore | null = null
+let transcripts: TranscriptWatcher | null = null
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -136,8 +139,18 @@ function menuHandlers() {
     run: (cmd: DeckCommand) => void runCommand(cmd),
     settings: () => settings!.get(),
     patch: (p: Partial<DeckSettings>) => void settings!.update(p),
-    ui: (ev: UiEvent) => send('deck:ui', ev)
+    ui: (ev: UiEvent) => send('deck:ui', ev),
+    recent: () => manager?.recent() ?? []
   }
+}
+
+/** The Session menu lists recent folders, so it is rebuilt when that list changes. */
+let menuRecent = ''
+function syncMenuRecent(recent: string[]): void {
+  const key = recent.join('\0')
+  if (key === menuRecent) return
+  menuRecent = key
+  buildMenu(menuHandlers())
 }
 
 app.whenReady().then(async () => {
@@ -175,11 +188,19 @@ app.whenReady().then(async () => {
       return CAP - Number(s.showTranslate) - Number(s.showVocab)
     },
     events: {
-      state: (state) => send('deck:state', state),
+      state: (state) => {
+        send('deck:state', state)
+        syncMenuRecent(state.recent)
+        transcripts?.sync(state.open)
+      },
       data: (id, data) => send('pty:data', id, data),
       exit: (id) => send('pty:exit', id)
     }
   })
+
+  // Grid tiles show the conversation itself, tailed from Claude Code's transcript files.
+  transcripts = new TranscriptWatcher(join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), '.claude'), 'projects'), (t) => send('transcript:update', t))
+  ipcMain.handle('transcript:get', (_e, id: string) => transcripts!.get(String(id ?? '')))
 
   ipcMain.handle('deck:getState', () => manager!.getState())
   ipcMain.handle('deck:command', (_e, cmd: DeckCommand) => runCommand(cmd))
@@ -195,7 +216,9 @@ app.whenReady().then(async () => {
     return r.canceled || r.filePaths.length === 0 ? '' : r.filePaths[0]
   })
 
-  ipcMain.handle('wiki:featured', () => wikiFeatured())
+  ipcMain.handle('wiki:picture', () => wikiPicture())
+  ipcMain.handle('wiki:search', (_e, q: string) => wikiSearch(String(q ?? '')))
+  ipcMain.handle('wiki:summary', (_e, key: string) => wikiSummary(String(key ?? '')))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
   ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
   ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))

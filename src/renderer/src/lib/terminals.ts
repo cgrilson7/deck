@@ -27,6 +27,8 @@ const prefs = {
 export function applyTerminalSettings(s: DeckSettings, palette: TermPalette): void {
   prefs.fontSize = { focus: s.focusFontSize, tile: s.tileFontSize }
   prefs.fontFamily = s.fontFamily
+  // The tiles' tool lines and code blocks use the terminal font too.
+  document.documentElement.style.setProperty('--mono', s.fontFamily)
   prefs.cursorBlink = s.cursorBlink
   prefs.cursorStyle = s.cursorStyle
   prefs.scrollback = s.scrollback

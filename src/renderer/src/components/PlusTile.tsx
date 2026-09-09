@@ -73,6 +73,16 @@ function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void })
         <button onClick={() => run({ type: 'new', worktree: true })}>New session in a worktree</button>
         <button onClick={() => run({ type: 'chooseFolder' })}>New session in folder…</button>
       </div>
+      {state.recent.length > 0 && (
+        <div className="menu-section">
+          <div className="menu-title">Recent folders</div>
+          {state.recent.map((dir) => (
+            <button key={dir} className="menu-recent" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => run({ type: 'new', cwd: dir, worktree: e.altKey })}>
+              <span className="cwd">{shortPath(dir)}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="menu-section">
         <div className="menu-title">Parked{state.parked.length ? ` (${state.parked.length})` : ''}</div>
         {state.parked.length === 0 && <div className="menu-empty">Nothing parked. ⌘W parks the focused session.</div>}

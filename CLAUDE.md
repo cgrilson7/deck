@@ -1,17 +1,21 @@
 # deck
 
-Seven Claude Code sessions in one Electron window. The focused session fills the left third;
-the other six live in a grid on the right and stream live, with a plugin row (Wikipedia's
-featured content, a lofi YouTube stream) beneath them. Click a tile to swap it into focus.
+Seven Claude Code sessions in one Electron window. The focused session fills the left third
+as a real terminal; the others live in a grid on the right as conversation views (your prompts,
+Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
+plugin row (Wikipedia's featured content, a lofi YouTube stream) beneath them. Click a tile to
+swap it into focus.
 The `+` in the grid starts a new session. A personal tool, macOS only.
 
 ## What it is, in one paragraph
 
 Each session is a real `claude` CLI process running inside its own tmux session on a
 private tmux socket, with exactly one client attached: a node-pty in the Electron main
-process, rendered by an xterm.js terminal in the renderer. Terminals are created once and
-MOVED between the focus pane and grid cells (never rebuilt), so a swap is one `appendChild`
-plus a fit/resize. tmux is there so sessions survive the app quitting. Nothing about the
+process, rendered by an xterm.js terminal in the renderer when it is the focused one. Terminals
+are created once and kept (never rebuilt); a swap parks one and mounts the other, one
+`appendChild` plus a fit/resize. Grid tiles do not show the terminal at all: main tails the
+session's transcript file and the tile renders the conversation. tmux is there so sessions
+survive the app quitting. Nothing about the
 Claude CLI is wrapped or replaced: skills, hooks, plugins, MCP and slash commands all work
 because it is the unchanged CLI in a real PTY.
 
@@ -42,7 +46,8 @@ src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resum
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
-src/main/wiki.ts           fetches today's Wikipedia featured-content feed (cached 1h) for the tile
+src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
+src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
@@ -58,9 +63,11 @@ src/renderer/src/App.tsx   state → FocusPane + Grid; disposes terminals that l
 src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/mode, buffering
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
+src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
-src/renderer/src/components/        FocusPane, Grid, Tile, PlusTile (+ menu), TermHost, FoxStatus (the fox as the status indicator),
+src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+                                    TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
@@ -79,9 +86,13 @@ scripts/smoke.mjs          the smoke test
 - **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
   tall (`Grid.tsx`, `.grid-col` in styles.css). Sessions with `attention` sort first, then slot
   order (`App.tsx`). The first empty cell is the `+`; at cap the `+` disappears.
-- **Plugins**: Wikipedia = cards from the featured feed (picture of the day, featured article,
-  on this day, most read), only ones with an image, cycling every 20s; click opens the article
-  via `deck:openExternal` (http(s) only). YouTube = the bare embed player for the lofi stream in
+- **Plugins**: Wikipedia = today's picture of the day (the featured feed's `image`), full bleed,
+  click opens its file page via `deck:openExternal` (http(s) only). A transparent search box sits
+  top right over it (`.wiki-search`: no chrome until hover/focus). Typing (350ms pause, or ⏎)
+  searches English Wikipedia (`/w/rest.php/v1/search/page`) and the hits take over the tile over
+  the darkened picture; a hit loads its lead section (`/api/rest_v1/page/summary`) in place, its
+  title opens the browser. Esc / × brings the picture back. Search thumbnails are re-requested at
+  250px (the API's are 60px). YouTube = the bare embed player for the lofi stream in
   a `<webview>` on partition `persist:youtube` (`webviewTag` is on in `index.ts`); play/pause and
   mute call the embed's player object (`#movie_player`) through `executeJavaScript`, never the
   `<video>` element (the player re-applies its own mute state to it). The renderer CSP allows no
@@ -153,9 +164,34 @@ scripts/smoke.mjs          the smoke test
   frame (22×18 sheet px × `--fox-scale`), animated by stepping `background-position-x` one frame
   (32px × scale) at a time; row / frame count / duration are CSS variables (`.fox-idle`, `.fox-run`,
   …); the sheet is a `--fox-sheet` data: URL set at boot (`installFoxSheet`, CSP allows `img-src data:`).
+- **Tiles are conversations, not terminals** (`ChatView`, `main/transcript.ts`): a grid tile
+  shows the session's transcript, tailed by main from
+  `<CLAUDE_CONFIG_DIR|~/.claude>/projects/*/<claudeSessionId>.jsonl` (found by our UUID across
+  project folders, polled every 400ms from the last offset; the file appears at the first prompt).
+  Lines become `ChatBlock`s: `user` (typed text; slash commands unwrapped, injected tags
+  stripped, sidechains and meta skipped), `text` (assistant prose, adjacent pieces run together,
+  rendered by `lib/markdown.tsx`, elements only, never HTML), `tool` (one line: name + a label
+  from its input, `toolLabel`; ticked by its tool_result, red on error). Main keeps the last
+  `TRANSCRIPT_KEEP` (80) and pushes `transcript:update`; the view pins to the end unless you
+  scrolled up. A busy session shows three dots under the last block; attention / blocked shows a
+  "needs you in the terminal" note, since permission prompts only exist in the TUI. A tile with
+  nothing yet shows Foxtrot. Clicking a tile still focuses it, unless text is selected. The
+  session's xterm is only mounted in the focus pane, so its size is whatever the focus pane last
+  set (SPAWN 120×40 before that).
+- **Tile prompts** (`TilePrompt`, the bar along the bottom of every grid session tile): an
+  always-visible rounded outline, no label, that pastes what you type into THAT session and
+  submits it (⏎; ⇧⏎ = newline, Esc empties) without swapping it into focus. Clicks in the bar
+  are stopped so the tile does not take focus. It goes through `pasteText` (bracketed paste)
+  then a `\r` a beat later, so main's `input()` also clears the tile's attention. The bar sits
+  in the conversation view's bottom padding (`--tile-prompt-height` + gaps on `.tile-body`).
 - **File drops**: dragging files onto the focus pane or a tile pastes their shell-escaped paths
   into that session (a tile drop also focuses it). Paths come from `webUtils.getPathForFile`
   in the preload; the renderer never sees one otherwise.
+- **Recent folders**: `sessions.json` keeps `recentCwds`, the last 10 folders sessions were started
+  or resumed in, most recent first (`touchRecent` in `sessions.ts`); it outlives the sessions, and a
+  file without it is seeded from the records. `DeckState.recent` = the first 3 that still exist. They
+  are offered in the `+` menu ("Recent folders", ⌥-click = worktree), in the empty focus pane, and
+  under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
 - **Close = park, not kill.** ⌘W / "park" kills only the pty client; the tmux session and the
   Claude conversation stay. Parked sessions are listed under the `+` (right-click / long-press)
   and resume by tmux attach if alive, else `claude --resume <claudeSessionId>`.
@@ -175,9 +211,9 @@ scripts/smoke.mjs          the smoke test
   Profile = tmux socket name = userData folder name; hook port 47800 (deck) / 47801 (others).
   Two profiles never see each other's sessions, so a Claude session working ON deck can run
   `npm run dev` without colliding with the instance it is running inside.
-- **Renderer**: grid tiles use xterm's DOM renderer; only the focus pane loads the WebGL addon
-  (Chrome caps live WebGL contexts). Fonts, cursor and scrollback come from settings
-  (`applyTerminalSettings` in terminals.ts).
+- **Renderer**: only the focus pane mounts a terminal, with the WebGL addon (Chrome caps live
+  WebGL contexts; `mode: 'tile'` = DOM renderer is still supported by terminals.ts but unused).
+  Fonts, cursor and scrollback come from settings (`applyTerminalSettings` in terminals.ts).
 - **Themes**: `shared/themes.ts` is the catalog; every family has a light and a dark variant and
   `appearance` (light / dark / system) picks one. The renderer writes the variant's colors into
   CSS variables on `<html>` and the palette into every xterm (`lib/theme.ts`); main uses the same
@@ -193,7 +229,7 @@ scripts/smoke.mjs          the smoke test
 ## State on disk
 
 `~/Library/Application Support/<profile>/`
-- `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot`
+- `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot` + `recentCwds` (last 10 start folders)
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,

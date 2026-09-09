@@ -1,28 +1,34 @@
-import { useEffect, useState } from 'react'
-import type { WikiItem } from '@shared/types'
+import { useEffect, useRef, useState } from 'react'
+import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 
-const CYCLE_MS = 20_000
 const REFRESH_MS = 60 * 60 * 1000
+const SEARCH_DEBOUNCE_MS = 350
 
 /**
- * Wikipedia's featured content for today as full-bleed cards: picture of the day, the
- * featured article, on-this-day events, trending articles. Cycles on its own; click opens
- * the article in the browser.
+ * Wikipedia's picture of the day, full bleed, with a transparent search box in the top right.
+ * A search takes over the tile: the hits list over a darkened picture, a hit opens its lead
+ * section in place, and the title (or the picture) opens Wikipedia in the browser. Esc or the ×
+ * brings the picture back.
  */
 export function WikiTile() {
-  const [items, setItems] = useState<WikiItem[]>([])
-  const [i, setI] = useState(0)
+  const [pic, setPic] = useState<WikiPicture | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<WikiHit[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [article, setArticle] = useState<WikiSummary | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const seq = useRef(0)
 
   useEffect(() => {
     let alive = true
     const load = () =>
       window.deck
-        .wikiFeatured()
-        .then((xs) => {
+        .wikiPicture()
+        .then((p) => {
           if (!alive) return
-          setItems(xs)
-          setErr(xs.length ? null : 'Nothing with a picture today')
+          setPic(p)
+          setErr(p ? null : 'No picture today')
         })
         .catch((e: unknown) => alive && setErr(e instanceof Error ? e.message : String(e)))
     void load()
@@ -33,51 +39,134 @@ export function WikiTile() {
     }
   }, [])
 
-  useEffect(() => {
-    if (items.length < 2) return
-    const t = window.setInterval(() => setI((n) => (n + 1) % items.length), CYCLE_MS)
-    return () => window.clearInterval(t)
-  }, [items, i]) // `i` in deps restarts the timer after a manual step
-
-  // Warm the next image so the swap is instant.
-  useEffect(() => {
-    const next = items[(i + 1) % items.length]
-    if (next) new Image().src = next.imageUrl
-  }, [items, i])
-
-  const it = items[i]
-  if (!it) {
-    return (
-      <div className="tile tile-plugin wiki">
-        <div className="plugin-empty">{err ?? 'wikipedia…'}</div>
-      </div>
-    )
+  const search = (q: string) => {
+    const id = ++seq.current
+    if (!q.trim()) {
+      setHits(null)
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    window.deck
+      .wikiSearch(q)
+      .then((xs) => {
+        if (id !== seq.current) return
+        setHits(xs)
+        setSearching(false)
+      })
+      .catch((e: unknown) => {
+        if (id !== seq.current) return
+        setErr(e instanceof Error ? e.message : String(e))
+        setSearching(false)
+      })
   }
 
-  const step = (d: number) => setI((n) => (n + d + items.length) % items.length)
+  // Search after a typing pause; ⏎ searches at once.
+  useEffect(() => {
+    if (!query.trim()) {
+      search('')
+      return
+    }
+    const t = window.setTimeout(() => search(query), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(t)
+  }, [query])
+
+  const reset = () => {
+    seq.current++
+    setQuery('')
+    setHits(null)
+    setArticle(null)
+    setSearching(false)
+    input.current?.blur()
+  }
+
+  const open = (h: WikiHit) => {
+    setArticle({ title: h.title, description: h.description, extract: '', imageUrl: h.imageUrl, url: h.url })
+    window.deck
+      .wikiSummary(h.key)
+      .then(setArticle)
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+  }
+
+  const overlay = article ? 'article' : hits || searching ? 'results' : 'picture'
+  const bg = article?.imageUrl ?? pic?.imageUrl ?? null
 
   return (
-    <div className="tile tile-plugin wiki" onClick={() => window.deck.openExternal(it.url)} title="Open on Wikipedia">
-      <img key={it.imageUrl} className="wiki-img" src={it.imageUrl} alt="" draggable={false} />
+    <div className={`tile tile-plugin wiki wiki-${overlay}`} onClick={() => overlay === 'picture' && pic && window.deck.openExternal(pic.url)} title={overlay === 'picture' && pic ? 'Open on Wikipedia' : undefined}>
+      {bg && <img key={bg} className="wiki-img" src={bg} alt="" draggable={false} />}
       <div className="wiki-scrim" />
-      <div className="wiki-text">
-        <span className="wiki-tag">{it.tag}</span>
-        <h3 className="wiki-title">{it.title}</h3>
-        {it.summary && <p className="wiki-summary">{it.summary}</p>}
-      </div>
-      {items.length > 1 && (
-        <div className="wiki-nav" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => step(-1)} title="Previous">
-            ‹
-          </button>
-          <span>
-            {i + 1}/{items.length}
-          </span>
-          <button onClick={() => step(1)} title="Next">
-            ›
-          </button>
+
+      {overlay === 'picture' && (pic ? (
+        <div className="wiki-text">
+          <span className="wiki-tag">picture of the day</span>
+          <h3 className="wiki-title">{pic.title}</h3>
+          {pic.credit && <p className="wiki-summary">{pic.credit}</p>}
+        </div>
+      ) : (
+        <div className="plugin-empty wiki-empty">{err ?? 'wikipedia…'}</div>
+      ))}
+
+      {overlay === 'results' && (
+        <div className="wiki-panel" onClick={(e) => e.stopPropagation()}>
+          {hits && hits.length === 0 && !searching && <div className="wiki-none">Nothing for “{query.trim()}”</div>}
+          {hits?.map((h) => (
+            <button key={h.key} className="wiki-hit" onClick={() => open(h)} title={h.url}>
+              {h.imageUrl ? <img src={h.imageUrl} alt="" draggable={false} /> : <span className="wiki-hit-noimg" />}
+              <span className="wiki-hit-text">
+                <span className="wiki-hit-title">{h.title}</span>
+                {h.description && <span className="wiki-hit-desc">{h.description}</span>}
+                {h.excerpt && <span className="wiki-hit-excerpt">{h.excerpt}</span>}
+              </span>
+            </button>
+          ))}
         </div>
       )}
+
+      {overlay === 'article' && article && (
+        <div className="wiki-panel wiki-article" onClick={(e) => e.stopPropagation()}>
+          <button className="wiki-back" onClick={() => setArticle(null)} title="Back to results">
+            ‹ results
+          </button>
+          <h3 className="wiki-title">
+            <button className="wiki-link" onClick={() => window.deck.openExternal(article.url)} title="Open on Wikipedia">
+              {article.title} ↗
+            </button>
+          </h3>
+          {article.description && <div className="wiki-hit-desc">{article.description}</div>}
+          <p className="wiki-extract">{article.extract || '…'}</p>
+        </div>
+      )}
+
+      <form
+        className={`wiki-search ${searching ? 'searching' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault()
+          search(query)
+        }}
+      >
+        <input
+          ref={input}
+          value={query}
+          placeholder="search wikipedia"
+          spellCheck={false}
+          onChange={(e) => {
+            setArticle(null)
+            setQuery(e.target.value)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              reset()
+            }
+          }}
+        />
+        {(query || overlay !== 'picture') && (
+          <button type="button" className="wiki-clear" onClick={reset} title="Clear (Esc)">
+            ×
+          </button>
+        )}
+      </form>
     </div>
   )
 }

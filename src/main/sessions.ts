@@ -44,11 +44,16 @@ export interface SessionManagerOptions {
 
 const SPAWN_COLS = 120
 const SPAWN_ROWS = 40
+/** How many start folders we remember (sessions.json) and how many of those the UI offers. */
+const RECENT_KEEP = 10
+export const RECENT_SHOW = 3
 
 export class SessionManager {
   private records: SessionRecord[] = []
   private rt = new Map<string, Runtime>()
   private focusSlot: number | null = null
+  /** Folders sessions were started in, most recent first. Outlives the sessions themselves. */
+  private recentCwds: string[] = []
   private quitting = false
   private readonly storePath: string
   private broadcastTimer: NodeJS.Timeout | null = null
@@ -119,6 +124,7 @@ export class SessionManager {
     if (worktree) args.push('--worktree')
     await this.o.tmux.newSession({ name: rec.tmuxName, cwd, command: this.claudeCommand(args), cols: SPAWN_COLS, rows: SPAWN_ROWS })
     this.records.push(rec)
+    this.touchRecent(cwd)
     this.rt.set(id, { status: 'starting', attention: false, tmuxAlive: true, title: '', userDetached: false })
     this.attach(id)
     this.focusSlot = slot
@@ -151,6 +157,7 @@ export class SessionManager {
       r.tmuxAlive = true
       r.status = 'starting'
     }
+    this.touchRecent(rec.cwd)
     rec.slot = slot
     this.attach(id)
     this.focusSlot = slot
@@ -329,11 +336,21 @@ export class SessionManager {
       focusSlot: this.focusSlot,
       open: views.filter((v) => v.slot !== null).sort((a, b) => a.slot! - b.slot!),
       parked: views.filter((v) => v.slot === null).sort((a, b) => b.createdAt - a.createdAt),
+      recent: this.recent(),
       profile: this.o.profile
     }
   }
 
+  /** The most recent start folders that still exist, for the "new session in…" menus. */
+  recent(): string[] {
+    return this.recentCwds.filter((d) => existsSync(d)).slice(0, RECENT_SHOW)
+  }
+
   // ---- internals ---------------------------------------------------------
+
+  private touchRecent(cwd: string): void {
+    this.recentCwds = [cwd, ...this.recentCwds.filter((d) => d !== cwd)].slice(0, RECENT_KEEP)
+  }
 
   private claudeCommand(args: string[]): string {
     // exec so the pane's process IS claude (clean exit → session ends → slot frees).
@@ -435,9 +452,15 @@ export class SessionManager {
   private load(): void {
     try {
       if (!existsSync(this.storePath)) return
-      const raw = JSON.parse(readFileSync(this.storePath, 'utf8')) as { records?: SessionRecord[]; focusSlot?: number | null }
+      const raw = JSON.parse(readFileSync(this.storePath, 'utf8')) as { records?: SessionRecord[]; focusSlot?: number | null; recentCwds?: string[] }
       this.records = (raw.records ?? []).filter((r) => r && r.id && r.tmuxName && r.claudeSessionId)
       this.focusSlot = raw.focusSlot ?? null
+      if (Array.isArray(raw.recentCwds)) {
+        this.recentCwds = raw.recentCwds.filter((d): d is string => typeof d === 'string' && d.length > 0).slice(0, RECENT_KEEP)
+      } else {
+        // First run with this field: seed it from the sessions we already know about, newest first.
+        for (const rec of [...this.records].sort((a, b) => a.createdAt - b.createdAt)) this.touchRecent(rec.cwd)
+      }
     } catch (err) {
       console.warn('[deck] could not read sessions.json:', err)
       this.records = []
@@ -446,7 +469,7 @@ export class SessionManager {
 
   private save(): void {
     try {
-      writeFileSync(this.storePath, JSON.stringify({ records: this.records, focusSlot: this.focusSlot }, null, 2))
+      writeFileSync(this.storePath, JSON.stringify({ records: this.records, focusSlot: this.focusSlot, recentCwds: this.recentCwds }, null, 2))
     } catch (err) {
       console.warn('[deck] could not write sessions.json:', err)
     }

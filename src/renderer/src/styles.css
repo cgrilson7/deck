@@ -294,12 +294,280 @@ button {
 }
 .tile-body {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  --tile-prompt-gap: 6px;
+  --tile-prompt-height: 30px;
 }
-.tile-click {
+/* the prompt bar sits in the conversation view's bottom padding (.chat), so text ends just above it */
+
+/* ---- a tile's conversation view (ChatView) ---- */
+.chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px calc(var(--tile-prompt-height) + var(--tile-prompt-gap) * 2 + 4px);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  cursor: default;
+  user-select: text;
+}
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  text-align: center;
+  user-select: none;
+}
+.chat-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+.chat-user {
+  margin: 10px 0 6px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chat-user:first-child {
+  margin-top: 0;
+}
+.chat-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 1px 0;
+  padding-left: 2px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.chat-tool-mark {
+  flex: 0 0 auto;
+  width: 10px;
+  text-align: center;
+}
+.chat-tool.is-done .chat-tool-mark {
+  color: var(--busy);
+}
+.chat-tool.is-error .chat-tool-mark {
+  color: var(--blocked);
+}
+.chat-tool.is-running .chat-tool-mark {
+  animation: chat-blink 1s steps(2, start) infinite;
+}
+.chat-tool-name {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--ink) 70%, var(--muted));
+}
+.chat-tool-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-text {
+  margin: 6px 0;
+  word-break: break-word;
+}
+.chat-text > :first-child {
+  margin-top: 0;
+}
+.chat-text > :last-child {
+  margin-bottom: 0;
+}
+.chat-text p,
+.chat-text ul,
+.chat-text ol,
+.chat-text blockquote {
+  margin: 0 0 6px;
+}
+.chat-text ul,
+.chat-text ol {
+  padding-left: 18px;
+}
+.chat-text li {
+  margin: 1px 0;
+}
+.chat-text h3,
+.chat-text h4,
+.chat-text h5,
+.chat-text h6 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chat-text hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 8px 0;
+}
+.chat-text blockquote {
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+.chat-text code {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.chat-text a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.chat-text a:hover {
+  text-decoration: underline;
+}
+.md-code {
+  margin: 4px 0 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, var(--panel));
+  overflow-x: auto;
+  white-space: pre;
+}
+.md-code code {
+  padding: 0;
+  background: none;
+}
+.md-table {
+  overflow-x: auto;
+  margin: 4px 0 6px;
+}
+.md-table table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.md-table th,
+.md-table td {
+  padding: 2px 8px 2px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.md-table th {
+  font-weight: 700;
+}
+.chat-busy {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 2px 2px;
+}
+.chat-busy span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: chat-bounce 1.2s ease-in-out infinite;
+}
+.chat-busy span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.chat-busy span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.chat-attn {
+  margin: 8px 0 2px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--blocked);
+  color: var(--blocked);
+  font-size: 11px;
+}
+@keyframes chat-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@keyframes chat-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+/* the prompt bar over a tile: an always-visible rounded outline along the bottom; the terminal
+   above is padded (`.termhost-tile`) so its last rows end just over it */
+.tile-prompt {
   position: absolute;
-  inset: 0;
+  left: var(--tile-prompt-gap);
+  right: var(--tile-prompt-gap);
+  bottom: var(--tile-prompt-gap);
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 2px 2px 2px 8px;
+  border-radius: 9px;
+  border: 1.5px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, var(--ink));
+  cursor: text;
+  transition: border-color 120ms ease;
+}
+.tile:hover .tile-prompt {
+  border-color: var(--muted);
+}
+.tile-prompt:focus-within {
+  border-color: var(--accent);
+}
+.tile-prompt textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 4.5em;
+  padding: 3px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  field-sizing: content;
+}
+.tile-prompt textarea::placeholder {
+  color: var(--muted);
+}
+.tile-prompt-send {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+}
+.tile-prompt-send:not(:disabled) {
+  color: var(--accent);
+}
+.tile-prompt-send:not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.tile-prompt-send:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ---- pane header ---- */
@@ -556,12 +824,17 @@ button {
   background: rgba(0, 0, 0, 0.8);
 }
 
-/* Wikipedia: full-bleed image, text over a bottom scrim. */
+/* Wikipedia: the picture of the day full bleed, caption over a bottom scrim, a transparent
+   search box top right. A search darkens the picture and lays the hits (or an article's lead) over it. */
 .wiki {
   position: relative;
   background: #1c1b18;
   cursor: pointer;
   color: #fff;
+}
+.wiki-results,
+.wiki-article {
+  cursor: default;
 }
 .wiki-img {
   position: absolute;
@@ -583,6 +856,17 @@ button {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 45%, rgba(0, 0, 0, 0) 75%);
+  transition: background 200ms ease;
+}
+.wiki-results .wiki-scrim,
+.wiki-article .wiki-scrim {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+}
+.wiki-empty {
+  position: absolute;
+  inset: 0;
+  color: rgba(255, 255, 255, 0.7);
 }
 .wiki-text {
   position: absolute;
@@ -621,37 +905,159 @@ button {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.wiki-nav {
+
+/* the search box: no chrome until it has focus, just white text over the picture */
+.wiki-search {
   position: absolute;
   top: 8px;
   right: 8px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(6px);
+  max-width: calc(100% - 16px);
   border-radius: 999px;
-  padding: 0 4px;
-  opacity: 0;
-  transition: opacity 120ms ease;
-  cursor: default;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+  z-index: 2;
 }
-.wiki:hover .wiki-nav {
-  opacity: 1;
+.wiki-search:hover,
+.wiki-search:focus-within {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
 }
-.wiki-nav button {
+.wiki-search input {
+  width: 150px;
+  padding: 4px 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition: width 160ms ease;
+}
+.wiki-search input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+.wiki-search:focus-within input,
+.wiki-results .wiki-search input,
+.wiki-article .wiki-search input {
+  width: 220px;
+  text-align: left;
+}
+.wiki-search.searching input {
+  color: rgba(255, 255, 255, 0.6);
+}
+.wiki-clear {
   width: 22px;
   height: 22px;
+  margin-right: 2px;
   border-radius: 50%;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 15px;
   line-height: 1;
 }
-.wiki-nav button:hover {
+.wiki-clear:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* results / article: a scrolling panel under the search box */
+.wiki-panel {
+  position: absolute;
+  inset: 40px 8px 8px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 1;
+}
+.wiki-none {
+  padding: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+.wiki-hit {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: #fff;
+  min-width: 0;
+}
+.wiki-hit:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.wiki-hit img,
+.wiki-hit-noimg {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+.wiki-hit-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.wiki-hit-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.wiki-hit-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.wiki-hit-excerpt {
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.85);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wiki-article {
+  gap: 6px;
+  padding: 0 6px;
+}
+.wiki-article .wiki-title {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+.wiki-back {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.wiki-back:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.wiki-link {
+  text-align: left;
+  font: inherit;
+  color: #fff;
+  padding: 0;
+}
+.wiki-link:hover {
+  text-decoration: underline;
+}
+.wiki-extract {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 /* ---- compact mode: tighter chrome, plugin row hidden (Grid.tsx) ---- */
@@ -1140,4 +1546,38 @@ button {
   --fox-ms: 1000ms;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
+}
+
+/* ---- recent folders (empty focus pane; the + menu reuses .menu-section buttons) ---- */
+.focus-empty .recent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  max-width: 100%;
+}
+.focus-empty .recent-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.focus-empty .recent-dir {
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: var(--ink);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.focus-empty .recent-dir:hover {
+  background: var(--bg);
+}
+.menu-recent .cwd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

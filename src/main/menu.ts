@@ -10,11 +10,17 @@ export interface MenuHandlers {
   settings(): DeckSettings
   patch(p: Partial<DeckSettings>): void
   ui(ev: UiEvent): void
+  /** Folders sessions were started in lately, most recent first (SessionManager.recent()). */
+  recent(): string[]
 }
 
-/** Rebuilt on every settings change so the checkmarks in View reflect the live values. */
-export function buildMenu({ run, settings, patch, ui }: MenuHandlers): void {
+/** Rebuilt on every settings change (the checkmarks in View) and whenever the recent-folder list changes. */
+export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): void {
   const s = settings()
+  const recentItems: MenuItemConstructorOptions[] = recent().map((cwd) => ({
+    label: cwd.replace(/^\/Users\/[^/]+/, '~'),
+    click: () => run({ type: 'new', cwd })
+  }))
   const appearanceItem = (label: string, value: Appearance): MenuItemConstructorOptions => ({
     label,
     type: 'radio',
@@ -48,6 +54,7 @@ export function buildMenu({ run, settings, patch, ui }: MenuHandlers): void {
         { label: 'New Session', accelerator: 'CmdOrCtrl+N', click: () => run({ type: 'new' }) },
         { label: 'New Session in Worktree', accelerator: 'CmdOrCtrl+Shift+N', click: () => run({ type: 'new', worktree: true }) },
         { label: 'New Session in Folder…', accelerator: 'CmdOrCtrl+O', click: () => run({ type: 'chooseFolder' }) },
+        { label: 'New Session in Recent Folder', enabled: recentItems.length > 0, submenu: recentItems },
         { type: 'separator' },
         { label: 'Jump to Session That Needs You', accelerator: 'CmdOrCtrl+Return', click: () => run({ type: 'jumpAttention' }) },
         { label: 'Next Session', accelerator: 'CmdOrCtrl+]', click: () => run({ type: 'cycle', dir: 1 }) },
