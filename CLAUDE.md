@@ -271,7 +271,8 @@ size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.
   sends neither. `main/youtube.ts` rewrites them. Wikimedia thumbnails come only in fixed
   widths (250/330/500/960/1280/1920); others are HTTP 400.
 - Claude Code 2.1.2xx draws its TUI on the alternate screen (`tmux display -p '#{alternate_on}'`
-  = 1): no scrollback, the banner redrawn in place. `watchClaudeBanner` must scan whichever
-  buffer is active; a `buf.type === 'normal'` guard leaves the CLI's mascot showing.
+  = 1), and xterm hides every decoration while the alternate buffer is active
+  (`BufferDecorationRenderer`), so `watchClaudeBanner` cannot cover the banner there: the CLI's
+  own mascot shows in the focus pane. Accepted; the fox covers banners in the normal buffer only.
 - Sessions started in VS Code/iTerm cannot be adopted (their PTYs belong to that app); they
   can only be resumed by id. `claude agents --json` lists them with `sessionId`.

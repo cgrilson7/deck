@@ -653,6 +653,12 @@ button {
 .deck-term .xterm {
   height: 100%;
 }
+/* xterm's own CSS paints the viewport (absolute, the whole .xterm box) black. The screen used
+   to hide all of it; now the row remainder sits above the screen as padding (fitBox in
+   terminals.ts), so the viewport must be the panel color or that strip shows black. */
+.deck-term .xterm .xterm-viewport {
+  background-color: var(--panel);
+}
 .termhost-tile .xterm .xterm-cursor-layer,
 .termhost-tile .xterm-cursor {
   opacity: 0.5;

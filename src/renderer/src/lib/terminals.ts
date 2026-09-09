@@ -3,7 +3,6 @@
 // costs one appendChild + one fit and the pty just gets a resize.
 
 import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { CAP, DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
@@ -46,7 +45,6 @@ export function applyTerminalSettings(s: DeckSettings, palette: TermPalette): vo
 
 interface Entry {
   term: Terminal
-  fit: FitAddon
   el: HTMLDivElement
   webgl: WebglAddon | null
   mode: Mode | null
@@ -97,8 +95,6 @@ export function ensureTerminal(id: string): Entry {
     macOptionIsMeta: false,
     allowTransparency: false
   })
-  const fit = new FitAddon()
-  term.loadAddon(fit)
   term.open(el)
 
   term.onData((d) => window.deck.ptyInput(id, d))
@@ -108,7 +104,7 @@ export function ensureTerminal(id: string): Entry {
   term.onBell(() => window.deck.bell(id))
   term.attachCustomKeyEventHandler((ev) => !(ev.metaKey && isDeckShortcut(ev)))
 
-  const entry: Entry = { term, fit, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term), fitRaf: 0 }
+  const entry: Entry = { term, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term), fitRaf: 0 }
   entries.set(id, entry)
 
   const buf = pending.get(id)
@@ -175,6 +171,36 @@ function disposeWebgl(e: Entry): void {
   e.webgl = null
 }
 
+/** The cell size the renderer is drawing at: the same private numbers the fit addon reads. */
+function cellSize(term: Terminal): { w: number; h: number } | null {
+  type Core = { _renderService?: { dimensions?: { css: { cell: { width: number; height: number } } } } }
+  const dims = (term as unknown as { _core?: Core })._core?._renderService?.dimensions
+  if (!dims || !(dims.css.cell.width > 0) || !(dims.css.cell.height > 0)) return null
+  return { w: dims.css.cell.width, h: dims.css.cell.height }
+}
+
+/**
+ * Size the terminal to its box (one pass). Our own measure instead of the fit addon's, which
+ * reserves 14px on the right for a scrollbar xterm 6 no longer needs the room for (its bar is
+ * an overlay that fades in over the content). The height left below a whole number of rows
+ * is moved ABOVE the first row as padding on the xterm element, so the last row, and Claude
+ * Code's prompt bar with it, sits flush with the bottom of the pane, as VS Code's terminal
+ * does. Returns the size it settled on, or null when nothing can be measured yet.
+ */
+function fitBox(e: Entry): string | null {
+  const xt = e.term.element
+  const cell = cellSize(e.term)
+  if (!xt || !cell) return null
+  xt.style.paddingTop = '0px' // measure the whole box, not the box less last time's leftover
+  const w = e.el.clientWidth
+  const h = e.el.clientHeight
+  const cols = Math.max(2, Math.floor(w / cell.w))
+  const rows = Math.max(1, Math.floor(h / cell.h))
+  if (cols !== e.term.cols || rows !== e.term.rows) e.term.resize(cols, rows) // → pty via onResize
+  xt.style.paddingTop = `${Math.max(0, Math.floor(h - rows * cell.h))}px`
+  return `${cols}x${rows}`
+}
+
 /**
  * Fit the terminal to its host, then keep fitting on later frames until the proposed
  * dimensions stop changing (or `tries` run out). A single fit right after a mount often
@@ -197,13 +223,11 @@ export function fitStable(id: string, tries = 10): void {
       return
     }
     try {
-      const dims = e.fit.proposeDimensions()
-      if (!dims || !dims.cols || !dims.rows) {
+      const key = fitBox(e)
+      if (!key) {
         if (n > 0) e.fitRaf = requestAnimationFrame(() => step(n - 1))
         return
       }
-      const key = `${dims.cols}x${dims.rows}`
-      e.fit.fit() // pushes the size to the pty via term.onResize when cols/rows change
       if (key !== last && n > 0) {
         last = key
         e.fitRaf = requestAnimationFrame(() => step(n - 1))

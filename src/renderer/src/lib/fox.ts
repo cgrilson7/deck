@@ -23,8 +23,7 @@ export function installFoxSheet(): void {
 //     ▘▘ ▝▝    ~/deck                       ▝▝ ▝▝    ~/deck
 // Nothing about the CLI is wrapped, so the glyphs stay in the buffer; an xterm
 // decoration (a marker-anchored DOM element that scrolls with its line and is
-// dropped when the line leaves scrollback, or when the alternate screen is
-// cleared) covers those cells in the panel color and draws the fox on top. Which fox depends on the session's status
+// dropped when the line leaves scrollback) covers those cells in the panel color and draws the fox on top. Which fox depends on the session's status
 // via the `.status-*` / `.attention` classes on the pane (styles.css).
 
 const TOP = /^ ?▐▛█/
@@ -61,10 +60,11 @@ export function watchClaudeBanner(term: Terminal): IDisposable {
   }
 
   const scan = () => {
-    // Claude Code ≥ 2.1.2xx runs on the alternate screen (no scrollback, the
-    // banner redrawn in place); older builds print into the normal buffer.
-    // Either way the banner is whatever is in the viewport right now.
+    // Claude Code ≥ 2.1.2xx draws on the alternate screen, where xterm hides
+    // every decoration (BufferDecorationRenderer), so the CLI's own mascot
+    // stays there; the fox only covers banners printed into the normal buffer.
     const buf = term.buffer.active
+    if (buf.type !== 'normal') return
     const top = buf.viewportY
     const found = new Map<number, number>() // absolute line → logo width in cells
     for (let r = 0; r < term.rows - 1; r++) {
