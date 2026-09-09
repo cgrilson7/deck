@@ -36,9 +36,14 @@ function strip(html: string | undefined): string {
   return (html ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
-/** Wikipedia thumbnails encode their width in the path; ask for one big enough for a tile. */
-function upscale(url: string, px = 1200): string {
-  return url.replace(/\/(\d+)px-/, (m, w) => (Number(w) < px ? `/${px}px-` : m))
+/**
+ * Wikipedia thumbnails encode their width in the path. The feed hands out ~330px ones;
+ * ask for 960px, which fills a tile on a Retina display. Only a fixed set of widths is
+ * served (250, 330, 500, 960, 1280, 1920 work; 640/800/1024/1200 are HTTP 400), so never
+ * pick a number off that list.
+ */
+function upscale(url: string): string {
+  return url.replace(/\/\d+px-/, '/960px-')
 }
 
 function pageItem(p: Page, kind: WikiItem['kind'], tag: string): WikiItem | null {
