@@ -37,7 +37,15 @@ export function YouTubeTile() {
 
   return (
     <div className="tile tile-plugin youtube">
-      <webview ref={ref} className="youtube-view" src={EMBED} partition="persist:youtube" webpreferences="autoplayPolicy=no-user-gesture-required" />
+      {/* httpreferrer: the embed player refuses to load without a Referer (error 153). */}
+      <webview
+        ref={ref}
+        className="youtube-view"
+        src={EMBED}
+        httpreferrer="https://www.youtube.com/"
+        partition="persist:youtube"
+        webpreferences="autoplayPolicy=no-user-gesture-required"
+      />
       <div className="yt-controls">
         <button onClick={() => void run(JS.togglePlay, setPlaying)} title={playing ? 'Pause' : 'Play'}>
           {playing ? '⏸︎' : '▶︎'}
