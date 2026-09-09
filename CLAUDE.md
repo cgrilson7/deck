@@ -40,6 +40,7 @@ src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
 src/main/wiki.ts           fetches today's Wikipedia featured-content feed (cached 1h) for the tile
+src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
 src/main/env.ts            resolves the login-shell env so claude/tmux are found from Finder
 src/main/menu.ts           app menu = every keyboard shortcut
 src/preload/index.ts       contextBridge → window.deck (DeckApi), window.deckErrors
@@ -111,5 +112,9 @@ size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.
   `src/renderer/src/vite-env.d.ts` (`/// <reference types="vite/client" />`).
 - electron-vite 5 wants vite 7 + @vitejs/plugin-react 5 (plugin-react 6 needs vite 8).
 - node-pty ships darwin-arm64 prebuilds; `postinstall` still rebuilds against Electron.
+- YouTube's embed player errors (153, then 152-4) unless the request carries a Referer AND
+  `Sec-Fetch-Site: cross-site` + `Sec-Fetch-Dest: iframe`; a top-level <webview> navigation
+  sends neither. `main/youtube.ts` rewrites them. Wikimedia thumbnails come only in fixed
+  widths (250/330/500/960/1280/1920); others are HTTP 400.
 - Sessions started in VS Code/iTerm cannot be adopted (their PTYs belong to that app); they
   can only be resumed by id. `claude agents --json` lists them with `sessionId`.

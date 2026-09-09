@@ -10,6 +10,7 @@ import { buildMenu } from './menu'
 import { SessionManager } from './sessions'
 import { Tmux } from './tmux'
 import { wikiFeatured } from './wiki'
+import { setupYoutubeSession } from './youtube'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -156,6 +157,7 @@ app.whenReady().then(async () => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
 
+  setupYoutubeSession()
   buildMenu((cmd) => void runCommand(cmd))
   createWindow()
   await manager.init()

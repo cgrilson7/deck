@@ -23,7 +23,6 @@ declare module 'react' {
         allowpopups?: string
         useragent?: string
         webpreferences?: string
-        httpreferrer?: string
       }
     }
   }
