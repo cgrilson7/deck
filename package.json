@@ -2,6 +2,7 @@
   "name": "deck",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Seven Claude Code sessions in one window: one in focus on the left, the rest live in a grid on the right.",
   "main": "./out/main/index.js",
   "scripts": {

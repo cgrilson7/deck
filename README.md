@@ -30,7 +30,7 @@ Sessions run inside tmux on a private socket, so quitting deck never kills a con
 { "theme": "cream", "appearance": "system", "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }
 ```
 
-See `CLAUDE.md` for how it works inside.
+See `CLAUDE.md` for how it works inside. The code is [MIT](LICENSE); the fox and the font are not, see below.
 
 ## Data credits
 
