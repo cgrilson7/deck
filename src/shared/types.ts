@@ -167,6 +167,39 @@ export interface SavedWord {
   liked: boolean
 }
 
+/**
+ * A word as the store keeps it: the pair, the entry the vocabulary tile showed, and its SM-2
+ * schedule. This is what a flash card is made of — the entry is already there, so a card
+ * never waits on a lookup.
+ */
+export interface StoredWord {
+  id: number
+  es: string
+  en: string
+  /** The merged entry as it was when the word was last shown; null if the JSON went bad. */
+  entry: VocabResult | null
+  liked: boolean
+  /** Retired: the interval grew past the point of asking again. */
+  known: boolean
+  /** How many times the vocabulary tile has shown it. */
+  seen: number
+  /** ISO, null for a word never graded (due now). */
+  due: string | null
+  /** Days until the next review, as of the last grade. */
+  interval: number
+  ease: number
+  reps: number
+  lapses: number
+}
+
+/** Where one graded card landed. */
+export interface WordSchedule {
+  id: number
+  due: string | null
+  interval: number
+  known: boolean
+}
+
 /** Everything the user can change from the settings panel. Persisted in userData/config.json. */
 export interface DeckSettings {
   /** Theme family id (see shared/themes.ts). */
@@ -308,6 +341,12 @@ export interface DeckApi {
   saveWord(r: VocabResult, translationId: number | null): Promise<SavedWord>
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>
+  /** The flash-card deck: what is due first, then whatever comes soonest, entries included. */
+  vocabDeck(limit?: number): Promise<StoredWord[]>
+  /** Every stored word for the review list, soonest due first. */
+  vocabList(limit?: number): Promise<StoredWord[]>
+  /** Grade one card (0 again, 3 hard, 4 good, 5 easy); resolves where SM-2 put it. */
+  gradeWord(id: number, grade: number): Promise<WordSchedule>
   vocabStats(): Promise<VocabStats>
   getSettings(): Promise<DeckSettings>
   /** Merge a partial into the settings; main persists and broadcasts the result. */

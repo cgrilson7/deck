@@ -110,12 +110,31 @@ scripts/smoke.mjs          the smoke test
   Translation v2 in `main/translate.ts` (one call, a second only when the text was already in
   the target language), keyed by `translateApiKey` in config.json, else `$GOOGLE_CLOUD_API_KEY`.
   A finished translation is announced on `lib/bus.ts`.
-- **Vocabulary builder** (`VocabTile`, the cell left of the translator): a new Spanish word every
-  `vocabCycleSeconds` (30), shown as ONE merged bilingual entry: both headwords with IPA, then
-  the English and Spanish definitions interleaved, synonyms interleaved, etymologies run
-  together, one example sentence. Redundancy is deliberate. ‹ › step, ⏸ holds (persisted), the
-  search line or a one-or-two-word translation next door shows that word now and restarts the
-  clock. Supply (`main/vocabwords.ts`): `data/esLemmas.ts`, ~3000 SAT-level Spanish content
+- **Vocabulary builder** (`VocabTile`, the cell left of the translator): THREE FACES, cycled by
+  the stats chip in the search row (the counts that used to sit in the search placeholder):
+  dictionary → flash cards → review list → dictionary. Each turn re-keys `.vb-stage`, which is
+  what flips the card (`vb-flip`); the first paint stays flat. Only the DICTIONARY cycles and
+  only it shows the countdown line — cards and the list are read at your own pace, and ‹ ⏸ › are
+  hidden on them.
+  - Dictionary: a new Spanish word every `vocabCycleSeconds` (30) as TWO COLUMNS, a language
+    each — Spanish left (it is the word being learned), English right behind a hairline. Each
+    column carries its own headword + IPA, part of speech, definitions, example, synonyms and
+    etymology, and scrolls on its own, so the two etymologies are distinct and both reachable.
+    Spanish definitions come from es.wiktionary (`native`); the English glosses of the Spanish
+    entry are the English column when there is no English entry ("gustar" → "to like"), and fill
+    in for missing es.wiktionary definitions otherwise — never printed in both columns. A side
+    with no headword at all drops out and the other spans the tile (`.vb-cols.one`). The ♥ sits
+    at the end of the English column's head line. ‹ › step, ⏸ holds (persisted), the search line
+    or a one-or-two-word translation next door shows that word now and restarts the clock.
+  - Flash cards: dealt by `store.deck()` from words already stored, so a card never waits on a
+    lookup (the entry is in the row). Spanish shows first; tap the card (or space/⏎ once it has
+    focus) to reveal the English headword, a gloss or two, the Spanish definition and an example,
+    then grade again / hard / good / easy (1–4) — SM-2 in `store.gradeWord`. The ♥ works here too;
+    the footer counts the position in the deck, and running out offers "deal again".
+  - Review list: everything stored, soonest due first (never-graded words lead), with a filter
+    line, each row's due-in label ("new", "due", "3d", "2mo", "known") and its ♥. A row opens
+    that word back in the dictionary.
+  Supply (`main/vocabwords.ts`): `data/esLemmas.ts`, ~3000 SAT-level Spanish content
   words: every lemma in English Wiktionary's Spanish entries (doozan/spanish_data `es-en.data`)
   whose gloss is an SAT word (freevocabulary.com's 5000 minus everyday English per
   google-10000-english, plus majortests.com's list), attested in doozan's subtitle frequency
@@ -144,11 +163,16 @@ scripts/smoke.mjs          the smoke test
   rather than kept (a pair that already exists absorbs the fragment). Unique on (en, es) with a
   `seen` count. `words` gets every word the vocabulary tile actually shows (never prefetches)
   with the full `VocabResult` as JSON, `translation_id` when it came from the translator, and
-  SM-2 columns (`due`, `interval`, `ease`, `reps`, `lapses`, `known`) that nothing drives yet;
-  `reviews` is the per-grade history for later. Unique on (es, en). The ♥ on the card sets
+  SM-2 columns (`due`, `interval`, `ease`, `reps`, `lapses`, `known`), which the tile's flash
+  cards drive: `deck()` deals what is due (a never-graded word is due now) and then whatever
+  comes soonest, so there is always something to review; `gradeWord(id, grade)` is textbook SM-2
+  — a miss (grade < 3) resets `reps`, counts a lapse, drops the ease and comes back in ten
+  minutes, a pass steps 1 → 6 → interval × ease, and past `KNOWN_DAYS` (120) the word sets
+  `known` and leaves the deck. Every grade appends to `reviews`, the per-grade history.
+  `list()` is the review list. Unique on (es, en). The ♥ on the card sets
   `liked` (added by a guarded `alter table` in `MIGRATIONS`); liked words are merged into the
-  vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the vocab
-  tile's search placeholder. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
+  vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the
+  vocab tile's stats chip, which is also how you get to the cards. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
   "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
   `src/renderer/src/assets/fox.png`; terms in `assets/LICENSE-fox.md`: credit Elthen, recolors are fine in-product, don't ship it standalone). It IS

@@ -231,6 +231,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) => store!.saveTranslation(r, supersede ?? null))
   ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null) => store!.saveWord(r, translationId ?? null))
   ipcMain.handle('store:liked', (_e, id: number, liked: boolean) => store!.setLiked(id, !!liked))
+  ipcMain.handle('store:deck', (_e, limit?: number) => store!.deck(limit))
+  ipcMain.handle('store:list', (_e, limit?: number) => store!.list(limit))
+  ipcMain.handle('store:grade', (_e, id: number, grade: number) => store!.gradeWord(id, grade))
   ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

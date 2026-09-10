@@ -1197,13 +1197,14 @@ button {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-/* ---- vocabulary builder: search + transport on top, one merged bilingual card, a countdown line ---- */
+/* ---- vocabulary builder: search + stats chip on top, then one of three faces
+   (two-column dictionary / flash cards / review list), and a countdown line ---- */
 .vocab {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 8px 8px 10px;
-  gap: 6px;
+  padding: 6px 8px 8px;
+  gap: 5px;
   cursor: default;
   user-select: text;
 }
@@ -1223,7 +1224,7 @@ button {
 }
 .vb-search input {
   flex: 1;
-  min-width: 0;
+  min-width: 40px;
   border: 0;
   outline: 0;
   padding: 0;
@@ -1234,6 +1235,31 @@ button {
 .vb-search input::placeholder {
   color: var(--muted);
   opacity: 0.8;
+}
+/* The counts double as the way between the three faces: dictionary → cards → list. */
+.vb-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.vb-chip:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.vb-chip.cards,
+.vb-chip.list {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .vb-nav {
   display: flex;
@@ -1257,41 +1283,76 @@ button {
   color: var(--blocked);
   padding: 0 4px;
 }
+/* The face itself; keyed on the mode, so switching faces flips the card over. */
+.vb-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  perspective: 900px;
+}
+.vb-stage.flip {
+  animation: vb-flip 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes vb-flip {
+  from {
+    transform: rotateY(-88deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0);
+    opacity: 1;
+  }
+}
 .vb-card {
   flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 4px;
   transition: opacity 150ms ease;
 }
 .vb-card.busy {
   opacity: 0.55;
 }
-.vb-head {
-  flex: 0 0 auto;
+/* Two columns, a language each: Spanish left (the word being learned), English right. */
+.vb-cols {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.vb-cols.one {
+  grid-template-columns: 1fr;
+}
+.vb-col {
+  min-width: 0;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+  padding: 0 2px;
+}
+.vb-col.en {
+  border-left: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+  padding-left: 10px;
+}
+.vb-colhead {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 2px 6px;
   min-width: 0;
 }
-.vb-headword {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.vb-dot {
-  color: var(--muted);
-}
 .vb-word {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   padding: 0;
+  text-align: left;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.2;
   color: var(--ink);
 }
 .vb-word.plain {
@@ -1303,6 +1364,7 @@ button {
   color: var(--muted);
   opacity: 0;
   transition: opacity 120ms ease;
+  flex: 0 0 auto;
 }
 .vb-word:hover {
   color: var(--accent);
@@ -1313,8 +1375,9 @@ button {
 .vb-like {
   margin-left: auto;
   align-self: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -1332,40 +1395,35 @@ button {
 .vb-like.on {
   color: var(--accent);
 }
-.vb-ipa,
-.vb-formof {
-  font-size: 11px;
+.vb-like.small {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.vb-ipa {
+  font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
 }
-.vb-body {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--ink);
-  padding-right: 2px;
-}
-.vb-body p {
-  margin: 0 0 4px;
+.vb-col p {
+  margin: 0 0 3px;
 }
 .vb-posline {
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 .vb-defs {
-  margin: 0 0 4px;
-  padding-left: 18px;
+  margin: 0 0 3px;
+  padding-left: 14px;
 }
 .vb-defs li {
-  margin: 0 0 1px;
+  margin: 0;
 }
 .vb-defs li::marker {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
 }
 .vb-example {
   color: color-mix(in srgb, var(--ink) 80%, var(--muted));
@@ -1377,10 +1435,11 @@ button {
 }
 .vb-pos {
   font-style: normal;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
-  margin-right: 6px;
+  margin-right: 5px;
 }
 .vb-syn,
 .vb-etym {
@@ -1388,6 +1447,217 @@ button {
 }
 .vb-etym {
   font-size: 11px;
+}
+
+/* ---- flash cards: the Spanish word, then its answer, then four SM-2 grades ---- */
+.vb-cards {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  outline: 0;
+}
+.vb-cards.done {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 12px;
+}
+.vb-again {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.vb-again:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.vb-flash {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  overflow-y: auto;
+  border-radius: 8px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+}
+.vb-flash:not(.shown):hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+}
+.vb-flash-front {
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.vb-flash.shown .vb-flash-front {
+  font-size: 16px;
+  color: var(--muted);
+}
+.vb-flash-back {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: vb-flip 220ms ease both;
+}
+.vb-flash-en {
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.15;
+  color: var(--accent);
+}
+.vb-flash-def {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.vb-flash-def.es {
+  color: color-mix(in srgb, var(--ink) 70%, var(--muted));
+}
+.vb-flash-ex {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+}
+.vb-cardfoot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vb-hint {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+}
+.vb-grades {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+}
+.vb-grade {
+  flex: 1;
+  padding: 3px 0;
+  border-radius: 5px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+}
+.vb-grade:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.vb-grade.g0:hover {
+  border-color: color-mix(in srgb, var(--blocked) 55%, transparent);
+  background: color-mix(in srgb, var(--blocked) 12%, transparent);
+}
+.vb-count {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- review list: everything stored, soonest due first ---- */
+.vb-list {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vb-filter {
+  flex: 0 0 auto;
+  border: 0;
+  outline: 0;
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--ink);
+  font: 500 11px/1.3 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
+}
+.vb-filter::placeholder {
+  color: var(--muted);
+}
+.vb-list ul {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vb-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 2px;
+  border-radius: 4px;
+}
+.vb-list li:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.vb-list li.known {
+  opacity: 0.55;
+}
+.vb-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 0;
+  text-align: left;
+  font-size: 11.5px;
+}
+.vb-row-es {
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ink);
+}
+.vb-row-en {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.vb-row:hover .vb-row-es {
+  color: var(--accent);
+}
+.vb-due {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.vb-due.now {
+  color: var(--accent);
 }
 /* The countdown: a hairline along the bottom that drains over one cycle. */
 .vb-timer {
