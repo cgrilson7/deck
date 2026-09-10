@@ -147,7 +147,7 @@ scripts/smoke.mjs          the smoke test
   tile's search placeholder. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
   "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
-  `src/renderer/src/assets/fox.png`; recolors are fine in-product, don't ship it standalone). It IS
+  `src/renderer/src/assets/fox.png`; terms in `assets/LICENSE-fox.md`: credit Elthen, recolors are fine in-product, don't ship it standalone). It IS
   the status indicator: every pane head shows a 22×18 fox (`FoxStatus`) in place of a dot, running
   while Claude works, asleep while it waits, sitting up alert when it needs you, looking around while
   starting, lying down when the pane died. It barks the way slay's fox does, SILENTLY: a hop and
