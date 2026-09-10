@@ -219,7 +219,7 @@ app.whenReady().then(async () => {
     return r.canceled || r.filePaths.length === 0 ? '' : r.filePaths[0]
   })
 
-  ipcMain.handle('wiki:picture', () => wikiPicture())
+  ipcMain.handle('wiki:picture', (_e, when: unknown) => wikiPicture(when === 'past' ? 'past' : 'today'))
   ipcMain.handle('wiki:search', (_e, q: string) => wikiSearch(String(q ?? '')))
   ipcMain.handle('wiki:summary', (_e, key: string) => wikiSummary(String(key ?? '')))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''

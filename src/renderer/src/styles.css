@@ -912,6 +912,31 @@ button {
   overflow: hidden;
 }
 
+/* the clock, top left, over the picture; a shadow instead of chrome so it reads on any picture */
+.wiki-clock {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+.wiki-clock-time {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.wiki-clock-date {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.85;
+}
+
 /* the search box: no chrome until it has focus, just white text over the picture */
 .wiki-search {
   position: absolute;

@@ -2,14 +2,42 @@ import { useEffect, useRef, useState } from 'react'
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 import { plain } from '../lib/errors'
 
-const REFRESH_MS = 60 * 60 * 1000
+/** A new picture every so often: today's, then two from the archive, then today's again. */
+const CYCLE_MS = 2 * 60 * 1000
+const TODAY_EVERY = 3
 const SEARCH_DEBOUNCE_MS = 350
 
+const DATE_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const DAY_FMT = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+
+/** "3 March 2019" for a YYYY-MM-DD, read as a local date. */
+function dayLabel(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return DAY_FMT.format(new Date(y, m - 1, d))
+}
+
+/** Date and time in the machine's zone, top left of the tile, ticking on the second. */
+function Clock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+  return (
+    <div className="wiki-clock" aria-hidden>
+      <span className="wiki-clock-time">{TIME_FMT.format(now)}</span>
+      <span className="wiki-clock-date">{DATE_FMT.format(now)}</span>
+    </div>
+  )
+}
+
 /**
- * Wikipedia's picture of the day, full bleed, with a transparent search box in the top right.
- * A search takes over the tile: the hits list over a darkened picture, a hit opens its lead
- * section in place, and the title (or the picture) opens Wikipedia in the browser. Esc or the ×
- * brings the picture back.
+ * Wikipedia's picture of the day, full bleed, with a transparent search box in the top right and
+ * a clock top left. The picture rotates: every CYCLE_MS a random day's picture from the archive
+ * takes over, and every TODAY_EVERY-th one is today's again. A search takes over the tile: the
+ * hits list over a darkened picture, a hit opens its lead section in place, and the title (or the
+ * picture) opens Wikipedia in the browser. Esc or the × brings the picture back.
  */
 export function WikiTile() {
   const [pic, setPic] = useState<WikiPicture | null>(null)
@@ -23,17 +51,21 @@ export function WikiTile() {
 
   useEffect(() => {
     let alive = true
-    const load = () =>
+    let step = 0
+    const load = () => {
+      const when = step % TODAY_EVERY === 0 ? 'today' : 'past'
+      step++
       window.deck
-        .wikiPicture()
+        .wikiPicture(when)
         .then((p) => {
           if (!alive) return
           setPic(p)
           setErr(p ? null : 'No picture today')
         })
         .catch((e: unknown) => alive && setErr(plain(e)))
-    void load()
-    const t = window.setInterval(load, REFRESH_MS)
+    }
+    load()
+    const t = window.setInterval(load, CYCLE_MS)
     return () => {
       alive = false
       window.clearInterval(t)
@@ -96,10 +128,11 @@ export function WikiTile() {
     <div className={`tile tile-plugin wiki wiki-${overlay}`} onClick={() => overlay === 'picture' && pic && window.deck.openExternal(pic.url)} title={overlay === 'picture' && pic ? 'Open on Wikipedia' : undefined}>
       {bg && <img key={bg} className="wiki-img" src={bg} alt="" draggable={false} />}
       <div className="wiki-scrim" />
+      <Clock />
 
       {overlay === 'picture' && (pic ? (
         <div className="wiki-text">
-          <span className="wiki-tag">picture of the day</span>
+          <span className="wiki-tag">{pic.today ? 'picture of the day' : `picture of the day · ${dayLabel(pic.date)}`}</span>
           <h3 className="wiki-title">{pic.title}</h3>
           {pic.credit && <p className="wiki-summary">{pic.credit}</p>}
         </div>

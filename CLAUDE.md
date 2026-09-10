@@ -86,9 +86,13 @@ scripts/smoke.mjs          the smoke test
 - **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
   tall (`Grid.tsx`, `.grid-col` in styles.css). Sessions with `attention` sort first, then slot
   order (`App.tsx`). The first empty cell is the `+`; at cap the `+` disappears.
-- **Plugins**: Wikipedia = today's picture of the day (the featured feed's `image`), full bleed,
-  click opens its file page via `deck:openExternal` (http(s) only). A transparent search box sits
-  top right over it (`.wiki-search`: no chrome until hover/focus). Typing (350ms pause, or ⏎)
+- **Plugins**: Wikipedia = the picture of the day (the featured feed's `image`), full bleed,
+  click opens its file page via `deck:openExternal` (http(s) only). It rotates: every 2 minutes
+  (`CYCLE_MS` in `WikiTile`) a random day's picture from the archive (2016 on, the feed is empty
+  before; `wikiPicture('past')` tries 4 days then falls back to today's), and every third one is
+  today's again; the caption carries the day for archive pictures. Main caches past days for
+  good, today's for 1h. A clock (`.wiki-clock`, local zone, ticking each second) sits top left;
+  a transparent search box sits top right over it (`.wiki-search`: no chrome until hover/focus). Typing (350ms pause, or ⏎)
   searches English Wikipedia (`/w/rest.php/v1/search/page`) and the hits take over the tile over
   the darkened picture; a hit loads its lead section (`/api/rest_v1/page/summary`) in place, its
   title opens the browser. Esc / × brings the picture back. Search thumbnails are re-requested at

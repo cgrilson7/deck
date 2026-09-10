@@ -61,8 +61,12 @@ export type DeckCommand =
   /** Reload the renderer and reattach every tmux client so the terminals redraw. Sessions keep running. */
   | { type: 'refreshUi' }
 
-/** Wikipedia's picture of the day, from the featured-content feed. */
+/** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
 export interface WikiPicture {
+  /** The day it was picture of the day, YYYY-MM-DD in local time. */
+  date: string
+  /** True when it is today's. */
+  today: boolean
   title: string
   /** "Photo: …" credit line, '' when the feed has none. */
   credit: string
@@ -275,8 +279,11 @@ export interface DeckApi {
    * image dragged out of a page has no path at all). Null when there is nothing usable.
    */
   keepDroppedFile(file: File): Promise<string | null>
-  /** Today's Wikipedia picture of the day (null if the feed has none). Cached in main. */
-  wikiPicture(): Promise<WikiPicture | null>
+  /**
+   * Wikipedia's picture of the day: today's (null if the feed has none), or with 'past' one from a
+   * random day of the archive (falls back to today's when the archive misses). Cached in main.
+   */
+  wikiPicture(when?: 'today' | 'past'): Promise<WikiPicture | null>
   /** Full-text search of English Wikipedia, up to a dozen hits. */
   wikiSearch(q: string): Promise<WikiHit[]>
   /** The lead section of one page, by key. */

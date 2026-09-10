@@ -1,6 +1,7 @@
 // The Wikipedia tile's data, fetched in main because the renderer's CSP allows no outbound
-// requests: today's picture of the day (from the featured-content feed, cached 1h), full-text
-// search (the REST v1 search endpoint) and page summaries for the in-tile article view.
+// requests: the picture of the day (from the featured-content feed: today's cached 1h, past days
+// for good, they never change), full-text search (the REST v1 search endpoint) and page
+// summaries for the in-tile article view.
 
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 
@@ -35,7 +36,17 @@ interface Summary {
   content_urls?: { desktop?: { page?: string } }
 }
 
-let picture: { at: number; item: WikiPicture | null } | null = null
+/** Picture of the day by local YYYY-MM-DD; `at` only matters for today's entry (TTL_MS). */
+const pictures = new Map<string, { at: number; item: WikiPicture | null }>()
+
+/** The featured feed's `image` is there for days from about here on; earlier days come back empty. */
+const ARCHIVE_FROM = Date.UTC(2016, 0, 1)
+const DAY_MS = 24 * 60 * 60 * 1000
+const PAST_TRIES = 4
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function strip(html: string | undefined | null): string {
   return (html ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
@@ -54,25 +65,54 @@ function thumb(url: string, width: 250 | 960): string {
     .replace(/\/\d+px-/, `/${width}px-`)
 }
 
-export async function wikiPicture(): Promise<WikiPicture | null> {
-  if (picture && Date.now() - picture.at < TTL_MS) return picture.item
-  const d = new Date()
-  const ymd = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
-  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/feed/featured/${ymd}`, { headers: HEADERS })
+async function pictureOn(date: string): Promise<WikiPicture | null> {
+  const today = date === ymd(new Date())
+  const hit = pictures.get(date)
+  if (hit && (!today || Date.now() - hit.at < TTL_MS)) return hit.item
+  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/feed/featured/${date.replace(/-/g, '/')}`, { headers: HEADERS })
   if (!res.ok) throw new Error(`wikipedia feed: HTTP ${res.status}`)
   const img = ((await res.json()) as Feed).image
   let item: WikiPicture | null = null
   if (img?.thumbnail?.source && img.file_page) {
     const name = (img.title ?? '').replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, '')
     item = {
+      date,
+      today,
       title: strip(img.description?.text) || name,
       credit: img.artist?.text ? strip(img.artist.text) : '',
       imageUrl: thumb(img.thumbnail.source, 960),
       url: img.file_page
     }
   }
-  picture = { at: Date.now(), item }
+  pictures.set(date, { at: Date.now(), item })
   return item
+}
+
+/** A random local day between ARCHIVE_FROM and yesterday. */
+function randomPastDay(): string {
+  const now = new Date()
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  const span = Math.max(1, Math.floor((yesterday.getTime() - ARCHIVE_FROM) / DAY_MS))
+  const back = Math.floor(Math.random() * span)
+  return ymd(new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() - back))
+}
+
+/**
+ * Today's picture of the day, or with 'past' the picture from a random day of the archive: a
+ * few days are tried (a day can miss, the feed can hiccup) and the last resort is today's.
+ */
+export async function wikiPicture(when: 'today' | 'past' = 'today'): Promise<WikiPicture | null> {
+  if (when === 'past') {
+    for (let i = 0; i < PAST_TRIES; i++) {
+      try {
+        const item = await pictureOn(randomPastDay())
+        if (item) return item
+      } catch {
+        // try another day
+      }
+    }
+  }
+  return pictureOn(ymd(new Date()))
 }
 
 export async function wikiSearch(q: string): Promise<WikiHit[]> {

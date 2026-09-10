@@ -43,7 +43,7 @@ const api: DeckApi = {
     if (!path && file.size > 0) bytes = new Uint8Array(await file.arrayBuffer())
     return ipcRenderer.invoke('drop:keep', { name: file.name, path, bytes }) as Promise<string | null>
   },
-  wikiPicture: () => ipcRenderer.invoke('wiki:picture') as Promise<WikiPicture | null>,
+  wikiPicture: (when?: 'today' | 'past') => ipcRenderer.invoke('wiki:picture', when ?? 'today') as Promise<WikiPicture | null>,
   wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,
   wikiSummary: (key: string) => ipcRenderer.invoke('wiki:summary', key) as Promise<WikiSummary>,
   openExternal: (url) => ipcRenderer.send('deck:openExternal', url),
