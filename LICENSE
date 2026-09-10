@@ -19,31 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
---------------------------------------------------------------------------
-
-EXCLUDED FROM THE LICENSE ABOVE
-
-The MIT License covers the source code and documentation in this repository
-only. The following files are third-party works that the copyright holder
-above does not own and cannot license. They are NOT covered by the MIT
-License and no rights in them are granted by it:
-
-  src/renderer/src/assets/fox.png
-  build/icon.png
-  build/icon.icns
-
-    "2D Pixel Art Fox Sprites" by Elthen (Elthen's Pixel Art Shop), and the
-    app icon derived from it. Used under Elthen's own terms: CC BY-NC 4.0
-    with Elthen's supplemental permission for commercial use, excluding any
-    blockchain-related project. Credit to Elthen with a link to
-    https://elthen.itch.io/2d-pixel-art-fox-sprites is REQUIRED in any
-    project, fork or derivative that uses them, and the sheet may not be
-    redistributed on its own. Full terms:
-    https://www.patreon.com/posts/licensing-27430241
-    See src/renderer/src/assets/LICENSE-fox.md.
-
-  src/renderer/src/assets/press-start-2p.woff2
-
-    "Press Start 2P" by CodeMan38, SIL Open Font License 1.1:
-    https://fonts.google.com/specimen/Press+Start+2P
