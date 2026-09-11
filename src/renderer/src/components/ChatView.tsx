@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChatBlock, SessionStatus, Transcript } from '@shared/types'
 import { Fox } from './Fox'
+import { FileRef, linkifyPaths } from '../lib/filerefs'
 import { renderMarkdown } from '../lib/markdown'
 
 /**
@@ -8,8 +9,10 @@ import { renderMarkdown } from '../lib/markdown'
  * (`transcript.ts`), instead of the CLI's screen. Your prompts, Claude's prose as markdown,
  * one line per tool call. Pinned to the end while you leave it there; scroll up and it stays
  * put until you come back down. The bar at the bottom is the TilePrompt; the padding is its room.
+ * Every path in it is clickable and opens the preview pane over the grid; `cwd` is the session's
+ * folder, which is what a relative one is resolved against.
  */
-export function ChatView({ id, status, attention }: { id: string; status: SessionStatus; attention: boolean }) {
+export function ChatView({ id, cwd, status, attention }: { id: string; cwd: string; status: SessionStatus; attention: boolean }) {
   const [t, setT] = useState<Transcript | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -51,7 +54,7 @@ export function ChatView({ id, status, attention }: { id: string; status: Sessio
   return (
     <div className="chat" ref={box} onScroll={onScroll}>
       {blocks.map((b, i) => (
-        <Block key={`${b.ts}-${i}`} b={b} last={i === blocks.length - 1} />
+        <Block key={`${b.ts}-${i}`} b={b} cwd={cwd} last={i === blocks.length - 1} />
       ))}
       {busy && (
         <div className="chat-busy" aria-label="Claude is working">
@@ -65,22 +68,28 @@ export function ChatView({ id, status, attention }: { id: string; status: Sessio
   )
 }
 
-function Block({ b, last }: { b: ChatBlock; last: boolean }) {
+function Block({ b, cwd, last }: { b: ChatBlock; cwd: string; last: boolean }) {
   if (b.kind === 'user') {
+    // Your own prompts name files too — a dropped file pastes its path right into one.
     return (
       <div className="chat-user" title={new Date(b.ts).toLocaleTimeString()}>
-        {b.text}
+        {linkifyPaths(b.text, cwd)}
       </div>
     )
   }
   if (b.kind === 'tool') {
     return (
-      <div className={`chat-tool ${b.done ? (b.error ? 'is-error' : 'is-done') : 'is-running'}`} title={b.name}>
+      <div className={`chat-tool ${b.done ? (b.error ? 'is-error' : 'is-done') : 'is-running'}`} title={b.path || b.name}>
         <span className="chat-tool-mark">{b.done ? (b.error ? '✗' : '✓') : '·'}</span>
         <span className="chat-tool-name">{b.name}</span>
-        {b.label && <span className="chat-tool-label">{b.label}</span>}
+        {b.label && (
+          <span className="chat-tool-label">
+            {/* Read / Edit / Write name a file: the label opens it. */}
+            {b.path ? <FileRef path={b.path} cwd={cwd} label={b.label} /> : b.label}
+          </span>
+        )}
       </div>
     )
   }
-  return <div className={`chat-text ${last ? 'is-last' : ''}`}>{renderMarkdown(b.text)}</div>
+  return <div className={`chat-text ${last ? 'is-last' : ''}`}>{renderMarkdown(b.text, cwd)}</div>
 }

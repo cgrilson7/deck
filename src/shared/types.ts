@@ -278,7 +278,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
 export type ChatBlock =
   | { kind: 'user'; text: string; ts: number }
   | { kind: 'text'; text: string; ts: number }
-  | { kind: 'tool'; id: string; name: string; label: string; ts: number; done: boolean; error: boolean }
+  | { kind: 'tool'; id: string; name: string; label: string; ts: number; done: boolean; error: boolean; /** The path the call names, when it names one: the label opens it in the preview pane. */ path?: string }
 
 export interface Transcript {
   id: string
@@ -288,6 +288,30 @@ export interface Transcript {
   title: string | null
   /** True once the transcript file has been found (a fresh session has none until its first prompt). */
   found: boolean
+}
+
+/** What the preview pane can draw for a referenced path (`main/files.ts`). */
+export type FileKind = 'text' | 'markdown' | 'image' | 'pdf' | 'dir' | 'binary' | 'missing'
+
+/** One referenced path, read for the preview pane. */
+export interface FileDoc {
+  /** Absolute, resolved from the reference and the session's cwd. */
+  path: string
+  name: string
+  kind: FileKind
+  size: number
+  /** Modified time, ms since the epoch (0 when the path is missing). */
+  mtime: number
+  /** Text kinds: the file, cut off at the cap (`truncated` then says so). */
+  text?: string
+  truncated?: boolean
+  /** Image / PDF: the bytes, which the renderer turns into a blob URL. */
+  bytes?: Uint8Array
+  mime?: string
+  /** Directories: what is in them, directories first. */
+  entries?: { name: string; dir: boolean }[]
+  /** Why there is nothing to draw (missing, binary, too big), or what was left out. */
+  note?: string
 }
 
 /** One-shot UI requests from the main process (menu items) to the renderer. */
@@ -321,6 +345,17 @@ export interface DeckApi {
   wikiSearch(q: string): Promise<WikiHit[]>
   /** The lead section of one page, by key. */
   wikiSummary(key: string): Promise<WikiSummary>
+  /**
+   * Read a referenced path for the preview pane: `~/x`, `/x`, `x/y` against `cwd`, or a
+   * file: URL. Never rejects — a missing or unshowable file comes back with a note.
+   */
+  readDoc(ref: string, cwd?: string): Promise<FileDoc>
+  /** Hand the path to macOS (Preview for a PDF, whatever else owns the type). Resolves an error string, '' when it opened. */
+  openPath(path: string): Promise<string>
+  /** Reveal the path in Finder. */
+  revealPath(path: string): void
+  /** Put text on the clipboard (the preview pane's "copy path"). */
+  copyText(text: string): void
   openExternal(url: string): void
   /**
    * Detect whether `text` is English or Spanish and translate it to the other one. `hint` is the

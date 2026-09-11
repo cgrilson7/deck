@@ -1,10 +1,14 @@
 // A small markdown → React renderer for Claude's prose in the grid tiles: paragraphs,
 // headings, bullet / numbered lists, fenced code, pipe tables, and inline code / bold /
 // italic / links. Builds elements, never HTML, so nothing in a reply can inject markup.
+// `cwd` is the session's folder: file references in the prose become clickable and are
+// resolved against it (lib/filerefs.tsx).
 
 import type { ReactNode } from 'react'
+import { FileRef, linkifyPaths } from './filerefs'
+import { isPathRef, splitRef } from './paths'
 
-export function renderMarkdown(src: string): ReactNode[] {
+export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
   const lines = src.replace(/\r\n?/g, '\n').split('\n')
   const out: ReactNode[] = []
   let i = 0
@@ -37,7 +41,7 @@ export function renderMarkdown(src: string): ReactNode[] {
     if (h) {
       const level = Math.min(h[1].length + 2, 6) // tiles are small: h1 renders as h3
       const Tag = `h${level}` as 'h3'
-      out.push(<Tag key={k()}>{inline(h[2])}</Tag>)
+      out.push(<Tag key={k()}>{inline(h[2], cwd)}</Tag>)
       i++
       continue
     }
@@ -65,7 +69,7 @@ export function renderMarkdown(src: string): ReactNode[] {
             <thead>
               <tr>
                 {head.map((c, j) => (
-                  <th key={j}>{inline(c)}</th>
+                  <th key={j}>{inline(c, cwd)}</th>
                 ))}
               </tr>
             </thead>
@@ -73,7 +77,7 @@ export function renderMarkdown(src: string): ReactNode[] {
               {rows.map((r, ri) => (
                 <tr key={ri}>
                   {r.map((c, j) => (
-                    <td key={j}>{inline(c)}</td>
+                    <td key={j}>{inline(c, cwd)}</td>
                   ))}
                 </tr>
               ))}
@@ -99,7 +103,7 @@ export function renderMarkdown(src: string): ReactNode[] {
       out.push(
         <Tag key={k()}>
           {items.map((it, j) => (
-            <li key={j}>{inline(it)}</li>
+            <li key={j}>{inline(it, cwd)}</li>
           ))}
         </Tag>
       )
@@ -109,37 +113,41 @@ export function renderMarkdown(src: string): ReactNode[] {
     if (/^\s*>/.test(line)) {
       const q: string[] = []
       while (i < lines.length && /^\s*>/.test(lines[i])) q.push(lines[i++].replace(/^\s*>\s?/, ''))
-      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'))}</blockquote>)
+      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'), cwd)}</blockquote>)
       continue
     }
     // paragraph: run until a blank line or a block start
     const p: string[] = [line]
     i++
     while (i < lines.length && lines[i].trim() && !/^(\s*(```|~~~|#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\|))/.test(lines[i])) p.push(lines[i++])
-    out.push(<p key={k()}>{inline(p.join(' '))}</p>)
+    out.push(<p key={k()}>{inline(p.join(' '), cwd)}</p>)
   }
   return out
 }
 
 const INLINE = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|_([^_\n]+)_|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)]+)/g
 
-/** Inline markdown inside one block. */
-export function inline(text: string): ReactNode[] {
+/** Inline markdown inside one block. Plain runs also get their file references linkified. */
+export function inline(text: string, cwd?: string): ReactNode[] {
   const out: ReactNode[] = []
   let last = 0
   let n = 0
   for (const m of text.matchAll(INLINE)) {
     const at = m.index ?? 0
-    if (at > last) out.push(text.slice(last, at))
     const key = `i${n++}`
-    if (m[2] !== undefined) out.push(<code key={key}>{m[2]}</code>)
-    else if (m[3] !== undefined || m[4] !== undefined) out.push(<strong key={key}>{inline(m[3] ?? m[4])}</strong>)
-    else if (m[5] !== undefined || m[6] !== undefined) out.push(<em key={key}>{inline(m[5] ?? m[6])}</em>)
+    if (at > last) out.push(...linkifyPaths(text.slice(last, at), cwd, `${key}p`))
+    if (m[2] !== undefined) {
+      // A code span that is nothing but a path (`src/main/index.ts`) is the commonest way a
+      // reply names a file, so it opens the preview pane instead of sitting there as code.
+      const ref = isPathRef(m[2]) ? splitRef(m[2]) : null
+      out.push(ref ? <FileRef key={key} path={ref.path} cwd={cwd} line={ref.line} label={m[2]} code /> : <code key={key}>{m[2]}</code>)
+    } else if (m[3] !== undefined || m[4] !== undefined) out.push(<strong key={key}>{inline(m[3] ?? m[4], cwd)}</strong>)
+    else if (m[5] !== undefined || m[6] !== undefined) out.push(<em key={key}>{inline(m[5] ?? m[6], cwd)}</em>)
     else if (m[7] !== undefined) out.push(link(key, m[8], m[7]))
     else if (m[9] !== undefined) out.push(link(key, m[9], m[9]))
     last = at + m[0].length
   }
-  if (last < text.length) out.push(text.slice(last))
+  if (last < text.length) out.push(...linkifyPaths(text.slice(last), cwd, `i${n}p`))
   return out
 }
 

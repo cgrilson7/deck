@@ -27,7 +27,7 @@ export function Tile({ session: s }: { session: SessionView }) {
       </header>
       <div className="tile-body">
         {/* The conversation itself, not the CLI's screen; the terminal lives in the focus pane. */}
-        <ChatView id={s.id} status={s.status} attention={s.attention} />
+        <ChatView id={s.id} cwd={s.cwd} status={s.status} attention={s.attention} />
         <TilePrompt id={s.id} />
       </div>
     </div>

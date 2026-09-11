@@ -57,7 +57,7 @@ export function FocusPane({ session, recent }: { session: SessionView | null; re
           kill
         </button>
       </header>
-      <TermHost id={s.id} mode="focus" autoFocus />
+      <TermHost id={s.id} cwd={s.cwd} mode="focus" autoFocus />
     </section>
   )
 }

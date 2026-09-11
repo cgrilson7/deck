@@ -8,6 +8,7 @@ import '@xterm/xterm/css/xterm.css'
 import { CAP, DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
 import { themeById, type TermPalette } from '@shared/themes'
 import { watchClaudeBanner } from './fox'
+import { openDoc, pathRefs } from './paths'
 
 export type Mode = 'focus' | 'tile'
 
@@ -55,6 +56,8 @@ interface Entry {
 
 const entries = new Map<string, Entry>()
 const pending = new Map<string, string[]>()
+/** Each session's folder, so a relative path clicked in its terminal resolves like the CLI's would. */
+const cwds = new Map<string, string>()
 const PENDING_CAP = 512 // chunks buffered for a terminal that has not mounted yet
 let staging: HTMLDivElement | null = null
 
@@ -74,6 +77,11 @@ function isDeckShortcut(ev: KeyboardEvent): boolean {
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
   return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || k === ','
+}
+
+/** Tell the terminal which folder its session runs in (TermHost, from the session record). */
+export function setTerminalCwd(id: string, cwd: string): void {
+  if (cwd) cwds.set(id, cwd)
 }
 
 export function ensureTerminal(id: string): Entry {
@@ -103,6 +111,22 @@ export function ensureTerminal(id: string): Entry {
   term.onTitleChange((t) => window.deck.setTitle(id, t))
   term.onBell(() => window.deck.bell(id))
   term.attachCustomKeyEventHandler((ev) => !(ev.metaKey && isDeckShortcut(ev)))
+  // Paths printed in the TUI are links: hover underlines one, a click opens it in the preview
+  // pane over the grid, so the terminal itself is never covered. One buffer line at a time —
+  // a path the pane wrapped is left alone rather than guessed at.
+  term.registerLinkProvider({
+    provideLinks(y, cb) {
+      const line = term.buffer.active.getLine(y - 1)
+      if (!line) return cb(undefined)
+      const text = line.translateToString(true)
+      const links = pathRefs(text).map((r) => ({
+        range: { start: { x: r.start + 1, y }, end: { x: r.end, y } },
+        text: r.raw,
+        activate: () => openDoc(r.path, cwds.get(id), r.line)
+      }))
+      cb(links.length > 0 ? links : undefined)
+    }
+  })
 
   const entry: Entry = { term, el, webgl: null, mode: null, host: null, fox: watchClaudeBanner(term), fitRaf: 0 }
   entries.set(id, entry)
@@ -279,6 +303,7 @@ export function dispose(id: string): void {
     entries.delete(id)
   }
   pending.delete(id)
+  cwds.delete(id)
 }
 
 export function liveIds(): string[] {

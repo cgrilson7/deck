@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import type { DeckCommand, DeckSettings, Lang, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
@@ -19,6 +19,7 @@ import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
 import { setupYoutubeSession } from './youtube'
 import { keepDrop, type DroppedFile } from './drops'
+import { readDoc, resolveRef } from './files'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -66,7 +67,8 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      webviewTag: true // the YouTube tile
+      webviewTag: true, // the YouTube tile
+      plugins: true // Chromium's PDF viewer, which the preview pane frames a blob URL in
     }
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -238,6 +240,13 @@ app.whenReady().then(async () => {
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
+
+  // A referenced file, for the preview pane over the grid: read it here, and let macOS open
+  // or reveal it (a PDF lands in Preview, everything else in whatever owns the type).
+  ipcMain.handle('file:read', (_e, ref: string, cwd?: string) => readDoc(String(ref ?? ''), typeof cwd === 'string' ? cwd : undefined))
+  ipcMain.handle('file:open', async (_e, path: string) => shell.openPath(resolveRef(String(path ?? ''))))
+  ipcMain.on('file:reveal', (_e, path: string) => shell.showItemInFolder(resolveRef(String(path ?? ''))))
+  ipcMain.on('file:copy', (_e, text: string) => clipboard.writeText(String(text ?? '')))
 
   setupYoutubeSession()
   buildMenu(menuHandlers())

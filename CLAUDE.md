@@ -47,6 +47,7 @@ src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
+src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
@@ -64,9 +65,12 @@ src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
+src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
+src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+                                    DocPane (the file preview over the grid),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element)
@@ -206,6 +210,26 @@ scripts/smoke.mjs          the smoke test
   nothing yet shows Foxtrot. Clicking a tile still focuses it, unless text is selected. The
   session's xterm is only mounted in the focus pane, so its size is whatever the focus pane last
   set (SPAWN 120×40 before that).
+- **A referenced path is a link, and it opens over the grid** (`lib/paths.ts` finds them,
+  `lib/filerefs.tsx` draws them, `components/DocPane.tsx` shows them, `main/files.ts` reads them):
+  everywhere a session's text appears — a tile's tool line (Read / Edit / Write / MultiEdit /
+  NotebookEdit put the file on the ChatBlock as `path`, Grep / Glob their search folder), Claude's
+  prose (a path alone in a code span, or bare in a sentence), your own prompts (a dropped file
+  pastes one), and the focus pane's TERMINAL (an xterm link provider, one buffer line at a time) —
+  a path is clickable. `pathRefs` matches three shapes, plus a `:42`: rooted at `/ ~/ ./ ../`, a
+  name (nested or not) ending in a known extension, or a folder written with a trailing slash. A
+  URL is not one (the lookbehind refuses a match after `:`), and a wrong guess costs nothing: the
+  pane says "no such file". Relative paths resolve against the session's cwd — the tile hands it
+  to ChatView, `setTerminalCwd` hands it to the terminal.
+  The pane itself is `grid-area: 1 / 2 / 2 / 3`, THE GRID COLUMN AND NEVER THE TERMINAL, so the
+  session stays in view while you read; ⤢ takes the whole window (kept in localStorage), the scrim
+  or Esc closes it — but not an Esc from inside an xterm, where Esc is Claude's. Text gets a line
+  gutter (one plain block past 4000 lines) and scrolls to the `:42`; markdown renders, with a
+  `source` toggle; an image and a PDF are a blob URL of the bytes main read (hence `plugins: true`
+  on the window, which is Chromium's PDF viewer, and `frame-src 'self' blob: chrome-extension:` +
+  `img-src blob:` in the CSP); a folder is a list you can walk into, with a back button. Anything
+  else — binary, missing, over the caps (1.5MB of text, 40MB of bytes) — says so and offers the
+  header's buttons, which hand the path to macOS: open (Preview, for a PDF), reveal in Finder, copy.
 - **Tile prompts** (`TilePrompt`, the bar along the bottom of every grid session tile): an
   always-visible rounded outline, no label, that pastes what you type into THAT session and
   submits it (⏎; ⇧⏎ = newline, Esc empties) without swapping it into focus. Clicks in the bar

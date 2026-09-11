@@ -23,6 +23,7 @@ npm run dev
 | ⌘W | Park the focused session (tile closes, session lives on) |
 | click `+` | Chooser: the focused folder, the 3 most recent, a folder picker, a worktree toggle, parked sessions to resume |
 | drop a file on a pane | Pastes its path into that session |
+| click a path | Anywhere a session shows one — a tool line, Claude's prose, your own prompt, the terminal — opens it in a preview pane over the grid (Esc closes; buttons open it in Preview or reveal it in Finder) |
 
 Sessions run inside tmux on a private socket, so quitting deck never kills a conversation. Optional settings live in `~/Library/Application Support/deck/config.json`:
 

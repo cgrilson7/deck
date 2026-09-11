@@ -1905,3 +1905,262 @@ button {
   margin: 0;
   accent-color: var(--accent);
 }
+
+/* ---- file references: a path, wherever a session's text shows one, opens the preview pane ---- */
+.fileref {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-underline-offset: 2px;
+}
+.fileref:hover {
+  color: var(--accent);
+  text-decoration-style: solid;
+}
+.fileref.is-code {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.chat-tool .fileref {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- the preview pane (DocPane): laid over the grid, so the terminal stays in view ---- */
+.doc {
+  grid-area: 1 / 2 / 2 / 3;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  z-index: 4;
+}
+/* ⤢: the whole window, focus column included, for something wide. */
+.doc.is-wide {
+  grid-area: 1 / 1 / 2 / 3;
+}
+.doc-scrim {
+  position: absolute;
+  inset: -8px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  backdrop-filter: blur(2px);
+}
+.doc-panel {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.doc-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.doc-name {
+  flex: 0 0 auto;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.doc-line {
+  margin-left: -6px;
+  color: var(--accent);
+  font-size: 11px;
+}
+.doc-where {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 11px;
+}
+.doc-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.doc-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.doc-btn.wide {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.doc-btn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.doc-btn.on {
+  color: var(--accent);
+}
+.doc-problem {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--blocked);
+  font-size: 11px;
+}
+.doc-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  user-select: text;
+  cursor: default;
+}
+/* Chromium's PDF viewer does its own scrolling. */
+.doc-body:has(.doc-pdf) {
+  overflow: hidden;
+}
+.doc-code {
+  padding: 6px 0 24px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.doc-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+}
+/* the line a `path:42` reference asked for */
+.doc-row[data-hit='1'] {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.doc-ln {
+  flex: 0 0 auto;
+  width: 4ch;
+  text-align: right;
+  color: var(--muted);
+  opacity: 0.7;
+  user-select: none;
+}
+.doc-row code {
+  white-space: pre;
+}
+.doc-plain {
+  margin: 0;
+  padding: 8px 12px 24px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  white-space: pre;
+}
+.doc-md {
+  padding: 12px 16px 24px;
+  max-width: 80ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.doc-md h3,
+.doc-md h4 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+.doc-md h5,
+.doc-md h6 {
+  margin: 12px 0 5px;
+  font-size: 13px;
+}
+.doc-md p,
+.doc-md ul,
+.doc-md ol,
+.doc-md blockquote {
+  margin: 0 0 10px;
+}
+.doc-image {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 10px;
+}
+.doc-pdf {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
+.doc-dir {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 20px;
+}
+.doc-dir button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 12px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  text-align: left;
+}
+.doc-dir button:hover {
+  background: var(--bg);
+  color: var(--accent);
+}
+.doc-dot {
+  width: 12px;
+  text-align: center;
+  color: var(--muted);
+}
+.doc-note {
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.doc-none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 36px 16px;
+  text-align: center;
+}
+.doc-path {
+  margin: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.doc-open {
+  padding: 5px 12px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 12px;
+}
+.doc-open:hover {
+  background: var(--bg);
+  color: var(--accent);
+}

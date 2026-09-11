@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { DeckState } from '@shared/types'
+import { DocPane } from './components/DocPane'
 import { FocusPane } from './components/FocusPane'
 import { Grid } from './components/Grid'
 import { ThemeControls } from './components/ThemeControls'
 import { dispose, liveIds } from './lib/terminals'
+import { onOpenDoc, type DocRef } from './lib/paths'
 import { useSettings } from './lib/theme'
 
 const FOCUS_COLS: Record<string, string> = {
@@ -17,6 +19,9 @@ export default function App() {
   const [state, setState] = useState<DeckState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [themeOpen, setThemeOpen] = useState(false)
+  // The file the preview pane is showing over the grid (null = no pane). Set from anywhere a
+  // path is clicked: a tile's conversation, or the terminal's own link provider.
+  const [doc, setDoc] = useState<DocRef | null>(null)
   const settings = useSettings()
 
   useEffect(() => {
@@ -30,12 +35,17 @@ export default function App() {
     })
     const offUi = window.deck.onUi((ev) => {
       if (ev.type === 'openSettings') setThemeOpen((v) => !v)
-      if (ev.type === 'closeOverlays') setThemeOpen(false)
+      if (ev.type === 'closeOverlays') {
+        setThemeOpen(false)
+        setDoc(null)
+      }
     })
+    const offDoc = onOpenDoc(setDoc)
     return () => {
       offState()
       offErr()
       offUi()
+      offDoc()
       window.clearTimeout(t)
     }
   }, [])
@@ -83,6 +93,8 @@ export default function App() {
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
         <FocusPane session={focused} recent={state.recent} />
         <Grid sessions={others} state={state} settings={settings} />
+        {/* Over the grid, never over the terminal: read the file while the session keeps going. */}
+        {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
       </main>
     </div>
   )

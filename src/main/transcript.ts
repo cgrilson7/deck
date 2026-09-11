@@ -190,7 +190,9 @@ export function applyLine(t: Transcript, line: string): boolean {
         else t.blocks.push({ kind: 'text', text: c.text, ts })
         changed = true
       } else if (c.type === 'tool_use') {
-        t.blocks.push({ kind: 'tool', id: String(c.id ?? ''), name: String(c.name ?? 'tool'), label: toolLabel(String(c.name ?? ''), (c.input as Json) ?? {}), ts, done: false, error: false })
+        const name = String(c.name ?? 'tool')
+        const input = (c.input as Json) ?? {}
+        t.blocks.push({ kind: 'tool', id: String(c.id ?? ''), name, label: toolLabel(name, input), ts, done: false, error: false, path: toolPath(name, input) })
         changed = true
       }
     }
@@ -216,6 +218,25 @@ function pushUser(t: Transcript, raw: string, ts: number): boolean {
   }
   t.blocks.push({ kind: 'user', text, ts })
   return true
+}
+
+/** The path a call names, if it names one: what the tile's tool line opens in the preview pane. */
+export function toolPath(name: string, input: Json): string | undefined {
+  const s = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : '')
+  switch (name) {
+    case 'Read':
+    case 'Edit':
+    case 'Write':
+    case 'MultiEdit':
+    case 'NotebookEdit':
+      return s('file_path') || s('notebook_path') || undefined
+    case 'Grep':
+    case 'Glob':
+      // The directory it searched, when it was given one.
+      return s('path') || undefined
+    default:
+      return undefined
+  }
 }
 
 /** One short line per tool call: the thing it touched, not its full input. */

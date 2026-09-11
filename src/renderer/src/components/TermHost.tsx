@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { focusTerminal, mount, refit, unmount, type Mode } from '../lib/terminals'
+import { focusTerminal, mount, refit, setTerminalCwd, unmount, type Mode } from '../lib/terminals'
 
 /** Mounts a session's persistent terminal into this component's box. */
-export function TermHost({ id, mode, autoFocus = false }: { id: string; mode: Mode; autoFocus?: boolean }) {
+export function TermHost({ id, cwd, mode, autoFocus = false }: { id: string; cwd: string; mode: Mode; autoFocus?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
+
+  // A path clicked in the terminal is resolved against the session's folder.
+  useEffect(() => setTerminalCwd(id, cwd), [id, cwd])
 
   useLayoutEffect(() => {
     const host = ref.current!
