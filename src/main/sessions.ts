@@ -319,6 +319,11 @@ export class SessionManager {
 
   // ---- state -------------------------------------------------------------
 
+  /** The tmux session behind a deck id (the phone's screen view reads it), null when unknown. */
+  tmuxNameOf(id: string): string | null {
+    return this.records.find((r) => r.id === id)?.tmuxName ?? null
+  }
+
   getState(): DeckState {
     const views: SessionView[] = this.records.map((rec) => {
       const r = this.rt.get(rec.id)

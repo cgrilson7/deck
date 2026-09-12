@@ -3,10 +3,14 @@ import { RefreshCw } from 'lucide-react'
 import type { DeckState } from '@shared/types'
 import { DocPane } from './components/DocPane'
 import { FocusPane } from './components/FocusPane'
+import { FoxHead } from './components/FoxHead'
+import { FoxLog } from './components/FoxLog'
 import { Grid } from './components/Grid'
+import { PhonePair } from './components/PhonePair'
 import { ThemeControls } from './components/ThemeControls'
 import { dispose, liveIds } from './lib/terminals'
 import { onOpenDoc, type DocRef } from './lib/paths'
+import { useFoxLog } from './lib/foxlog'
 import { useSettings } from './lib/theme'
 
 const FOCUS_COLS: Record<string, string> = {
@@ -22,6 +26,9 @@ export default function App() {
   // The file the preview pane is showing over the grid (null = no pane). Set from anywhere a
   // path is clicked: a tile's conversation, or the terminal's own link provider.
   const [doc, setDoc] = useState<DocRef | null>(null)
+  // Foxtrot's whole log, over the grid like the file preview. One pane at a time: opening either closes the other.
+  const [foxOpen, setFoxOpen] = useState(false)
+  const fox = useFoxLog()
   const settings = useSettings()
 
   useEffect(() => {
@@ -38,9 +45,17 @@ export default function App() {
       if (ev.type === 'closeOverlays') {
         setThemeOpen(false)
         setDoc(null)
+        setFoxOpen(false)
+      }
+      if (ev.type === 'toggleFoxLog') {
+        setDoc(null)
+        setFoxOpen((v) => !v)
       }
     })
-    const offDoc = onOpenDoc(setDoc)
+    const offDoc = onOpenDoc((r) => {
+      setFoxOpen(false)
+      setDoc(r)
+    })
     return () => {
       offState()
       offErr()
@@ -67,34 +82,49 @@ export default function App() {
 
   return (
     <div className={`app ${settings.compact ? 'compact' : ''}`}>
+      {/* Tall on purpose: Foxtrot and his last barks on the left, a roomy tools area on the right. */}
       <header className="topbar">
-        <span className="wordmark">deck</span>
-        <span className="count">
-          {state.open.length} / {state.cap}
-        </span>
-        {needy > 0 && (
-          <button className="needy" onClick={() => window.deck.command({ type: 'jumpAttention' })} title="Jump to the next session that needs you (⌘↩)">
-            {needy} need{needy === 1 ? 's' : ''} you
+        <FoxHead
+          state={state}
+          entries={fox.entries}
+          live={fox.live}
+          open={foxOpen}
+          onToggle={() => {
+            setDoc(null)
+            setFoxOpen((v) => !v)
+          }}
+        />
+        <div className="topbar-tools">
+          <span className="wordmark">deck</span>
+          <span className="count">
+            {state.open.length} / {state.cap}
+          </span>
+          {needy > 0 && (
+            <button className="needy" onClick={() => window.deck.command({ type: 'jumpAttention' })} title="Jump to the next session that needs you (⌘↩)">
+              {needy} need{needy === 1 ? 's' : ''} you
+            </button>
+          )}
+          {state.profile !== 'deck' && <span className="badge">{state.profile}</span>}
+          <button
+            className="bar-btn"
+            onClick={() => window.deck.command({ type: 'refreshUi' })}
+            title="Reload the interface and redraw every terminal (⌘R). Sessions and conversations keep running; nothing is closed."
+          >
+            <RefreshCw size={13} />
+            <span>refresh UI</span>
           </button>
-        )}
-        {state.profile !== 'deck' && <span className="badge">{state.profile}</span>}
-        <button
-          className="bar-btn"
-          onClick={() => window.deck.command({ type: 'refreshUi' })}
-          title="Reload the interface and redraw every terminal (⌘R). Sessions and conversations keep running; nothing is closed."
-        >
-          <RefreshCw size={13} />
-          <span>refresh UI</span>
-        </button>
-        <span className="spacer" />
-        {error && <span className="error">{error}</span>}
-        <ThemeControls open={themeOpen} onOpenChange={setThemeOpen} />
+          <PhonePair />
+          <span className="spacer" />
+          {error && <span className="error">{error}</span>}
+          <ThemeControls open={themeOpen} onOpenChange={setThemeOpen} />
+        </div>
       </header>
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
         <FocusPane session={focused} recent={state.recent} />
         <Grid sessions={others} state={state} settings={settings} />
         {/* Over the grid, never over the terminal: read the file while the session keeps going. */}
         {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
+        {foxOpen && <FoxLog state={state} entries={fox.entries} onClose={() => setFoxOpen(false)} />}
       </main>
     </div>
   )

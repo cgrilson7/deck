@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { pasteText } from '../lib/terminals'
+import { pasteText } from '../lib/paste'
 
 /**
  * The prompt bar along the bottom of a grid tile: type, ⏎, and the text is pasted into that

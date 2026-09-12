@@ -5,7 +5,7 @@ as a real terminal; the others live in a grid on the right as conversation views
 Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
 plugin row (Wikipedia's featured content, a lofi YouTube stream) beneath them. Click a tile to
 swap it into focus.
-The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. A personal tool, macOS only.
+The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. The same sessions are reachable from a phone (the `phone` button in the top bar: a QR code, over Tailscale). A personal tool, macOS only.
 
 ## What it is, in one paragraph
 
@@ -46,8 +46,11 @@ src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resum
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
+src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
+src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
+src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
@@ -62,18 +65,23 @@ src/main/menu.ts           app menu = every keyboard shortcut
 src/preload/index.ts       contextBridge → window.deck (DeckApi), window.deckErrors
 src/renderer/src/App.tsx   state → FocusPane + Grid; disposes terminals that left `open`
 src/renderer/src/lib/terminals.ts   persistent xterm per session, mount/unmount/mode, buffering
+src/renderer/src/lib/paste.ts       pasteText(): xterm's paste when a terminal exists for the id, else a bracketed paste straight to the pty (the phone)
+src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (window.deck over the socket), Phone.tsx (chips, swipe pages, prompt bar, sheets),
+                                    ScreenView.tsx (tmux's screen + the key strip), ansi.tsx (SGR → spans), palette.ts (--ansi-N from the theme)
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
+src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live) and the newest live one, which makes him bark
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
-                                    DocPane (the file preview over the grid),
+                                    DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
-                                    ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element)
+                                    ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
+                                    PhonePair (the top-bar phone button: QR + link + the serve switch)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test
@@ -196,6 +204,26 @@ scripts/smoke.mjs          the smoke test
   frame (22×18 sheet px × `--fox-scale`), animated by stepping `background-position-x` one frame
   (32px × scale) at a time; row / frame count / duration are CSS variables (`.fox-idle`, `.fox-run`,
   …); the sheet is a `--fox-sheet` data: URL set at boot (`installFoxSheet`, CSP allows `img-src data:`).
+- **Foxtrot is also the head** (`main/foxtrot.ts`, `FoxHead`, `FoxLog`): one watcher over every
+  session, keeping a running log. PHASE ONE IS SENSES ONLY, rules and no model. Main feeds him every
+  state broadcast and every transcript update; he writes `note`s (a session opened / was parked /
+  closed, you prompted it, it finished a turn of 20s+) and, rarely, `bark`s — the things that want
+  you: a permission prompt unanswered 4 min, a session waiting on you 15 min that you have not
+  focused since (both skip the focused session, and ones crossing together are told as one), two
+  open sessions editing the same absolute path within 45 min (so worktrees never collide), three
+  tool errors in a row, a Claude that exited. Each bark fires once per episode. He wakes 6s after
+  boot (sessions settle first) and takes transcript history from before he was born in silently.
+  Entries append to `userData/foxtrot.jsonl` (compacted to the last 2000 past 5000; 1000 kept in
+  memory), pushed as `fox:entry`, fetched with `fox:log`.
+  The top bar is TALL for him (88px, 52px compact; main's `lightsAt()` centers the traffic lights
+  to match): the fox at 4× (2× compact), posed for the whole deck (alert when something is blocked
+  or for a minute after a bark, looking around while any session works, asleep with none open,
+  else the tail wag), a speech bubble with his last THREE barks (newest on top, "4m" ages, faded
+  past 30 min), and `.topbar-tools` on the right, a wrapping row that is where new buttons and
+  dropdowns go. A bark that arrives live makes him bark (`foxBark`); loaded ones never do. The fox,
+  the bubble, or ⌘J (View ▸ Foxtrot's Log) opens the whole log in the `.doc` pane over the grid —
+  a day at a time, "barks only" toggle, session chips that focus, path chips that preview. The log
+  and the file preview are one pane at a time.
 - **Tiles are conversations, not terminals** (`ChatView`, `main/transcript.ts`): a grid tile
   shows the session's transcript, tailed by main from
   `<CLAUDE_CONFIG_DIR|~/.claude>/projects/*/<claudeSessionId>.jsonl` (found by our UUID across
@@ -293,6 +321,41 @@ scripts/smoke.mjs          the smoke test
 - **Refresh UI** (⌘R, top bar): reloads the renderer, then main kills every pty client so
   `handlePtyExit` reattaches and tmux repaints. Sessions and conversations are untouched; a plain
   reload without the reattach leaves the terminals blank until something redraws.
+- **The phone** (`main/remote.ts`, `shared/remote.ts`, `renderer/src/phone/`, `PhonePair`): the
+  deck on a phone is a SECOND RENDERER of the same main process, served by main itself. Main runs
+  an HTTP + WebSocket server on port 47810 (`deck`) / 47811 (others; `REMOTE_PORT`) bound to every
+  interface but answering ONLY private addresses (`isPrivate`: loopback, Tailscale's 100.64/10 and
+  fd7a:115c:a1e0::/48, RFC 1918), and every socket must carry the token from `userData/remote.json`
+  (24 random bytes, made once; delete the file to rotate). Reach is Tailscale's: the pairing
+  popover (the `phone` button in `.topbar-tools`) asks the Tailscale app (`Tailscale status --json`)
+  for this Mac's MagicDNS name, falls back to its tailnet IP, then a LAN IP, and shows a QR of
+  `http://<host>:<port>/#t=<token>`. The token STAYS in the page URL's fragment (and localStorage):
+  an iOS home-screen app has storage of its own, and without a manifest `start_url` the URL Safari
+  saves is the one with the hash. `remote: false` in settings stops the server (the popover's switch).
+  `send()` in index.ts relays deck:state / transcript:update / settings:changed / fox:entry /
+  deck:error to every phone as frames; the phone calls `REMOTE_METHODS` by name (getState, command,
+  getTranscript, getSettings, setSettings, readDoc, foxLog, screen, openPath) and sends keystrokes
+  as `input` frames; it NEVER resizes a pty (the desktop owns the size). A FileDoc's bytes ride as
+  base64 (`bytesB64`). The page is a second Vite entry (`phone.html`, electron.vite.config.ts
+  `rollupOptions.input`); in production main serves `out/renderer/phone.html` + `/assets/*` (one
+  folder deep, hashed) + `/icon.png` with a CSP header (no meta CSP in phone.html: Vite's dev page
+  needs inline scripts); under `npm run dev` `/` 302s to the Vite dev server on the request's host
+  (`server.host: true`), so the page still comes from Vite with HMR, and the socket goes to the dev
+  port (`import.meta.env.DEV`). `phone/api.ts` installs `window.deck` (a DeckApi over the socket:
+  desktop-only methods are no-ops or reject) so `ChatView`, `TilePrompt`, `FoxStatus`, `DocPane`,
+  `Fox` and the theme are the desktop's own components unchanged. That is why `lib/theme.ts` and
+  `lib/paste.ts` take REGISTRATIONS from `lib/terminals.ts` (`setTerminalApplier`, `setPaster`)
+  instead of importing it: nothing the phone loads may pull xterm in. The page: a chip row (slot +
+  Foxtrot's pose + name, `+` for the new/resume sheet), the open sessions as snap-scrolled pages of
+  `ChatView`, a prompt bar (`TilePrompt`, textarea at 16px so iOS does not zoom), ⌨ a strip of the
+  keys a TUI needs, ▤ the SCREEN VIEW: `tmux capture-pane -e` of the session's pane (`Tmux.screen`,
+  never attaching, so the size is untouched) polled every 700ms while shown, SGR rendered by
+  `ansi.tsx` with the theme's xterm palette as `--ansi-N`, the font shrunk so the desktop's columns
+  fit the phone's width; that is where permission prompts are answered. ⋯ focuses / parks / kills
+  the session on the Mac. The layout sizes to `--vvh` (the visual viewport) so the keyboard pushes
+  the bar up. A dropped socket reconnects with backoff; `/auth?t=` tells "server down" (keep
+  trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
+  Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
   decline them). Add to both.
 
@@ -302,9 +365,11 @@ scripts/smoke.mjs          the smoke test
 - `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot` + `recentCwds` (last 10 start folders)
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
+- `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
+- `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
-  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark…);
+  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark, remote…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the
@@ -328,3 +393,7 @@ size use `tmux -L deck-dev capture-pane -p -t deck-<id>` rather than attaching.
   own mascot shows in the focus pane. Accepted; the fox covers banners in the normal buffer only.
 - Sessions started in VS Code/iTerm cannot be adopted (their PTYs belong to that app); they
   can only be resumed by id. `claude agents --json` lists them with `sessionId`.
+- A browser's `fetch` cannot set `Host` and normalizes `..` before sending, so the phone server's
+  address / traversal checks are tested with raw sockets, not fetch. Node's `URL` normalizes `..`
+  too, so `/assets/../../etc/passwd` becomes `/etc/passwd` and 404s by the route list, not by a
+  path check.

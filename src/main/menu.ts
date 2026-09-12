@@ -74,6 +74,7 @@ export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): v
       submenu: [
         { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
         { label: 'Fox Barks', type: 'checkbox', checked: s.foxBark, click: () => patch({ foxBark: !settings().foxBark }) },
+        { label: "Foxtrot's Log", accelerator: 'CmdOrCtrl+J', click: () => ui({ type: 'toggleFoxLog' }) },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },
         {

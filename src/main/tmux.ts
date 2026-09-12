@@ -66,6 +66,20 @@ export class Tmux {
     return r.code === 0 && r.stdout.trim() === '1'
   }
 
+  /**
+   * The visible screen of a session's pane, SGR colors kept (`capture-pane -e`), for a look
+   * from the phone. Reads the pane without attaching, so the size never changes. Null when
+   * the session is gone.
+   */
+  async screen(name: string): Promise<{ text: string; cols: number; rows: number } | null> {
+    const size = await this.run(['display-message', '-p', '-t', name, '#{pane_width} #{pane_height}'])
+    if (size.code !== 0) return null
+    const [cols, rows] = size.stdout.trim().split(' ').map(Number)
+    const cap = await this.run(['capture-pane', '-p', '-e', '-t', name])
+    if (cap.code !== 0) return null
+    return { text: cap.stdout.replace(/\n$/, ''), cols: cols || 0, rows: rows || 0 }
+  }
+
   async panePid(name: string): Promise<number | null> {
     const r = await this.run(['display-message', '-p', '-t', name, '#{pane_pid}'])
     const n = Number(r.stdout.trim())

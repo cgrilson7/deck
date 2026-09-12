@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, Lang, SavedWord, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, Lang, RemoteInfo, SavedWord, Screen, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -69,11 +69,19 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('settings:changed', h)
   },
   chooseDefaultCwd: () => ipcRenderer.invoke('settings:chooseDefaultCwd') as Promise<string>,
+  foxLog: (limit?: number) => ipcRenderer.invoke('fox:log', limit) as Promise<FoxEntry[]>,
+  onFoxEntry: (cb) => {
+    const h = (_e: unknown, entry: FoxEntry) => cb(entry)
+    ipcRenderer.on('fox:entry', h)
+    return () => ipcRenderer.removeListener('fox:entry', h)
+  },
   onUi: (cb) => {
     const h = (_e: unknown, ev: UiEvent) => cb(ev)
     ipcRenderer.on('deck:ui', h)
     return () => ipcRenderer.removeListener('deck:ui', h)
-  }
+  },
+  remoteInfo: () => ipcRenderer.invoke('remote:info') as Promise<RemoteInfo>,
+  screen: (id) => ipcRenderer.invoke('tmux:screen', id) as Promise<Screen>
 }
 
 contextBridge.exposeInMainWorld('deck', api)

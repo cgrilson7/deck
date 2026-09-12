@@ -1,7 +1,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, DeckSettings, Lang, TranslateResult, UiEvent, VocabResult } from '@shared/types'
+import type { DeckCommand, DeckSettings, Lang, Screen, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
+import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
@@ -20,11 +21,14 @@ import { homedir } from 'node:os'
 import { setupYoutubeSession } from './youtube'
 import { keepDrop, type DroppedFile } from './drops'
 import { readDoc, resolveRef } from './files'
+import { Foxtrot } from './foxtrot'
+import { RemoteServer } from './remote'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
 const profile = process.env.DECK_PROFILE ?? (app.isPackaged ? 'deck' : 'deck-dev')
 const HOOK_PORT = profile === 'deck' ? 47800 : 47801
+const REMOTE_PORT_N = profile === 'deck' ? REMOTE_PORT.deck : REMOTE_PORT.other
 
 app.setName('Deck')
 // The Dock icon. A packaged build carries build/icon.icns in its bundle; under `npm run dev` the
@@ -42,9 +46,21 @@ let manager: SessionManager | null = null
 let settings: SettingsStore | null = null
 let store: VocabStore | null = null
 let transcripts: TranscriptWatcher | null = null
+let foxtrot: Foxtrot | null = null
+let remote: RemoteServer | null = null
 
+/** A broadcast reaches the window and, relayed by channel name, every phone (main/remote.ts). */
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+  remote?.relay(channel, args)
+}
+
+/**
+ * The traffic lights sit centered on the left of the top bar, which is tall enough for
+ * Foxtrot (88px; 52px compact). Keep in step with `.topbar` in styles.css.
+ */
+function lightsAt(s: DeckSettings): { x: number; y: number } {
+  return { x: 14, y: s.compact ? 19 : 37 }
 }
 
 /** Window background = the live theme's gutter color, so resizes and boot never flash. */
@@ -60,7 +76,7 @@ function createWindow(): void {
     minHeight: 700,
     title: 'Deck',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
+    trafficLightPosition: lightsAt(settings!.get()),
     backgroundColor: windowBackground(settings!.get()),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -166,11 +182,17 @@ app.whenReady().then(async () => {
   settings.onChange((s) => {
     nativeTheme.themeSource = s.appearance
     win?.setBackgroundColor(windowBackground(s))
+    win?.setWindowButtonPosition(lightsAt(s))
     send('settings:changed', s)
     buildMenu(menuHandlers())
+    void remote?.setEnabled(s.remote)
   })
   nativeTheme.on('updated', () => settings && win?.setBackgroundColor(windowBackground(settings.get())))
   const tmux = new Tmux(profile, join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 'tmux.conf'), env)
+
+  // Foxtrot watches every session from the top bar: state and transcripts in, a running log out.
+  foxtrot = new Foxtrot(userData, (e) => send('fox:entry', e))
+  ipcMain.handle('fox:log', (_e, limit?: number) => foxtrot!.log(limit))
 
   const hooks = new HooksServer(HOOK_PORT, userData, (event, payload) => manager?.onHook(event, payload))
   await hooks.start()
@@ -195,6 +217,7 @@ app.whenReady().then(async () => {
         send('deck:state', state)
         syncMenuRecent(state.recent)
         transcripts?.sync(state.open)
+        foxtrot?.onState(state)
       },
       data: (id, data) => send('pty:data', id, data),
       exit: (id) => send('pty:exit', id)
@@ -202,7 +225,10 @@ app.whenReady().then(async () => {
   })
 
   // Grid tiles show the conversation itself, tailed from Claude Code's transcript files.
-  transcripts = new TranscriptWatcher(join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), '.claude'), 'projects'), (t) => send('transcript:update', t))
+  transcripts = new TranscriptWatcher(join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), '.claude'), 'projects'), (t) => {
+    send('transcript:update', t)
+    foxtrot?.onTranscript(t)
+  })
   ipcMain.handle('transcript:get', (_e, id: string) => transcripts!.get(String(id ?? '')))
 
   ipcMain.handle('deck:getState', () => manager!.getState())
@@ -248,6 +274,49 @@ app.whenReady().then(async () => {
   ipcMain.on('file:reveal', (_e, path: string) => shell.showItemInFolder(resolveRef(String(path ?? ''))))
   ipcMain.on('file:copy', (_e, text: string) => clipboard.writeText(String(text ?? '')))
 
+  // The phone: the session's terminal as tmux has it, read without attaching (the size stays the desktop's).
+  const screen = async (id: string): Promise<Screen> => {
+    const name = manager?.tmuxNameOf(id)
+    const cap = name ? await tmux.screen(name) : null
+    return cap ? { id, ...cap, gone: false } : { id, text: '', cols: 0, rows: 0, gone: true }
+  }
+  ipcMain.handle('tmux:screen', (_e, id: string) => screen(String(id ?? '')))
+
+  // The phone page and its socket, on the tailnet / LAN only, token-gated (main/remote.ts).
+  remote = new RemoteServer({
+    port: REMOTE_PORT_N,
+    userDataDir: userData,
+    profile,
+    staticDir: join(__dirname, '../renderer'),
+    iconPath,
+    devUrl: process.env.ELECTRON_RENDERER_URL,
+    input: (id, data) => manager?.input(id, data),
+    call: async (method, args) => {
+      switch (method) {
+        case 'getState':
+          return manager!.getState()
+        case 'command':
+          return runCommand(args[0] as DeckCommand)
+        case 'getTranscript':
+          return transcripts!.get(String(args[0] ?? ''))
+        case 'getSettings':
+          return settings!.get()
+        case 'setSettings':
+          return settings!.update((args[0] as Partial<DeckSettings>) ?? {})
+        case 'readDoc':
+          return readDoc(String(args[0] ?? ''), typeof args[1] === 'string' ? args[1] : undefined)
+        case 'foxLog':
+          return foxtrot!.log(typeof args[0] === 'number' ? args[0] : undefined)
+        case 'screen':
+          return screen(String(args[0] ?? ''))
+        case 'openPath':
+          return shell.openPath(resolveRef(String(args[0] ?? '')))
+      }
+    }
+  })
+  ipcMain.handle('remote:info', () => remote!.info())
+  if (settings.get().remote) await remote.start()
+
   setupYoutubeSession()
   buildMenu(menuHandlers())
   createWindow()
@@ -259,6 +328,8 @@ app.whenReady().then(async () => {
   app.on('before-quit', () => {
     fleet.stop()
     hooks.stop()
+    remote?.stop()
+    foxtrot?.stop()
     manager?.detachAll()
     store?.close()
   })

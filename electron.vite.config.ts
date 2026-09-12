@@ -15,6 +15,15 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
-    resolve: { alias: shared }
+    resolve: { alias: shared },
+    // Two pages: the window (index.html) and the phone (phone.html, served by main/remote.ts).
+    build: {
+      rollupOptions: {
+        input: { index: resolve('src/renderer/index.html'), phone: resolve('src/renderer/phone.html') }
+      }
+    },
+    // Under `npm run dev` the phone loads its page from Vite too (main redirects there), so listen
+    // beyond localhost and accept the Mac's MagicDNS name (Vite refuses unknown hosts; IPs pass anyway).
+    server: { host: true, allowedHosts: ['.ts.net', '.local'] }
   }
 })

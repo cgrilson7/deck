@@ -242,6 +242,8 @@ export interface DeckSettings {
   languagelogDb: string
   /** Foxtrot barks (slay's silent comic bursts) when a session starts needing you or finishes a turn. */
   foxBark: boolean
+  /** Serve the phone page (main/remote.ts) on the tailnet / LAN. Off = the server is not listening. */
+  remote: boolean
 }
 
 export const DEFAULT_SETTINGS: DeckSettings = {
@@ -267,7 +269,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showVocab: true,
   vocabCycleSeconds: 30,
   languagelogDb: '~/languagelog/data/languagelog.db',
-  foxBark: true
+  foxBark: true,
+  remote: true
 }
 
 /**
@@ -314,8 +317,60 @@ export interface FileDoc {
   note?: string
 }
 
+/** Which of Foxtrot's senses saw something (main/foxtrot.ts). */
+export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died'
+
+/**
+ * One of Foxtrot's observations, from the head in the top bar. A `bark` is something that
+ * wants you (the top bar shows the last three and he barks); a `note` is the running log,
+ * seen in the history. Kept in userData/foxtrot.jsonl.
+ */
+export interface FoxEntry {
+  id: string
+  ts: number
+  level: 'bark' | 'note'
+  kind: FoxKind
+  text: string
+  /** Deck ids of the sessions it is about: chips that focus them while they are open. */
+  sessions: string[]
+  /** Files it is about: chips that open the preview pane. */
+  paths?: string[]
+}
+
+/**
+ * How to reach this deck from a phone (main/remote.ts): the address to open, a QR of it, and
+ * whether Tailscale is up. `url` carries the token in its fragment; the page keeps it.
+ */
+export interface RemoteInfo {
+  /** The server is listening (the `remote` setting is on and the port was free). */
+  listening: boolean
+  port: number
+  /** The address to open, token included, or '' when there is no usable one. */
+  url: string
+  /** The same as a PNG data: URL, or '' when there is no url. */
+  qr: string
+  /** Tailscale's MagicDNS name for this Mac ('' when logged out / not installed). */
+  tailscaleHost: string
+  /** Tailscale's IPv4 for this Mac ('' when logged out / not installed). */
+  tailscaleIp: string
+  /** A LAN address, as a fallback when Tailscale is down ('' when none). */
+  lanIp: string
+  tailscale: 'up' | 'down' | 'missing'
+}
+
+/** One session's terminal as tmux has it right now (`capture-pane -e`), for the phone's screen view. */
+export interface Screen {
+  id: string
+  /** The visible rows, ANSI SGR sequences included, joined with \n. */
+  text: string
+  cols: number
+  rows: number
+  /** The pane is gone (session parked or exited). */
+  gone: boolean
+}
+
 /** One-shot UI requests from the main process (menu items) to the renderer. */
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -389,5 +444,13 @@ export interface DeckApi {
   onSettings(cb: (s: DeckSettings) => void): () => void
   /** Folder picker for the default cwd setting. Resolves '' when cancelled. */
   chooseDefaultCwd(): Promise<string>
+  /** Foxtrot's log, newest last (the last `limit`, default 500). */
+  foxLog(limit?: number): Promise<FoxEntry[]>
+  /** Each new observation as Foxtrot makes it. */
+  onFoxEntry(cb: (e: FoxEntry) => void): () => void
   onUi(cb: (ev: UiEvent) => void): () => void
+  /** The phone address (the pairing popover). */
+  remoteInfo(): Promise<RemoteInfo>
+  /** The session's terminal as tmux has it right now, colors included (the phone's screen view). */
+  screen(id: string): Promise<Screen>
 }

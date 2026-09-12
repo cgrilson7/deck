@@ -54,14 +54,16 @@ button {
   height: 100%;
 }
 
-/* ---- top bar (drag region; the traffic lights sit at the left) ---- */
+/* ---- top bar (drag region; the traffic lights sit centered at the left, main's lightsAt()).
+   Tall enough for Foxtrot at 4× and his last three barks (FoxHead); the tools area on the
+   right wraps, so more buttons and dropdowns have room to land. ---- */
 .topbar {
-  height: 40px;
+  height: 88px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px 0 84px;
+  gap: 16px;
+  padding: 0 12px 0 84px;
   border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
   position: relative;
@@ -1093,7 +1095,22 @@ button {
 
 /* ---- compact mode: tighter chrome, plugin row hidden (Grid.tsx) ---- */
 .app.compact .topbar {
-  height: 34px;
+  height: 52px;
+}
+.app.compact .fox-speech {
+  padding: 3px 10px;
+  gap: 0;
+}
+.app.compact .fox-say {
+  font-size: 11px;
+  line-height: 1.25;
+}
+.app.compact .fox-say:first-child {
+  font-size: 11.5px;
+}
+.app.compact .fox-head-fox .bark {
+  left: 32px;
+  font-size: 9px;
 }
 .app.compact .main {
   gap: 5px;
@@ -2163,4 +2180,278 @@ button {
 .doc-open:hover {
   background: var(--bg);
   color: var(--accent);
+}
+
+/* ---- Foxtrot, the head (FoxHead): the fox large at the left of the top bar, and a speech
+   bubble of his last three barks, newest on top and darkest. Both open his log. ---- */
+.fox-head {
+  flex: 0 1 780px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.fox-head-fox {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 0;
+}
+.fox-head-fox .bark {
+  position: absolute;
+  left: 64px;
+  top: -2px;
+  z-index: 6;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 2px 2px 0 var(--bg), -2px 2px 0 var(--bg), 2px -2px 0 var(--bg), -2px -2px 0 var(--bg);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: fox-bark 620ms ease-out both;
+}
+.fox-head-fox.barking {
+  animation: fox-hop-big 1.2s ease-out;
+}
+@keyframes fox-hop-big {
+  0%, 20%, 43%, 66%, 100% { transform: none; }
+  10%, 33%, 56% { transform: translateY(-7px); }
+}
+.fox-speech {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: left;
+  transition: border-color 120ms ease;
+}
+/* the tail, pointing back at the fox */
+.fox-speech::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform: translateY(-50%) rotate(45deg);
+  transition: border-color 120ms ease;
+}
+.fox-speech:hover,
+.fox-speech:hover::before {
+  border-color: var(--muted);
+}
+.fox-head.is-open .fox-speech,
+.fox-head.is-open .fox-speech::before {
+  border-color: var(--accent);
+}
+.fox-say {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.fox-say:first-child {
+  font-size: 13px;
+  color: var(--ink);
+}
+.fox-say time {
+  flex: 0 0 3.5ch;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fox-say-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fox-say.is-stale {
+  opacity: 0.55;
+}
+.fox-say.is-quiet {
+  font-style: italic;
+  color: var(--muted);
+}
+.topbar-tools {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 8px 12px;
+}
+
+/* ---- the phone button (PhonePair): QR + link for main/remote.ts ---- */
+.phone-pair {
+  position: relative;
+}
+.phone-pop {
+  width: 264px;
+  align-items: center;
+  gap: 8px;
+}
+.phone-pop .menu-title {
+  align-self: stretch;
+}
+.phone-qr {
+  width: 200px;
+  height: 200px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #fff;
+  image-rendering: pixelated;
+}
+.phone-url {
+  max-width: 100%;
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: var(--ink);
+  word-break: break-all;
+  text-align: center;
+  user-select: text;
+}
+.phone-copy {
+  height: 24px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.phone-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+}
+.phone-note.warn {
+  color: var(--blocked);
+}
+.phone-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.phone-switch input {
+  accent-color: var(--accent);
+}
+.chat-attn.is-btn {
+  display: block;
+  cursor: pointer;
+}
+
+/* ---- Foxtrot's log (FoxLog): the `.doc` pane over the grid, a day at a time ---- */
+.foxlog .doc-head .fox {
+  --fox-scale: 1;
+  flex: 0 0 auto;
+}
+.foxlog-day {
+  padding-bottom: 8px;
+}
+.foxlog-day h4 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 14px 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.foxlog-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--ink) 72%, var(--muted));
+}
+.foxlog-row time {
+  flex: 0 0 5ch;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.foxlog-mark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.foxlog-row.is-bark {
+  color: var(--ink);
+}
+.foxlog-row.is-bark .foxlog-mark {
+  background: var(--accent);
+}
+.foxlog-row.is-bark .foxlog-what > span:first-child {
+  font-weight: 600;
+}
+.foxlog-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  user-select: text;
+}
+.foxlog-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.foxlog-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 280px;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+button.foxlog-chip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.foxlog-chip b {
+  color: var(--accent);
+}
+.foxlog-chip.is-parked {
+  border-style: dashed;
 }

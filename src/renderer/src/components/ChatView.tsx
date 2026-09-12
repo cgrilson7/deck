@@ -12,7 +12,7 @@ import { renderMarkdown } from '../lib/markdown'
  * Every path in it is clickable and opens the preview pane over the grid; `cwd` is the session's
  * folder, which is what a relative one is resolved against.
  */
-export function ChatView({ id, cwd, status, attention }: { id: string; cwd: string; status: SessionStatus; attention: boolean }) {
+export function ChatView({ id, cwd, status, attention, onNeeds }: { id: string; cwd: string; status: SessionStatus; attention: boolean; /** Given, the "needs you" note is a button that calls it (the phone opens the screen); else it says to click the tile. */ onNeeds?: () => void }) {
   const [t, setT] = useState<Transcript | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -63,7 +63,15 @@ export function ChatView({ id, cwd, status, attention }: { id: string; cwd: stri
           <span />
         </div>
       )}
-      {(attention || status === 'blocked') && !busy && <div className="chat-attn">Needs you in the terminal. Click to open.</div>}
+      {(attention || status === 'blocked') &&
+        !busy &&
+        (onNeeds ? (
+          <button type="button" className="chat-attn is-btn" onClick={onNeeds}>
+            Needs you in the terminal. Tap to see the screen.
+          </button>
+        ) : (
+          <div className="chat-attn">Needs you in the terminal. Click to open.</div>
+        ))}
     </div>
   )
 }

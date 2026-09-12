@@ -1,6 +1,6 @@
 # deck
 
-Seven Claude Code sessions in one window. One in focus on the left third as a terminal, the rest in a grid on the right as live conversation views (Claude's replies as markdown, a prompt bar on each), and a row beneath them with Wikipedia's picture of the day (with a search box over it) and a lofi stream. The last two grid cells are a Spanish vocabulary builder (a new SAT-level word every 30s, paired with the SAT word it translates and defined in both languages at once from Wiktionary, with synonyms and etymology) and an English ⇄ Spanish translator. Click a tile to swap it in. `+` asks where to start a session; ⌘N starts one in the focused folder without asking.
+Seven Claude Code sessions in one window. One in focus on the left third as a terminal, the rest in a grid on the right as live conversation views (Claude's replies as markdown, a prompt bar on each), and a row beneath them with Wikipedia's picture of the day (with a search box over it) and a lofi stream. The last two grid cells are a Spanish vocabulary builder (a new SAT-level word every 30s, paired with the SAT word it translates and defined in both languages at once from Wiktionary, with synonyms and etymology) and an English ⇄ Spanish translator. Foxtrot, the fox in the top bar, watches every session and barks when one needs you — a permission prompt left waiting, two sessions editing the same file — with his last three barks always in view. Click a tile to swap it in. `+` asks where to start a session; ⌘N starts one in the focused folder without asking.
 
 ## Requirements
 
@@ -21,11 +21,18 @@ npm run dev
 | ⌘] / ⌘[ | Next / previous session |
 | ⌘↩ | Jump to the session that needs you |
 | ⌘W | Park the focused session (tile closes, session lives on) |
+| ⌘J | Foxtrot's log: everything he has noticed across your sessions (his last three barks are always in the top bar) |
 | click `+` | Chooser: the focused folder, the 3 most recent, a folder picker, a worktree toggle, parked sessions to resume |
 | drop a file on a pane | Pastes its path into that session |
 | click a path | Anywhere a session shows one — a tool line, Claude's prose, your own prompt, the terminal — opens it in a preview pane over the grid (Esc closes; buttons open it in Preview or reveal it in Finder) |
 
-Sessions run inside tmux on a private socket, so quitting deck never kills a conversation. Optional settings live in `~/Library/Application Support/deck/config.json`:
+Sessions run inside tmux on a private socket, so quitting deck never kills a conversation.
+
+## From your phone
+
+The `phone` button in the top bar shows a QR code. Scan it and the same sessions open in Safari as a phone app: swipe between them, read the conversation, type a prompt, and when Claude wants a permission the ▤ button shows the terminal's screen with a strip of keys (↑ ↓ ⏎ Esc y n 1 2 3) to answer it. "Add to Home Screen" in Safari's share sheet gives it an icon. deck serves the page itself, on your tailnet or Wi-Fi only, behind a pairing token in the link; install [Tailscale](https://tailscale.com) on the Mac and the phone and it works from anywhere, without it the link works on the same Wi-Fi.
+
+Optional settings live in `~/Library/Application Support/deck/config.json`:
 
 ```json
 { "theme": "cream", "appearance": "system", "gridColumns": 2, "defaultCwd": "/path/to/your/projects" }

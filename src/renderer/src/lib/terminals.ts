@@ -9,6 +9,10 @@ import { CAP, DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
 import { themeById, type TermPalette } from '@shared/themes'
 import { watchClaudeBanner } from './fox'
 import { openDoc, pathRefs } from './paths'
+import { setPaster } from './paste'
+import { setTerminalApplier } from './theme'
+
+export { pasteText } from './paste'
 
 export type Mode = 'focus' | 'tile'
 
@@ -27,8 +31,6 @@ const prefs = {
 export function applyTerminalSettings(s: DeckSettings, palette: TermPalette): void {
   prefs.fontSize = { focus: s.focusFontSize, tile: s.tileFontSize }
   prefs.fontFamily = s.fontFamily
-  // The tiles' tool lines and code blocks use the terminal font too.
-  document.documentElement.style.setProperty('--mono', s.fontFamily)
   prefs.cursorBlink = s.cursorBlink
   prefs.cursorStyle = s.cursorStyle
   prefs.scrollback = s.scrollback
@@ -76,7 +78,7 @@ function isDeckShortcut(ev: KeyboardEvent): boolean {
   if (/^[1-9]$/.test(k) && Number(k) <= CAP) return true
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
-  return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || k === ','
+  return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || l === 'j' || k === ','
 }
 
 /** Tell the terminal which folder its session runs in (TermHost, from the session record). */
@@ -273,11 +275,15 @@ export function focusTerminal(id: string): void {
 }
 
 /** Feed text to the session as if pasted (bracketed-paste aware, so Claude sees it as one insert). */
-export function pasteText(id: string, text: string): void {
+// A session with a terminal pastes through xterm (bracketed, as the CLI expects); lib/paste.ts
+// handles the rest. Theme changes arrive the same way (lib/theme.ts).
+setPaster((id, text) => {
   const e = entries.get(id)
-  if (e) e.term.paste(text)
-  else window.deck.ptyInput(id, text)
-}
+  if (!e) return false
+  e.term.paste(text)
+  return true
+})
+setTerminalApplier(applyTerminalSettings)
 
 /** Detach from a host (the element parks in staging until it is mounted again). */
 export function unmount(id: string, host: HTMLElement): void {

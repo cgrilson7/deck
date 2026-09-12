@@ -4,8 +4,18 @@
 
 import { useEffect, useState } from 'react'
 import { DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
-import { resolveVariant, type ThemeVariant } from '@shared/themes'
-import { applyTerminalSettings } from './terminals'
+import { resolveVariant, type TermPalette, type ThemeVariant } from '@shared/themes'
+
+/**
+ * Whoever owns the terminals (lib/terminals.ts) registers here to get every theme change with
+ * its xterm palette. A registration, not an import, so the phone page (no xterm) can share
+ * this module.
+ */
+type TermApplier = (s: DeckSettings, palette: TermPalette) => void
+let termApplier: TermApplier | null = null
+export function setTerminalApplier(fn: TermApplier): void {
+  termApplier = fn
+}
 
 const mq = window.matchMedia('(prefers-color-scheme: dark)')
 
@@ -31,7 +41,9 @@ export function applyTheme(s: DeckSettings): void {
   root.dataset.theme = s.theme
   root.dataset.dark = String(isDark(s))
   root.classList.toggle('compact', s.compact)
-  applyTerminalSettings(s, v.term)
+  // The tiles' tool lines and code blocks use the terminal font too.
+  root.style.setProperty('--mono', s.fontFamily)
+  termApplier?.(s, v.term)
 }
 
 let current: DeckSettings = DEFAULT_SETTINGS

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Deck</title>
+    <!-- No CSP meta: main/remote.ts sends it as a header (Vite's dev page needs inline scripts). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Deck" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <!-- No web manifest on purpose: a home-screen app on iOS has its own storage, so the token must
+         stay in the page URL (#t=…), and without a manifest start_url that URL is what gets saved. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/phone/main.tsx"></script>
+  </body>
+</html>
