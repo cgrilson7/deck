@@ -38,6 +38,9 @@ export function applyTheme(s: DeckSettings): void {
   const v = liveVariant(s)
   const root = document.documentElement
   for (const k of CSS_VARS) root.style.setProperty(`--${k}`, v[k])
+  // The diff colors in the changes tile are the terminal palette's green and red, so they sit with the theme.
+  root.style.setProperty('--green', v.term.green)
+  root.style.setProperty('--red', v.term.red)
   root.dataset.theme = s.theme
   root.dataset.dark = String(isDark(s))
   root.classList.toggle('compact', s.compact)

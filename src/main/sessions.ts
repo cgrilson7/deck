@@ -324,6 +324,11 @@ export class SessionManager {
     return this.records.find((r) => r.id === id)?.tmuxName ?? null
   }
 
+  /** The folder a session was started in, null for an unknown id. */
+  cwdOf(id: string): string | null {
+    return this.records.find((r) => r.id === id)?.cwd ?? null
+  }
+
   getState(): DeckState {
     const views: SessionView[] = this.records.map((rec) => {
       const r = this.rt.get(rec.id)

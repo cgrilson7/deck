@@ -21,6 +21,7 @@ import { homedir } from 'node:os'
 import { setupYoutubeSession } from './youtube'
 import { keepDrop, type DroppedFile } from './drops'
 import { readDoc, resolveRef } from './files'
+import { gitChanges, gitDiff } from './git'
 import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
 
@@ -207,10 +208,10 @@ app.whenReady().then(async () => {
       const s = settings!.get()
       return { cwd: s.defaultCwd, worktree: s.worktreeByDefault }
     },
-    // The vocabulary and translator tiles each take a grid cell, so each costs a session slot while shown.
+    // The changes, vocabulary and translator tiles each take a grid cell, so each costs a session slot while shown.
     cap: () => {
       const s = settings!.get()
-      return CAP - Number(s.showTranslate) - Number(s.showVocab)
+      return CAP - Number(s.showTranslate) - Number(s.showVocab) - Number(s.showGit)
     },
     events: {
       state: (state) => {
@@ -281,6 +282,16 @@ app.whenReady().then(async () => {
     return cap ? { id, ...cap, gone: false } : { id, text: '', cols: 0, rows: 0, gone: true }
   }
   ipcMain.handle('tmux:screen', (_e, id: string) => screen(String(id ?? '')))
+
+  // The changes tile: the focused session's working tree. The pane's own folder is asked first, so
+  // a --worktree session reads its worktree, not the folder it was started from.
+  ipcMain.handle('git:changes', async (_e, id: string) => {
+    const sid = String(id ?? '')
+    const name = manager?.tmuxNameOf(sid)
+    const cwd = (name ? await tmux.paneCwd(name) : null) ?? manager?.cwdOf(sid) ?? settings!.get().defaultCwd
+    return gitChanges(cwd, env)
+  })
+  ipcMain.handle('git:diff', (_e, repo: string, path: string, untracked: boolean) => gitDiff(String(repo ?? ''), String(path ?? ''), !!untracked, env))
 
   // The phone page and its socket, on the tailnet / LAN only, token-gated (main/remote.ts).
   remote = new RemoteServer({

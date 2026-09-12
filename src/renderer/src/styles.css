@@ -2455,3 +2455,229 @@ button.foxlog-chip:hover {
 .foxlog-chip.is-parked {
   border-style: dashed;
 }
+
+/* ---- the changes tile: the focused session's working tree ---- */
+.gittile {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  user-select: text;
+}
+.gt-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 5px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+.gt-branch {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gt-repo {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gt-repo::before {
+  content: '· ';
+}
+.gt-head .gt-n,
+.gt-refresh {
+  margin-left: auto;
+}
+.gt-head .gt-n + .gt-refresh {
+  margin-left: 0;
+}
+.gt-refresh {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.gt-refresh:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.gt-refresh.busy svg {
+  animation: gt-spin 900ms linear infinite;
+}
+@keyframes gt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.gt-n {
+  display: inline-flex;
+  gap: 5px;
+  font: 10.5px/1 var(--mono);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.gt-n .add {
+  color: var(--green);
+}
+.gt-n .del {
+  color: var(--red);
+}
+.gt-err {
+  color: var(--blocked);
+  padding: 8px;
+  text-align: center;
+}
+.gt-dim {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.gt-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px 4px 8px;
+  font-size: 11.5px;
+}
+.gt-file {
+  border-radius: 5px;
+}
+.gt-file.open {
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+}
+.gt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+.gt-row:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.gt-st {
+  flex: 0 0 auto;
+  width: 14px;
+  text-align: center;
+  font: 700 10px/16px var(--mono);
+  border-radius: 3px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+.gt-st.st-M {
+  color: var(--busy);
+  background: color-mix(in srgb, var(--busy) 16%, transparent);
+}
+.gt-st.st-A,
+.gt-st.st-new {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+}
+.gt-st.st-D {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+}
+.gt-st.st-R {
+  color: var(--starting);
+  background: color-mix(in srgb, var(--starting) 16%, transparent);
+}
+.gt-st.st-U {
+  color: var(--blocked);
+  background: color-mix(in srgb, var(--blocked) 18%, transparent);
+}
+.gt-st.staged {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.gt-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* the tail of a long path is the part that tells them apart */
+  text-align: left;
+  color: var(--ink);
+}
+.gt-path > * {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.gt-dir {
+  color: var(--muted);
+}
+.gt-open {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 1px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+}
+.gt-row:hover .gt-open {
+  opacity: 1;
+}
+.gt-open:hover {
+  color: var(--accent);
+}
+.gt-diff {
+  margin: 0 0 4px;
+  padding: 2px 0 4px;
+  font: 10.5px/1.4 var(--mono);
+  overflow-x: auto;
+  color: var(--ink);
+}
+.gt-l {
+  padding: 0 6px 0 22px;
+  white-space: pre;
+  min-width: max-content;
+}
+.gt-l.add {
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+}
+.gt-l.del {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+}
+.gt-l.add::before,
+.gt-l.del::before,
+.gt-l.ctx::before {
+  display: inline-block;
+  width: 12px;
+  margin-left: -14px;
+  color: var(--muted);
+}
+.gt-l.add::before {
+  content: '+';
+  color: var(--green);
+}
+.gt-l.del::before {
+  content: '−';
+  color: var(--red);
+}
+.gt-l.ctx::before {
+  content: ' ';
+}
+.gt-l.hunk {
+  color: var(--starting);
+  opacity: 0.85;
+  margin-top: 3px;
+}
+.gt-l.meta {
+  color: var(--muted);
+  font-style: italic;
+}

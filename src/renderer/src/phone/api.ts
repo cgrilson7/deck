@@ -264,7 +264,9 @@ export const api: DeckApi = {
   onFoxEntry: (cb) => remote.on('fox', cb),
   onUi: nothing,
   remoteInfo: notHere,
-  screen: (id) => remote.call('screen', [id])
+  screen: (id) => remote.call('screen', [id]),
+  gitChanges: notHere,
+  gitDiff: notHere
 }
 
 /** Stand in for the preload: the components read window.deck and window.deckErrors. */

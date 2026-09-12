@@ -238,6 +238,8 @@ export interface DeckSettings {
   showVocab: boolean
   /** Seconds each vocabulary word stays before the next one. */
   vocabCycleSeconds: number
+  /** The changes tile (the focused session's working tree as `git status` + diffs) takes the grid cell before the vocabulary tile. */
+  showGit: boolean
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
   languagelogDb: string
   /** Foxtrot barks (slay's silent comic bursts) when a session starts needing you or finishes a turn. */
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
+  showGit: true,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true,
   remote: true
@@ -369,6 +372,47 @@ export interface Screen {
   gone: boolean
 }
 
+/** How one path stands in the working tree, for the changes tile (main/git.ts). */
+export type GitStatus = 'M' | 'A' | 'D' | 'R' | 'U' | '?'
+
+/** One changed path of a working tree, as `git status` + `git diff HEAD --numstat` see it. */
+export interface GitFile {
+  /** Relative to the repo root. */
+  path: string
+  /** Where it was, for a rename. */
+  oldPath?: string
+  status: GitStatus
+  /** Some of the change is in the index. */
+  staged: boolean
+  /** Not tracked at all (`??`): its diff is the whole file. */
+  untracked: boolean
+  /** Lines added / removed against HEAD; null when unknown (binary, unreadable, no HEAD yet). */
+  add: number | null
+  del: number | null
+  binary: boolean
+}
+
+/** A working tree's changes at a glance. `repo` is null when `cwd` is not inside a git repository. */
+export interface GitChanges {
+  /** The folder that was asked about. */
+  cwd: string
+  /** The repository's top level, or null outside one. */
+  repo: string | null
+  /** The branch name, else a short commit id when detached, '' with no commit yet. */
+  branch: string
+  files: GitFile[]
+  add: number
+  del: number
+}
+
+/** One file's diff against HEAD (the whole file, as added, for an untracked one). */
+export interface GitDiff {
+  path: string
+  text: string
+  /** Cut off at the cap. */
+  truncated: boolean
+}
+
 /** One-shot UI requests from the main process (menu items) to the renderer. */
 export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' }
 
@@ -453,4 +497,12 @@ export interface DeckApi {
   remoteInfo(): Promise<RemoteInfo>
   /** The session's terminal as tmux has it right now, colors included (the phone's screen view). */
   screen(id: string): Promise<Screen>
+  /**
+   * The working tree of a session (the folder its pane is in, so a worktree session reads its
+   * worktree): every changed path with its line counts. Never rejects for a folder outside a
+   * repository (`repo` is null then).
+   */
+  gitChanges(id: string): Promise<GitChanges>
+  /** One file's diff against HEAD, within `repo` (untracked = the whole file as additions). */
+  gitDiff(repo: string, path: string, untracked: boolean): Promise<GitDiff>
 }

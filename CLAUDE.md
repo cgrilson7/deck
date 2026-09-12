@@ -1,6 +1,6 @@
 # deck
 
-Seven Claude Code sessions in one Electron window. The focused session fills the left third
+Seven Claude Code sessions in one Electron window (four with every plugin tile on). The focused session fills the left third
 as a real terminal; the others live in a grid on the right as conversation views (your prompts,
 Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
 plugin row (Wikipedia's featured content, a lofi YouTube stream) beneath them. Click a tile to
@@ -50,6 +50,7 @@ src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only,
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
+src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
@@ -79,7 +80,7 @@ src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge
 src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
-                                    WikiTile, YouTubeTile (<webview>), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    WikiTile, YouTubeTile (<webview>), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
@@ -92,7 +93,7 @@ scripts/smoke.mjs          the smoke test
 - **Cap = 7** (`CAP` in `src/shared/types.ts`). Slots 1..7 are sticky while open: a session keeps its
   number until parked/killed; a new session takes the lowest free slot. ⌘1–7 = focus slot.
   The live cap is `SessionManagerOptions.cap()` = CAP minus one per grid-cell plugin tile that
-  is on (`showVocab`, `showTranslate`; both on by default, so 5). Turning one on with every
+  is on (`showGit`, `showVocab`, `showTranslate`; all on by default, so 4). Turning one on with every
   slot open leaves the top slot open (and the grid a cell over) until that session is parked.
   A saved record whose slot is above the cap is parked on load.
 - **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
@@ -114,6 +115,24 @@ scripts/smoke.mjs          the smoke test
   `<video>` element (the player re-applies its own mute state to it). The renderer CSP allows no
   outbound requests (feeds are fetched in main) and whitelists only `*.wikimedia.org` images.
   Spotify was tried and dropped: its web player needs Widevine, which Electron does not ship.
+- **Changes** (`GitTile`, the cell before the vocabulary tile, i.e. where slot 5 sat; `main/git.ts`):
+  the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
+  pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
+  cwd, then `defaultCwd`, as fallbacks) and runs `rev-parse --show-toplevel`, `branch
+  --show-current` (a short sha when detached), `status --porcelain=v1 -z --untracked-files=all`
+  and `diff HEAD --numstat -z -M`; untracked files are line-counted by hand (60 per poll, 2MB
+  each, a NUL in the first 8k = binary). Everything runs with `GIT_OPTIONAL_LOCKS=0` so a poll
+  never fights Claude for the index lock. The tile polls every 2s while the window is visible and
+  300ms after any transcript update of that session (a tool call landing), and only re-renders
+  when the JSON changed. Head: branch · repo name · totals; a row per path: status letter (M amber,
+  A/? green, D red, R blue, U = conflict; an inset ring = some of it is staged), the path with
+  its folder dimmed (rtl-ellipsized so the tail shows), `+n −m`, and ↗ which opens the file in the
+  preview pane. Clicking a row unfolds its diff (`git diff HEAD -M -- path`; an untracked file is
+  `diff --no-index /dev/null path`) as +/− rows, the preamble dropped, cut off at 300k; unfolded
+  diffs are re-read when the row's counts change and dropped when the path is gone. Nothing
+  focused = the fox and a hint; not a repo = says so with the folder; clean = the fox asleep.
+  Diff colors are `--green` / `--red`, the theme's terminal palette, set by `lib/theme.ts`.
+  Not on the phone (`gitChanges` / `gitDiff` reject there).
 - **Translator** (`TranslateTile`, last grid cell): languagelog (~/languagelog) boiled down to two
   boxes, English over Spanish. Typing into either box translates after a 700ms pause or ⏎ (⇧⏎ =
   newline); the API's detected language decides which box the text belongs in, so Spanish typed
@@ -369,7 +388,7 @@ scripts/smoke.mjs          the smoke test
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
-  translateApiKey, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark, remote…);
+  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark, remote…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the

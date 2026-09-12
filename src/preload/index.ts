@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, Lang, RemoteInfo, SavedWord, Screen, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -81,7 +81,9 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('deck:ui', h)
   },
   remoteInfo: () => ipcRenderer.invoke('remote:info') as Promise<RemoteInfo>,
-  screen: (id) => ipcRenderer.invoke('tmux:screen', id) as Promise<Screen>
+  screen: (id) => ipcRenderer.invoke('tmux:screen', id) as Promise<Screen>,
+  gitChanges: (id) => ipcRenderer.invoke('git:changes', id) as Promise<GitChanges>,
+  gitDiff: (repo, path, untracked) => ipcRenderer.invoke('git:diff', repo, path, untracked) as Promise<GitDiff>
 }
 
 contextBridge.exposeInMainWorld('deck', api)

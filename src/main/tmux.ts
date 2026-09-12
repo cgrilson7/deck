@@ -80,6 +80,13 @@ export class Tmux {
     return { text: cap.stdout.replace(/\n$/, ''), cols: cols || 0, rows: rows || 0 }
   }
 
+  /** The folder the session's pane is in (its foreground process's cwd), null when the session is gone. */
+  async paneCwd(name: string): Promise<string | null> {
+    const r = await this.run(['display-message', '-p', '-t', name, '#{pane_current_path}'])
+    const p = r.stdout.trim()
+    return r.code === 0 && p ? p : null
+  }
+
   async panePid(name: string): Promise<number | null> {
     const r = await this.run(['display-message', '-p', '-t', name, '#{pane_pid}'])
     const n = Number(r.stdout.trim())
