@@ -227,11 +227,30 @@ export interface SpotifyState {
 
 export type SpotifyCommand = 'playpause' | 'next' | 'previous' | 'open' | 'shuffle'
 
-/** One chip on the Spotify face: a `spotifyPlaylists` entry with the name Spotify gives it. */
+/** One chip on the Spotify face: something Spotify.app can be told to play, with its name. */
 export interface SpotifyItem {
   uri: string
   name: string
   kind: 'playlist' | 'album' | 'artist' | 'track' | 'show' | 'episode'
+  /** The artist (track, album) or owner (playlist), for the chip's tooltip. */
+  by?: string
+}
+
+/** The connected Spotify account (main/spotifyauth.ts), or the reason there is none. */
+export interface SpotifyAccount {
+  connected: boolean
+  /** Display name, when connected. */
+  user: string
+  /** false = `spotifyClientId` is not set, so connecting is not possible yet. */
+  clientId: boolean
+  /** What the Spotify app must have registered (the port follows the profile). */
+  redirectUri: string
+}
+
+/** The account's side of the chips: contexts played lately, then every playlist in the library. */
+export interface SpotifyLibrary {
+  recent: SpotifyItem[]
+  playlists: SpotifyItem[]
 }
 
 /** Everything the user can change from the settings panel. Persisted in userData/config.json. */
@@ -274,6 +293,8 @@ export interface DeckSettings {
    * links, shown as chips named by Spotify's oEmbed endpoint. Edit in config.json.
    */
   spotifyPlaylists: string[]
+  /** The client id of a Spotify app (developer.spotify.com) for connecting an account; '' = no connecting. */
+  spotifyClientId: string
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
   /** Google Cloud API key with the Cloud Translation API enabled. Falls back to $GOOGLE_CLOUD_API_KEY. */
@@ -319,6 +340,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
     'spotify:playlist:37i9dQZF1DX4sWSpwq3LiO', // Peaceful Piano
     'spotify:playlist:37i9dQZF1DX0SM0LYsmbMT' // Jazz Vibes
   ],
+  spotifyClientId: '',
   showTranslate: true,
   translateApiKey: '',
   showVocab: true,
@@ -504,6 +526,15 @@ export interface DeckApi {
   spotifyPlay(uri: string): void
   /** The `spotifyPlaylists` setting with names, resolved once each via Spotify's oEmbed. */
   spotifyItems(): Promise<SpotifyItem[]>
+  /** The connected account, now and whenever it changes (connect / disconnect / a revoked grant). */
+  onSpotifyAccount(cb: (a: SpotifyAccount) => void): () => void
+  /** Open Spotify's consent page in the browser; resolves once the account is stored (rejects on refusal / timeout). */
+  spotifyConnect(): Promise<SpotifyAccount>
+  spotifyDisconnect(): void
+  /** The account's recent contexts and playlists (cached 5 min in main). Rejects when not connected. */
+  spotifyLibrary(): Promise<SpotifyLibrary>
+  /** Tracks, playlists, albums and artists for a query, through the account. */
+  spotifySearch(q: string): Promise<SpotifyItem[]>
   /**
    * Read a referenced path for the preview pane: `~/x`, `/x`, `x/y` against `cwd`, or a
    * file: URL. Never rejects — a missing or unshowable file comes back with a note.

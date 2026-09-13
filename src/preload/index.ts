@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyCommand, SpotifyItem, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -55,6 +55,16 @@ const api: DeckApi = {
   spotify: (cmd: SpotifyCommand) => ipcRenderer.send('spotify:command', cmd),
   spotifyPlay: (uri: string) => ipcRenderer.send('spotify:play', uri),
   spotifyItems: () => ipcRenderer.invoke('spotify:items') as Promise<SpotifyItem[]>,
+  onSpotifyAccount: (cb) => {
+    const h = (_e: unknown, a: SpotifyAccount) => cb(a)
+    ipcRenderer.on('spotify:account', h)
+    void ipcRenderer.invoke('spotify:getAccount').then((a: SpotifyAccount) => cb(a))
+    return () => ipcRenderer.removeListener('spotify:account', h)
+  },
+  spotifyConnect: () => ipcRenderer.invoke('spotify:connect') as Promise<SpotifyAccount>,
+  spotifyDisconnect: () => ipcRenderer.send('spotify:disconnect'),
+  spotifyLibrary: () => ipcRenderer.invoke('spotify:library') as Promise<SpotifyLibrary>,
+  spotifySearch: (q: string) => ipcRenderer.invoke('spotify:search', q) as Promise<SpotifyItem[]>,
   readDoc: (ref, cwd) => ipcRenderer.invoke('file:read', ref, cwd) as Promise<FileDoc>,
   openPath: (path) => ipcRenderer.invoke('file:open', path) as Promise<string>,
   revealPath: (path) => ipcRenderer.send('file:reveal', path),

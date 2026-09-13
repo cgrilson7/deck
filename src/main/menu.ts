@@ -2,7 +2,7 @@
 // (the renderer's xterm key handler declines these combos so they reach Electron).
 
 import { app, Menu, nativeTheme, type MenuItemConstructorOptions } from 'electron'
-import { CAP, type DeckCommand, type DeckSettings, type UiEvent } from '@shared/types'
+import { CAP, type DeckCommand, type DeckSettings, type SpotifyAccount, type UiEvent } from '@shared/types'
 import { THEMES, type Appearance } from '@shared/themes'
 import { MODELS } from '@shared/models'
 
@@ -13,11 +13,16 @@ export interface MenuHandlers {
   ui(ev: UiEvent): void
   /** Folders sessions were started in lately, most recent first (SessionManager.recent()). */
   recent(): string[]
+  /** The connected Spotify account (null before main has one to ask). */
+  spotifyAccount(): SpotifyAccount | null
+  spotifyConnect(): void
+  spotifyDisconnect(): void
 }
 
 /** Rebuilt on every settings change (the checkmarks in View) and whenever the recent-folder list changes. */
-export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): void {
+export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, spotifyConnect, spotifyDisconnect }: MenuHandlers): void {
   const s = settings()
+  const acct = spotifyAccount()
   const recentItems: MenuItemConstructorOptions[] = recent().map((cwd) => ({
     label: cwd.replace(/^\/Users\/[^/]+/, '~'),
     click: () => run({ type: 'new', cwd })
@@ -99,7 +104,11 @@ export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): v
             { label: 'Show Music Tile', type: 'checkbox', checked: s.showMusic, click: () => patch({ showMusic: !settings().showMusic }) },
             { type: 'separator' },
             { label: 'Spotify', type: 'radio', checked: s.music === 'spotify', click: () => patch({ music: 'spotify' }) },
-            { label: 'Lofi Stream (YouTube)', type: 'radio', checked: s.music === 'youtube', click: () => patch({ music: 'youtube' }) }
+            { label: 'Lofi Stream (YouTube)', type: 'radio', checked: s.music === 'youtube', click: () => patch({ music: 'youtube' }) },
+            { type: 'separator' },
+            acct?.connected
+              ? { label: `Disconnect Spotify Account${acct.user ? ` (${acct.user})` : ''}`, click: spotifyDisconnect }
+              : { label: 'Connect Spotify Account…', enabled: !!acct?.clientId, toolTip: acct?.clientId ? '' : 'set spotifyClientId in config.json first', click: spotifyConnect }
           ]
         },
         { label: "Foxtrot's Log", accelerator: 'CmdOrCtrl+J', click: () => ui({ type: 'toggleFoxLog' }) },

@@ -19,6 +19,8 @@ import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
 import { Spotify, spotifyItems } from './spotify'
+import { SpotifyApi } from './spotifyapi'
+import { SpotifyAuth } from './spotifyauth'
 import { setupYoutubeSession } from './youtube'
 import { keepDrop, type DroppedFile } from './drops'
 import { readDoc, resolveRef } from './files'
@@ -30,6 +32,8 @@ import { RemoteServer } from './remote'
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
 const profile = process.env.DECK_PROFILE ?? (app.isPackaged ? 'deck' : 'deck-dev')
 const HOOK_PORT = profile === 'deck' ? 47800 : 47801
+// The Spotify app's registered redirect URIs: http://127.0.0.1:<port>/callback for both.
+const SPOTIFY_AUTH_PORT = profile === 'deck' ? 47820 : 47821
 const REMOTE_PORT_N = profile === 'deck' ? REMOTE_PORT.deck : REMOTE_PORT.other
 
 app.setName('Deck')
@@ -155,13 +159,18 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
   }
 }
 
+let spotifyAuth: SpotifyAuth | null = null
+
 function menuHandlers() {
   return {
     run: (cmd: DeckCommand) => void runCommand(cmd),
     settings: () => settings!.get(),
     patch: (p: Partial<DeckSettings>) => void settings!.update(p),
     ui: (ev: UiEvent) => send('deck:ui', ev),
-    recent: () => manager?.recent() ?? []
+    recent: () => manager?.recent() ?? [],
+    spotifyAccount: () => spotifyAuth?.account() ?? null,
+    spotifyConnect: () => void spotifyAuth?.connect().catch((e: Error) => send('deck:error', e.message)),
+    spotifyDisconnect: () => spotifyAuth?.disconnect()
   }
 }
 
@@ -335,10 +344,26 @@ app.whenReady().then(async () => {
   const spotifyWanted = (s: DeckSettings) => s.showMusic && !s.compact && s.music === 'spotify'
   ipcMain.handle('spotify:getState', () => spotify.state)
   ipcMain.on('spotify:command', (_e, cmd: SpotifyCommand) => void spotify.command(cmd))
-  ipcMain.on('spotify:play', (_e, uri: string) => void spotify.play(String(uri ?? '')))
+  ipcMain.on('spotify:play', (_e, uri: string) => {
+    spotifyApi.invalidate()
+    void spotify.play(String(uri ?? ''))
+  })
   ipcMain.handle('spotify:items', () => spotifyItems(settings!.get().spotifyPlaylists))
   spotify.setActive(spotifyWanted(settings.get()))
   settings.onChange((s) => spotify.setActive(spotifyWanted(s)))
+  // The account: PKCE tokens in userData/spotify.json, the library and search through the Web API.
+  const auth = new SpotifyAuth(userData, SPOTIFY_AUTH_PORT, () => settings!.get().spotifyClientId, (a) => {
+    if (!a.connected) spotifyApi.forget()
+    send('spotify:account', a)
+    buildMenu(menuHandlers())
+  })
+  spotifyAuth = auth
+  const spotifyApi = new SpotifyApi(auth)
+  ipcMain.handle('spotify:getAccount', () => auth.account())
+  ipcMain.handle('spotify:connect', () => auth.connect())
+  ipcMain.on('spotify:disconnect', () => auth.disconnect())
+  ipcMain.handle('spotify:library', () => spotifyApi.libraryOf())
+  ipcMain.handle('spotify:search', (_e, q: string) => spotifyApi.search(String(q ?? '')))
   buildMenu(menuHandlers())
   createWindow()
   await manager.init()

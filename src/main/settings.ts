@@ -94,6 +94,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     spotifyPlaylists: Array.isArray(raw.spotifyPlaylists)
       ? raw.spotifyPlaylists.filter((u): u is string => typeof u === 'string' && u.trim() !== '').map((u) => u.trim()).slice(0, 24)
       : d.spotifyPlaylists,
+    spotifyClientId: typeof raw.spotifyClientId === 'string' && /^[a-f0-9]{32}$/i.test(raw.spotifyClientId.trim()) ? raw.spotifyClientId.trim() : d.spotifyClientId,
     showTranslate: bool(raw.showTranslate, d.showTranslate),
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),

@@ -59,6 +59,8 @@ src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas
 src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
 scripts/lemmas.py          regenerates data/esLemmas.ts from doozan/spanish_data frequency.csv
 src/main/spotify.ts        the music tile's Spotify face: Spotify.app over AppleScript (poll, transport, play a URI), oEmbed names for the chips
+src/main/spotifyauth.ts    a Spotify account: PKCE OAuth (loopback redirect, no secret), tokens in userData/spotify.json
+src/main/spotifyapi.ts     the account's playlists, recent contexts and search over the Web API
 src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
 src/main/settings.ts       SettingsStore: userData/config.json merged over DEFAULT_SETTINGS, sanitized, broadcast
 src/shared/themes.ts       theme families (light + dark variant each): CSS chrome colors + xterm palette
@@ -123,6 +125,20 @@ scripts/smoke.mjs          the smoke test
   it must. Names come from Spotify's public oEmbed endpoint, cached in main. Main polls the app
   every 2s only while this face is showing (`System Events` first, so a poll never launches
   Spotify); only changes are broadcast (`spotify:state`). Not running = "open Spotify" + the chips.
+  A SPOTIFY ACCOUNT can be connected (`main/spotifyauth.ts`): set `spotifyClientId` (a Spotify
+  app's client id, developer.spotify.com; 32 hex) in config.json, then the "connect account" chip
+  or View ▸ Music ▸ Connect Spotify Account… opens the consent page in the browser; main catches
+  the redirect on `http://127.0.0.1:47820/callback` (`deck`) / `47821` (other profiles) — both
+  must be registered on the Spotify app, literal 127.0.0.1, Spotify no longer takes localhost.
+  It is the PKCE flow: NO CLIENT SECRET anywhere. Tokens go to `userData/spotify.json` (0600);
+  the refresh token renews and rotates; a revoked grant disconnects. Scopes: playlist-read-private,
+  playlist-read-collaborative, user-read-recently-played. Connected, the chips become the
+  contexts played lately (the last 50 plays' distinct playlist/album/artist, named), then every
+  playlist in the library, then the setting's; a search line above them (350ms pause; ⏎ plays
+  the first hit; Esc clears) swaps the row for tracks / playlists / albums / artists with a kind
+  glyph. `main/spotifyapi.ts` caches the library 5 min (a play invalidates it). Playback is
+  STILL Spotify.app over AppleScript — the Web API's player endpoints need Premium and are not
+  used, so this works on any plan. Disconnect: the menu item, or delete spotify.json.
   The lofi stream (`YouTubeTile`) is behind the switch and NEVER PLAYS UNTIL ASKED: the bare embed
   player (`autoplay=0`, sound on) in a `<webview>` on partition `persist:youtube` (`webviewTag` is
   on in `index.ts`) shows its poster until ▶; pausing stops the download, and switching back to
@@ -410,8 +426,9 @@ scripts/smoke.mjs          the smoke test
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
+- `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd, defaultModel,
-  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, foxBark, remote…);
+  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
