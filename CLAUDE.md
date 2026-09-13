@@ -301,13 +301,22 @@ scripts/smoke.mjs          the smoke test
   are offered in the `+` chooser ("Start in": the focused folder, then recents, then the picker; a
   worktree checkbox applies to whichever is picked, ⌥-click flips it once), in the empty focus pane,
   and under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
+- **Model** (`shared/models.ts`, `SessionRecord.model`): a new session can pick what goes after
+  `--model`: the CLI's aliases (fable, opus, sonnet, haiku, opusplan, opus[1m], sonnet[1m]) or a
+  pinned id (Opus 4.6 = `claude-opus-4-6`), or anything typed by hand ("other…" in the chooser;
+  `cleanModel` allows only the characters an id can have). '' = no flag, so the CLI's own default
+  applies. The `+` chooser has a Model row (last pick kept in localStorage, first from the
+  `defaultModel` setting), the phone's new-session sheet a select, Session ▸ New Session with
+  Model is one-shot, Session ▸ Default Model for New Sessions sets `defaultModel` (what ⌘N uses).
+  The record keeps it and a dead resume repeats it (`--resume` alone would fall back to the CLI's
+  default); the pane head shows it as a badge next to the worktree one.
 - **Close = park, not kill.** ⌘W / "park" kills only the pty client; the tmux session and the
   Claude conversation stay. Parked sessions are listed at the bottom of the `+` chooser
   and resume by tmux attach if alive, else `claude --resume <claudeSessionId>`.
 - **One tmux client per session, ever.** tmux sizes to the smallest attached client. Never
   attach a second client to a `deck-*` session from a terminal while the app has it open.
 - **Spawn command** (`SessionManager.claudeCommand`): `exec claude --settings <hooks.json>
-  --session-id <uuid> [--worktree]`. `exec` so the pane's process IS claude. The UUID is
+  --session-id <uuid> [--worktree] [--model <alias|id>]`. `exec` so the pane's process IS claude. The UUID is
   ours (`randomUUID()`), which is how fleet rows and hook payloads are matched back to a tile.
   `--worktree` lets Claude create/clean the worktree itself under `<repo>/.claude/worktrees/`.
 - **`--settings` merges** with the user's own settings (list keys combine), so any global
@@ -387,7 +396,7 @@ scripts/smoke.mjs          the smoke test
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
-- `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd,
+- `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark, remote…);
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

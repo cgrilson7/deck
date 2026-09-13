@@ -19,6 +19,8 @@ export interface SessionRecord {
   cwd: string
   /** Spawned with `--worktree` (Claude makes the worktree itself under .claude/worktrees/). */
   worktree: boolean
+  /** What was handed to `--model` (an alias or a full id; see shared/models.ts). Absent / '' = the CLI's default. */
+  model?: string
   createdAt: number
   /** 1..CAP while open, null while parked (detached or exited). Sticky while open. */
   slot: number | null
@@ -49,8 +51,9 @@ export interface DeckState {
 }
 
 export type DeckCommand =
-  | { type: 'new'; worktree?: boolean; cwd?: string }
-  | { type: 'chooseFolder'; worktree?: boolean }
+  /** `model`: an alias or full id for `--model`; '' = none; absent = the `defaultModel` setting. */
+  | { type: 'new'; worktree?: boolean; cwd?: string; model?: string }
+  | { type: 'chooseFolder'; worktree?: boolean; model?: string }
   | { type: 'resume'; id: string }
   | { type: 'focus'; slot: number }
   | { type: 'cycle'; dir: 1 | -1 }
@@ -220,6 +223,8 @@ export interface DeckSettings {
   defaultCwd: string
   /** New sessions get --worktree unless told otherwise (⌥-click / menu still flip it). */
   worktreeByDefault: boolean
+  /** What ⌘N hands to `--model` and what the chooser starts on: an alias or a full id; '' = no flag (the CLI's own default). */
+  defaultModel: string
   /** Terminal font. */
   fontFamily: string
   focusFontSize: number
@@ -258,6 +263,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   confirmKill: true,
   defaultCwd: '',
   worktreeByDefault: false,
+  defaultModel: '',
   fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
   focusFontSize: 13,
   tileFontSize: 9,

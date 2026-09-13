@@ -4,6 +4,7 @@
 import { app, Menu, nativeTheme, type MenuItemConstructorOptions } from 'electron'
 import { CAP, type DeckCommand, type DeckSettings, type UiEvent } from '@shared/types'
 import { THEMES, type Appearance } from '@shared/themes'
+import { MODELS } from '@shared/models'
 
 export interface MenuHandlers {
   run(cmd: DeckCommand): void
@@ -33,6 +34,22 @@ export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): v
     checked: s.theme === t.id,
     click: () => patch({ theme: t.id })
   }))
+  // Session ▸ New Session with Model: one shot; Session ▸ Default Model: what ⌘N and the chooser start on.
+  const modelItems: MenuItemConstructorOptions[] = MODELS.map((m) => ({
+    label: m.label,
+    toolTip: m.hint,
+    click: () => run({ type: 'new', model: m.id })
+  }))
+  const defaultModelItems: MenuItemConstructorOptions[] = MODELS.map((m) => ({
+    label: m.label,
+    type: 'radio',
+    checked: s.defaultModel === m.id,
+    toolTip: m.hint,
+    click: () => patch({ defaultModel: m.id })
+  }))
+  if (s.defaultModel && !MODELS.some((m) => m.id === s.defaultModel)) {
+    defaultModelItems.push({ label: s.defaultModel, type: 'radio', checked: true, toolTip: 'Set by hand in config.json' })
+  }
   const slotItems: MenuItemConstructorOptions[] = []
   for (let n = 1; n <= CAP; n++) {
     slotItems.push({ label: `Focus slot ${n}`, accelerator: `CmdOrCtrl+${n}`, click: () => run({ type: 'focus', slot: n }) })
@@ -55,6 +72,8 @@ export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): v
         { label: 'New Session in Worktree', accelerator: 'CmdOrCtrl+Shift+N', click: () => run({ type: 'new', worktree: true }) },
         { label: 'New Session in Folder…', accelerator: 'CmdOrCtrl+O', click: () => run({ type: 'chooseFolder' }) },
         { label: 'New Session in Recent Folder', enabled: recentItems.length > 0, submenu: recentItems },
+        { label: 'New Session with Model', submenu: modelItems },
+        { label: 'Default Model for New Sessions', submenu: defaultModelItems },
         { type: 'separator' },
         { label: 'Jump to Session That Needs You', accelerator: 'CmdOrCtrl+Return', click: () => run({ type: 'jumpAttention' }) },
         { label: 'Next Session', accelerator: 'CmdOrCtrl+]', click: () => run({ type: 'cycle', dir: 1 }) },

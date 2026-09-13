@@ -323,6 +323,18 @@ body {
   height: 18px;
   accent-color: var(--accent);
 }
+.ph-select {
+  justify-content: space-between;
+}
+.ph-select select {
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
 
 /* the preview pane over everything (DocPane is laid out for the grid column on the desktop) */
 .ph ~ .doc,

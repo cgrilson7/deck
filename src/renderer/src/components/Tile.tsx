@@ -1,4 +1,5 @@
 import type { SessionView } from '@shared/types'
+import { modelLabel } from '@shared/models'
 import { FoxStatus } from './FoxStatus'
 import { ChatView } from './ChatView'
 import { TilePrompt } from './TilePrompt'
@@ -24,6 +25,11 @@ export function Tile({ session: s }: { session: SessionView }) {
         <FoxStatus id={s.id} status={s.status} attention={s.attention} />
         <span className="name">{s.name}</span>
         {s.worktree && <span className="badge">wt</span>}
+        {s.model && (
+          <span className="badge" title={`--model ${s.model}`}>
+            {modelLabel(s.model)}
+          </span>
+        )}
       </header>
       <div className="tile-body">
         {/* The conversation itself, not the CLI's screen; the terminal lives in the focus pane. */}

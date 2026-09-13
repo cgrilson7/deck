@@ -111,12 +111,12 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
   try {
     switch (cmd.type) {
       case 'new':
-        await manager.newSession({ cwd: cmd.cwd, worktree: cmd.worktree })
+        await manager.newSession({ cwd: cmd.cwd, worktree: cmd.worktree, model: cmd.model })
         break
       case 'chooseFolder': {
         const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'], title: 'New session in folder' })
         if (r.canceled || r.filePaths.length === 0) break
-        await manager.newSession({ cwd: r.filePaths[0], worktree: cmd.worktree })
+        await manager.newSession({ cwd: r.filePaths[0], worktree: cmd.worktree, model: cmd.model })
         break
       }
       case 'resume':
@@ -206,7 +206,7 @@ app.whenReady().then(async () => {
     profile,
     defaults: () => {
       const s = settings!.get()
-      return { cwd: s.defaultCwd, worktree: s.worktreeByDefault }
+      return { cwd: s.defaultCwd, worktree: s.worktreeByDefault, model: s.defaultModel }
     },
     // The changes, vocabulary and translator tiles each take a grid cell, so each costs a session slot while shown.
     cap: () => {

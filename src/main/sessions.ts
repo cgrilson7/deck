@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type DeckState, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
+import { cleanModel } from '@shared/models'
 import type { FleetEntry } from './fleet'
 import type { HookEvent, HookPayload } from './hooks'
 import { Tmux, shq } from './tmux'
@@ -35,8 +36,8 @@ export interface SessionManagerOptions {
   userDataDir: string
   hooksSettingsPath: string
   profile: string
-  /** Live settings: where a new session starts when nothing is focused, and the --worktree default. */
-  defaults: () => { cwd: string; worktree: boolean }
+  /** Live settings: where a new session starts when nothing is focused, the --worktree default, and the --model default ('' = none). */
+  defaults: () => { cwd: string; worktree: boolean; model: string }
   /** Live slot cap: CAP, minus one per plugin tile (vocabulary, translator) occupying a grid cell. */
   cap: () => number
   events: SessionEvents
@@ -102,13 +103,15 @@ export class SessionManager {
 
   // ---- commands ----------------------------------------------------------
 
-  async newSession(opts: { cwd?: string; worktree?: boolean }): Promise<SessionRecord> {
+  /** `model`: what to hand `--model`; '' = nothing; undefined = the `defaultModel` setting. */
+  async newSession(opts: { cwd?: string; worktree?: boolean; model?: string }): Promise<SessionRecord> {
     const slot = this.freeSlot()
     if (slot === null) throw new Error(`All ${this.o.cap()} slots are open. Close one first.`)
     const defaults = this.o.defaults()
     const cwd = opts.cwd ?? this.focusedCwd() ?? defaults.cwd
     if (!existsSync(cwd)) throw new Error(`Folder does not exist: ${cwd}`)
     const worktree = opts.worktree ?? defaults.worktree
+    const model = cleanModel(opts.model ?? defaults.model)
     const id = randomBytes(3).toString('hex')
     const rec: SessionRecord = {
       id,
@@ -116,12 +119,14 @@ export class SessionManager {
       claudeSessionId: randomUUID(),
       cwd,
       worktree,
+      model,
       createdAt: Date.now(),
       slot,
       name: worktree ? 'new worktree' : 'new session'
     }
     const args = ['--session-id', rec.claudeSessionId]
     if (worktree) args.push('--worktree')
+    if (model) args.push('--model', model)
     await this.o.tmux.newSession({ name: rec.tmuxName, cwd, command: this.claudeCommand(args), cols: SPAWN_COLS, rows: SPAWN_ROWS })
     this.records.push(rec)
     this.touchRecent(cwd)
@@ -146,11 +151,14 @@ export class SessionManager {
     r.tmuxAlive = await this.o.tmux.hasSession(rec.tmuxName)
     if (!r.tmuxAlive) {
       if (!existsSync(rec.cwd)) throw new Error(`Folder no longer exists: ${rec.cwd}`)
-      // Claude re-enters the session's worktree on --resume by itself; no -w here.
+      // Claude re-enters the session's worktree on --resume by itself; no -w here. The model is
+      // ours to repeat: --resume alone would fall back to the CLI's default.
+      const args = ['--resume', rec.claudeSessionId]
+      if (rec.model) args.push('--model', rec.model)
       await this.o.tmux.newSession({
         name: rec.tmuxName,
         cwd: rec.cwd,
-        command: this.claudeCommand(['--resume', rec.claudeSessionId]),
+        command: this.claudeCommand(args),
         cols: SPAWN_COLS,
         rows: SPAWN_ROWS
       })

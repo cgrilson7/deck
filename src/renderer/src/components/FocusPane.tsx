@@ -1,4 +1,5 @@
 import type { SessionView } from '@shared/types'
+import { modelLabel } from '@shared/models'
 import { FoxStatus } from './FoxStatus'
 import { TermHost } from './TermHost'
 import { Fox } from './Fox'
@@ -40,6 +41,11 @@ export function FocusPane({ session, recent }: { session: SessionView | null; re
           {s.name}
         </span>
         {s.worktree && <span className="badge">worktree</span>}
+        {s.model && (
+          <span className="badge" title={`--model ${s.model}`}>
+            {modelLabel(s.model)}
+          </span>
+        )}
         <span className="cwd" title={s.cwd}>
           {shortPath(s.cwd)}
         </span>

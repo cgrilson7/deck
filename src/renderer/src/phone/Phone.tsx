@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DeckState, SessionView } from '@shared/types'
+import { MODELS } from '@shared/models'
 import { ChatView } from '../components/ChatView'
 import { DocPane } from '../components/DocPane'
 import { Fox } from '../components/Fox'
@@ -179,7 +180,7 @@ export function Phone() {
       )}
 
       {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
-      {sheet === 'new' && state && <NewSheet state={state} worktree={settings.worktreeByDefault} onClose={() => setSheet(null)} />}
+      {sheet === 'new' && state && <NewSheet state={state} worktree={settings.worktreeByDefault} model={settings.defaultModel} onClose={() => setSheet(null)} />}
       {sheet === 'more' && current && <MoreSheet s={current} onClose={() => setSheet(null)} />}
     </div>
   )
@@ -201,8 +202,11 @@ function Unpaired({ link }: { link: Link }) {
 }
 
 /** `+`: start a session in a recent folder, or resume a parked one. The Mac's folder picker is not reachable from here. */
-function NewSheet({ state, worktree: dflt, onClose }: { state: DeckState; worktree: boolean; onClose: () => void }) {
+function NewSheet({ state, worktree: dflt, model: dfltModel, onClose }: { state: DeckState; worktree: boolean; model: string; onClose: () => void }) {
   const [worktree, setWorktree] = useState(dflt)
+  const [model, setModel] = useState(dfltModel)
+  // A default set by hand that the catalog lacks still needs a row, or the select would show the wrong one.
+  const models = MODELS.some((m) => m.id === dfltModel) ? MODELS : [...MODELS, { id: dfltModel, label: dfltModel, hint: '' }]
   const run = (cmd: Parameters<typeof window.deck.command>[0]) => {
     void window.deck.command(cmd)
     onClose()
@@ -212,13 +216,23 @@ function NewSheet({ state, worktree: dflt, onClose }: { state: DeckState; worktr
       <h3>Start in</h3>
       {state.recent.length === 0 && <p className="ph-hint">No recent folders yet; start one on the Mac first.</p>}
       {state.recent.map((cwd) => (
-        <button key={cwd} type="button" className="ph-row" onClick={() => run({ type: 'new', cwd, worktree })}>
+        <button key={cwd} type="button" className="ph-row" onClick={() => run({ type: 'new', cwd, worktree, model })}>
           {shortPath(cwd)}
         </button>
       ))}
       <label className="ph-row ph-check">
         <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
         in a git worktree
+      </label>
+      <label className="ph-row ph-select">
+        <span>model</span>
+        <select value={model} onChange={(e) => setModel(e.target.value)}>
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
       </label>
       {state.parked.length > 0 && <h3>Parked</h3>}
       {state.parked.slice(0, 12).map((s) => (

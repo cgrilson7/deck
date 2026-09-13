@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { DeckState } from '@shared/types'
+import { MODELS, cleanModel } from '@shared/models'
 import { shortPath } from '../lib/format'
+import { useSettings } from '../lib/theme'
 
 /**
  * The +: click opens the chooser (where to start: the focused session's folder, recent folders,
- * a folder picker; a worktree toggle; parked sessions to resume). ⌘N in the menu bar is the
- * no-questions path (focused folder, default settings).
+ * a folder picker; a worktree toggle; a model; parked sessions to resume). ⌘N in the menu bar
+ * is the no-questions path (focused folder, default settings).
  */
 export function PlusTile({ state }: { state: DeckState }) {
   const [menu, setMenu] = useState(false)
@@ -20,16 +22,84 @@ export function PlusTile({ state }: { state: DeckState }) {
   )
 }
 
+export const OTHER_MODEL = '\u0000other'
+
+/**
+ * The model row's state: the catalog pick, or "other…" with an id typed by hand. The last
+ * pick is kept in localStorage; a fresh deck starts on the `defaultModel` setting.
+ */
+export function useModelPick(dflt: string) {
+  const [pick, setPick] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('deck:newModel')
+      if (saved !== null) return saved
+    } catch {
+      /* private mode / blocked storage: fall through */
+    }
+    return MODELS.some((m) => m.id === dflt) ? dflt : dflt ? OTHER_MODEL : ''
+  })
+  const [other, setOther] = useState<string>(() => {
+    try {
+      return localStorage.getItem('deck:newModelOther') ?? (MODELS.some((m) => m.id === dflt) ? '' : dflt)
+    } catch {
+      return ''
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('deck:newModel', pick)
+      localStorage.setItem('deck:newModelOther', other)
+    } catch {
+      /* not worth a word */
+    }
+  }, [pick, other])
+  const value = pick === OTHER_MODEL ? cleanModel(other) : pick
+  return { pick, setPick, other, setOther, value }
+}
+
+type ModelPickState = ReturnType<typeof useModelPick>
+
+/** The "Model" row of the + chooser: a select over the catalog, and a text field when "other…" is picked. */
+function ModelPick({ pick }: { pick: ModelPickState }) {
+  const hint = MODELS.find((m) => m.id === pick.pick)?.hint ?? 'An alias or a full model id, as `claude --model` takes it'
+  return (
+    <div className="menu-model" title={hint} onClick={(e) => e.stopPropagation()}>
+      <span className="menu-model-label">Model</span>
+      <select className="menu-select" value={pick.pick} onChange={(e) => pick.setPick(e.target.value)}>
+        {MODELS.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+        <option value={OTHER_MODEL}>other…</option>
+      </select>
+      {pick.pick === OTHER_MODEL && (
+        <input
+          className="menu-input"
+          value={pick.other}
+          placeholder="claude-opus-4-6"
+          spellCheck={false}
+          autoFocus
+          onChange={(e) => pick.setOther(e.target.value)}
+          onKeyDown={(e) => e.key !== 'Escape' && e.stopPropagation()}
+        />
+      )}
+    </div>
+  )
+}
+
 function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
+  const settings = useSettings()
   const [worktree, setWorktree] = useState(false)
   const recent = state.recent.filter((d) => d !== cwd)
   const run = (cmd: Parameters<typeof window.deck.command>[0]) => {
     onClose()
     void window.deck.command(cmd)
   }
+  const model = useModelPick(settings.defaultModel)
   /** ⌥-click flips the worktree toggle for that one pick. */
-  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree })
+  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree, model: model.value })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -58,11 +128,12 @@ function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void })
             <span className="cwd">Default folder</span>
           </button>
         )}
-        <button onClick={() => run({ type: 'chooseFolder', worktree })}>Choose folder…</button>
+        <button onClick={() => run({ type: 'chooseFolder', worktree, model: model.value })}>Choose folder…</button>
         <label className="menu-check" title="Claude creates a git worktree under .claude/worktrees/ and works there (⌥-click any folder to flip this once)">
           <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
           in a new git worktree
         </label>
+        <ModelPick pick={model} />
       </div>
       <div className="menu-section">
         <div className="menu-title">Parked{state.parked.length ? ` (${state.parked.length})` : ''}</div>

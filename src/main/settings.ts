@@ -7,6 +7,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
 import { THEMES } from '@shared/themes'
+import { cleanModel } from '@shared/models'
 
 export class SettingsStore {
   private current: DeckSettings
@@ -79,6 +80,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     confirmKill: bool(raw.confirmKill, d.confirmKill),
     defaultCwd,
     worktreeByDefault: bool(raw.worktreeByDefault, d.worktreeByDefault),
+    defaultModel: cleanModel(raw.defaultModel),
     fontFamily,
     focusFontSize: clampInt(raw.focusFontSize, 9, 24, d.focusFontSize),
     tileFontSize: clampInt(raw.tileFontSize, 6, 14, d.tileFontSize),
