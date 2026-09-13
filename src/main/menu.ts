@@ -93,6 +93,15 @@ export function buildMenu({ run, settings, patch, ui, recent }: MenuHandlers): v
       submenu: [
         { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
         { label: 'Fox Barks', type: 'checkbox', checked: s.foxBark, click: () => patch({ foxBark: !settings().foxBark }) },
+        {
+          label: 'Music',
+          submenu: [
+            { label: 'Show Music Tile', type: 'checkbox', checked: s.showMusic, click: () => patch({ showMusic: !settings().showMusic }) },
+            { type: 'separator' },
+            { label: 'Spotify', type: 'radio', checked: s.music === 'spotify', click: () => patch({ music: 'spotify' }) },
+            { label: 'Lofi Stream (YouTube)', type: 'radio', checked: s.music === 'youtube', click: () => patch({ music: 'youtube' }) }
+          ]
+        },
         { label: "Foxtrot's Log", accelerator: 'CmdOrCtrl+J', click: () => ui({ type: 'toggleFoxLog' }) },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },

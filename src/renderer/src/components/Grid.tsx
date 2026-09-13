@@ -5,11 +5,11 @@ import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
 import { WikiTile } from './WikiTile'
-import { YouTubeTile } from './YouTubeTile'
+import { MusicTile } from './MusicTile'
 
 /**
  * The right-hand column: a grid of cap-1 session cells, then a row of plugins (Wikipedia,
- * YouTube) the same height as one grid row. Sessions needing you come first, then slot
+ * music) the same height as one grid row. Sessions needing you come first, then slot
  * order. The first empty cell is the +, unless every slot is open. The changes, vocabulary and
  * translator tiles take the last cells (in that order) and main's cap is one lower per tile
  * shown, so the counts still agree.
@@ -22,7 +22,7 @@ export function Grid({ sessions, state, settings }: { sessions: SessionView[]; s
   const cols = Math.max(1, Math.min(cells, settings.gridColumns))
   const rows = Math.ceil(cells / cols)
   const canAdd = state.open.length < state.cap
-  const plugins = !settings.compact && (settings.showWiki || settings.showYouTube)
+  const plugins = !settings.compact && (settings.showWiki || settings.showMusic)
 
   const items: React.ReactNode[] = sessions.map((s) => <Tile key={s.id} session={s} />)
   if (canAdd && items.length < sessionCells) items.push(<PlusTile key="plus" state={state} />)
@@ -39,7 +39,7 @@ export function Grid({ sessions, state, settings }: { sessions: SessionView[]; s
       {plugins && (
         <div className="plugins">
           {settings.showWiki && <WikiTile />}
-          {settings.showYouTube && <YouTubeTile />}
+          {settings.showMusic && <MusicTile source={settings.music} />}
         </div>
       )}
     </section>

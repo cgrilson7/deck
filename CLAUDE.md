@@ -3,7 +3,7 @@
 Seven Claude Code sessions in one Electron window (four with every plugin tile on). The focused session fills the left third
 as a real terminal; the others live in a grid on the right as conversation views (your prompts,
 Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
-plugin row (Wikipedia's featured content, a lofi YouTube stream) beneath them. Click a tile to
+plugin row (Wikipedia's featured content, a music tile: Spotify.app, or the lofi YouTube stream) beneath them. Click a tile to
 swap it into focus.
 The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. The same sessions are reachable from a phone (the `phone` button in the top bar: a QR code, over Tailscale). A personal tool, macOS only.
 
@@ -58,6 +58,7 @@ src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups fo
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
 src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
 scripts/lemmas.py          regenerates data/esLemmas.ts from doozan/spanish_data frequency.csv
+src/main/spotify.ts        the music tile's Spotify face: Spotify.app over AppleScript (poll, transport, play a URI), oEmbed names for the chips
 src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
 src/main/settings.ts       SettingsStore: userData/config.json merged over DEFAULT_SETTINGS, sanitized, broadcast
 src/shared/themes.ts       theme families (light + dark variant each): CSS chrome colors + xterm palette
@@ -80,7 +81,7 @@ src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge
 src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
-                                    WikiTile, YouTubeTile (<webview>), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
@@ -109,12 +110,25 @@ scripts/smoke.mjs          the smoke test
   searches English Wikipedia (`/w/rest.php/v1/search/page`) and the hits take over the tile over
   the darkened picture; a hit loads its lead section (`/api/rest_v1/page/summary`) in place, its
   title opens the browser. Esc / × brings the picture back. Search thumbnails are re-requested at
-  250px (the API's are 60px). YouTube = the bare embed player for the lofi stream in
-  a `<webview>` on partition `persist:youtube` (`webviewTag` is on in `index.ts`); play/pause and
-  mute call the embed's player object (`#movie_player`) through `executeJavaScript`, never the
-  `<video>` element (the player re-applies its own mute state to it). The renderer CSP allows no
-  outbound requests (feeds are fetched in main) and whitelists only `*.wikimedia.org` images.
-  Spotify was tried and dropped: its web player needs Widevine, which Electron does not ship.
+  250px (the API's are 60px). The renderer CSP allows no outbound requests (feeds are fetched in
+  main) and whitelists only `*.wikimedia.org` and `i.scdn.co` (Spotify artwork) images.
+- **Music** (`MusicTile`, the last plugin cell; `showMusic` shows it, `music` picks the face; View ▸
+  Music has both, and each face carries a switch to the other, bottom right). ONLY ONE FACE IS
+  MOUNTED. Spotify is the default: `SpotifyTile` + `main/spotify.ts` drive SPOTIFY.APP over
+  AppleScript (the web player needs Widevine, which Electron does not ship, so it was never an
+  option), which costs the deck no bandwidth: now playing (artwork, track, artist, a progress bar
+  ticked locally between polls), ⇄ shuffle ⏮ ⏯ ⏭, and a row of chips for `spotifyPlaylists`
+  (playlist / album / artist / track URIs or open.spotify.com links, edited in config.json; five
+  Spotify editorial playlists by default) that `play track <uri>` in Spotify.app, launching it if
+  it must. Names come from Spotify's public oEmbed endpoint, cached in main. Main polls the app
+  every 2s only while this face is showing (`System Events` first, so a poll never launches
+  Spotify); only changes are broadcast (`spotify:state`). Not running = "open Spotify" + the chips.
+  The lofi stream (`YouTubeTile`) is behind the switch and NEVER PLAYS UNTIL ASKED: the bare embed
+  player (`autoplay=0`, sound on) in a `<webview>` on partition `persist:youtube` (`webviewTag` is
+  on in `index.ts`) shows its poster until ▶; pausing stops the download, and switching back to
+  Spotify unmounts the webview. Play/pause and mute call the embed's player object
+  (`#movie_player`) through `executeJavaScript`, never the `<video>` element (the player
+  re-applies its own mute state to it). Not on the phone.
 - **Changes** (`GitTile`, the cell before the vocabulary tile, i.e. where slot 5 sat; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -397,7 +411,8 @@ scripts/smoke.mjs          the smoke test
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd, defaultModel,
-  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, foxBark, remote…);
+  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, foxBark, remote…);
+  `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
 Debugging a session outside the app: `tmux -L deck-dev ls`, and to peek WITHOUT stealing the

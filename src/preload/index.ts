@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyCommand, SpotifyItem, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -46,6 +46,15 @@ const api: DeckApi = {
   wikiPicture: (when?: 'today' | 'past') => ipcRenderer.invoke('wiki:picture', when ?? 'today') as Promise<WikiPicture | null>,
   wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,
   wikiSummary: (key: string) => ipcRenderer.invoke('wiki:summary', key) as Promise<WikiSummary>,
+  onSpotify: (cb) => {
+    const h = (_e: unknown, state: SpotifyState) => cb(state)
+    ipcRenderer.on('spotify:state', h)
+    void ipcRenderer.invoke('spotify:getState').then((s: SpotifyState) => cb(s))
+    return () => ipcRenderer.removeListener('spotify:state', h)
+  },
+  spotify: (cmd: SpotifyCommand) => ipcRenderer.send('spotify:command', cmd),
+  spotifyPlay: (uri: string) => ipcRenderer.send('spotify:play', uri),
+  spotifyItems: () => ipcRenderer.invoke('spotify:items') as Promise<SpotifyItem[]>,
   readDoc: (ref, cwd) => ipcRenderer.invoke('file:read', ref, cwd) as Promise<FileDoc>,
   openPath: (path) => ipcRenderer.invoke('file:open', path) as Promise<string>,
   revealPath: (path) => ipcRenderer.send('file:reveal', path),

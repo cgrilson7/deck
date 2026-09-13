@@ -203,6 +203,37 @@ export interface WordSchedule {
   known: boolean
 }
 
+export type MusicSource = 'spotify' | 'youtube'
+
+/** Spotify.app as AppleScript reports it (main/spotify.ts), polled while the tile shows it. */
+export interface SpotifyState {
+  /** false = Spotify.app is not running. */
+  running: boolean
+  state: 'playing' | 'paused' | 'stopped'
+  track: string
+  artist: string
+  album: string
+  /** https://i.scdn.co/... (the renderer CSP allows it). */
+  artworkUrl: string
+  /** seconds */
+  position: number
+  /** seconds */
+  duration: number
+  trackId: string
+  /** 0..100 */
+  volume: number
+  shuffling: boolean
+}
+
+export type SpotifyCommand = 'playpause' | 'next' | 'previous' | 'open' | 'shuffle'
+
+/** One chip on the Spotify face: a `spotifyPlaylists` entry with the name Spotify gives it. */
+export interface SpotifyItem {
+  uri: string
+  name: string
+  kind: 'playlist' | 'album' | 'artist' | 'track' | 'show' | 'episode'
+}
+
 /** Everything the user can change from the settings panel. Persisted in userData/config.json. */
 export interface DeckSettings {
   /** Theme family id (see shared/themes.ts). */
@@ -234,7 +265,15 @@ export interface DeckSettings {
   scrollback: number
   /** Plugin row. */
   showWiki: boolean
-  showYouTube: boolean
+  /** The music tile (Spotify.app now playing, or the lofi YouTube stream behind a click). */
+  showMusic: boolean
+  /** Which face the music tile shows. Spotify by default; the stream never plays until asked. */
+  music: MusicSource
+  /**
+   * What the Spotify face offers to play: playlist / album / artist / track URIs or open.spotify.com
+   * links, shown as chips named by Spotify's oEmbed endpoint. Edit in config.json.
+   */
+  spotifyPlaylists: string[]
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
   /** Google Cloud API key with the Cloud Translation API enabled. Falls back to $GOOGLE_CLOUD_API_KEY. */
@@ -271,7 +310,15 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   cursorStyle: 'bar',
   scrollback: 5000,
   showWiki: true,
-  showYouTube: true,
+  showMusic: true,
+  music: 'spotify',
+  spotifyPlaylists: [
+    'spotify:playlist:37i9dQZF1DWWQRwui0ExPn', // lofi beats
+    'spotify:playlist:37i9dQZF1DX8Uebhn9wzrS', // chill lofi study beats
+    'spotify:playlist:37i9dQZF1DWZeKCadgRdKQ', // Deep Focus
+    'spotify:playlist:37i9dQZF1DX4sWSpwq3LiO', // Peaceful Piano
+    'spotify:playlist:37i9dQZF1DX0SM0LYsmbMT' // Jazz Vibes
+  ],
   showTranslate: true,
   translateApiKey: '',
   showVocab: true,
@@ -450,6 +497,13 @@ export interface DeckApi {
   wikiSearch(q: string): Promise<WikiHit[]>
   /** The lead section of one page, by key. */
   wikiSummary(key: string): Promise<WikiSummary>
+  /** Spotify.app's state, now and on every change (main polls it while the tile is showing). */
+  onSpotify(cb: (state: SpotifyState) => void): () => void
+  spotify(cmd: SpotifyCommand): void
+  /** Start a playlist / album / artist / track in Spotify.app (launches it if needed). */
+  spotifyPlay(uri: string): void
+  /** The `spotifyPlaylists` setting with names, resolved once each via Spotify's oEmbed. */
+  spotifyItems(): Promise<SpotifyItem[]>
   /**
    * Read a referenced path for the preview pane: `~/x`, `/x`, `x/y` against `cwd`, or a
    * file: URL. Never rejects — a missing or unshowable file comes back with a note.

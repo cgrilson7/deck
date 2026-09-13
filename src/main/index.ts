@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, DeckSettings, Lang, Screen, TranslateResult, UiEvent, VocabResult } from '@shared/types'
+import type { DeckCommand, SpotifyCommand, DeckSettings, Lang, Screen, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
 import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
@@ -18,6 +18,7 @@ import { VocabStore } from './store'
 import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
+import { Spotify, spotifyItems } from './spotify'
 import { setupYoutubeSession } from './youtube'
 import { keepDrop, type DroppedFile } from './drops'
 import { readDoc, resolveRef } from './files'
@@ -329,6 +330,15 @@ app.whenReady().then(async () => {
   if (settings.get().remote) await remote.start()
 
   setupYoutubeSession()
+  // Spotify.app over AppleScript, polled only while the music tile shows that face.
+  const spotify = new Spotify(env, (state) => send('spotify:state', state))
+  const spotifyWanted = (s: DeckSettings) => s.showMusic && !s.compact && s.music === 'spotify'
+  ipcMain.handle('spotify:getState', () => spotify.state)
+  ipcMain.on('spotify:command', (_e, cmd: SpotifyCommand) => void spotify.command(cmd))
+  ipcMain.on('spotify:play', (_e, uri: string) => void spotify.play(String(uri ?? '')))
+  ipcMain.handle('spotify:items', () => spotifyItems(settings!.get().spotifyPlaylists))
+  spotify.setActive(spotifyWanted(settings.get()))
+  settings.onChange((s) => spotify.setActive(spotifyWanted(s)))
   buildMenu(menuHandlers())
   createWindow()
   await manager.init()
@@ -338,6 +348,7 @@ app.whenReady().then(async () => {
 
   app.on('before-quit', () => {
     fleet.stop()
+    spotify.stop()
     hooks.stop()
     remote?.stop()
     foxtrot?.stop()

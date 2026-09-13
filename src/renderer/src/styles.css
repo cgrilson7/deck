@@ -794,7 +794,172 @@ button {
   gap: 8px;
   color: var(--muted);
 }
-/* YouTube: the embed fills the tile; our two buttons float over its corner. */
+/* Music: Spotify.app's now-playing (artwork, meta, transport, playlist chips), or the lofi
+   stream. `.music-swap` is the switch between the faces, bottom right of either. */
+.spotify {
+  position: relative;
+}
+.spotify-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 6px;
+}
+.spotify-art {
+  height: 100%;
+  max-height: 96px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--line);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.spotify-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.spotify-title {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-artist {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-bar {
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.spotify-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.spotify-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spotify-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.spotify-ctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.spotify-ctl button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--ink);
+}
+.spotify-ctl button:hover {
+  background: var(--bg);
+}
+.spotify-ctl button.on {
+  color: var(--green);
+}
+.spotify-ctl .spotify-play {
+  font-size: 15px;
+}
+.spotify-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px 28px;
+  color: var(--muted);
+}
+.spotify-hint {
+  font-size: 12px;
+}
+.spotify-chips {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 12px 8px;
+  padding-right: 84px; /* room for the swap */
+}
+.spotify-empty .spotify-chips {
+  justify-content: center;
+  padding-right: 12px;
+}
+.spotify-chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-chip:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+.spotify-chip.on {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.music-swap {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: var(--panel);
+}
+.music-swap:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+.yt-controls .music-swap {
+  position: static;
+  align-self: center;
+  width: auto;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  border: 0;
+}
+.yt-controls .music-swap:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* YouTube: the embed fills the tile; our buttons float over its corner. */
 .youtube {
   position: relative;
   background: #000;

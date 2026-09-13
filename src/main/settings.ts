@@ -88,7 +88,12 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     cursorStyle: oneOf(raw.cursorStyle, ['bar', 'block', 'underline'] as const, d.cursorStyle),
     scrollback: clampInt(raw.scrollback, 0, 100_000, d.scrollback),
     showWiki: bool(raw.showWiki, d.showWiki),
-    showYouTube: bool(raw.showYouTube, d.showYouTube),
+    // `showYouTube` is what config.json said before the tile grew a Spotify face.
+    showMusic: bool(raw.showMusic ?? (raw as { showYouTube?: unknown }).showYouTube, d.showMusic),
+    music: oneOf(raw.music, ['spotify', 'youtube'] as const, d.music),
+    spotifyPlaylists: Array.isArray(raw.spotifyPlaylists)
+      ? raw.spotifyPlaylists.filter((u): u is string => typeof u === 'string' && u.trim() !== '').map((u) => u.trim()).slice(0, 24)
+      : d.spotifyPlaylists,
     showTranslate: bool(raw.showTranslate, d.showTranslate),
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),

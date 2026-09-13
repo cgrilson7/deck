@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const VIDEO = 'rFZHOHl-L8A' // the lofi live stream
-// The bare embed player fills the webview edge to edge. Starts muted so autoplay is allowed.
-const EMBED = `https://www.youtube.com/embed/${VIDEO}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&iv_load_policy=3`
+// The bare embed player fills the webview edge to edge. autoplay=0: the poster loads and nothing
+// streams until ▶ (ours, or YouTube's) is pressed — a live stream left playing muted all day is
+// bandwidth for nothing. Sound is on, so the first ▶ is the whole gesture.
+const EMBED = `https://www.youtube.com/embed/${VIDEO}?autoplay=0&controls=0&rel=0&playsinline=1&modestbranding=1&iv_load_policy=3`
 
 // Drive the embed through its player object (#movie_player), not the <video> element: the
 // player owns mute/volume state and re-applies it to the element every few seconds, so a
@@ -20,11 +22,15 @@ const JS = {
     return v ? { muted: v.muted, playing: !v.paused } : null })()`
 }
 
-/** The lofi stream, full-bleed in an Electron <webview>, with our own play/pause + mute overlaid. */
-export function YouTubeTile() {
+/**
+ * The lofi stream, full-bleed in an Electron <webview>, with our own play/pause + mute overlaid
+ * and a switch back to the Spotify face. Mounted only while `music` is 'youtube' (MusicTile),
+ * and paused until asked, so the stream costs nothing until you press ▶.
+ */
+export function YouTubeTile({ onSwap }: { onSwap: () => void }) {
   const ref = useRef<DeckWebview>(null)
-  const [muted, setMuted] = useState(true)
-  const [playing, setPlaying] = useState(true)
+  const [muted, setMuted] = useState(false)
+  const [playing, setPlaying] = useState(false)
 
   const sync = useCallback(async () => {
     const r = (await ref.current?.executeJavaScript(JS.read).catch(() => null)) as { muted: boolean; playing: boolean } | null
@@ -50,7 +56,10 @@ export function YouTubeTile() {
       {/* The partition's headers are rewritten in main/youtube.ts so the embed loads. */}
       <webview ref={ref} className="youtube-view" src={EMBED} partition="persist:youtube" webpreferences="autoplayPolicy=no-user-gesture-required" />
       <div className="yt-controls">
-        <button onClick={() => void run(JS.togglePlay, setPlaying)} title={playing ? 'Pause' : 'Play'}>
+        <button className="music-swap" onClick={onSwap} title="Switch to Spotify (the stream stops)">
+          ◂ spotify
+        </button>
+        <button onClick={() => void run(JS.togglePlay, setPlaying)} title={playing ? 'Pause (stops the download too)' : 'Play the stream'}>
           {playing ? '⏸︎' : '▶︎'}
         </button>
         <button onClick={() => void run(JS.toggleMute, setMuted)} title={muted ? 'Unmute' : 'Mute'}>
