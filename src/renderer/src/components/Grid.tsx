@@ -47,8 +47,9 @@ export function Grid({ sessions, members, state, settings, onOpenAgent }: { sess
     for (const m of members) {
       if (m.kind === 'beta') out.push({ key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
     }
-    const allAgents = members.filter((m): m is Member & { kind: 'agent' } => m.kind === 'agent').map((m) => m.agent)
-    for (const pt of packTiles(allAgents, onOpenAgent)) out.push({ key: pt.key, kind: 'member', needy: false, node: pt.node })
+    const agentMembers = members.filter((m): m is Member & { kind: 'agent' } => m.kind === 'agent')
+    const parentCwds = new Map(agentMembers.map((m) => [m.agent.parent, m.parent?.cwd ?? '']))
+    for (const pt of packTiles(agentMembers.map((m) => m.agent), parentCwds, onOpenAgent)) out.push({ key: pt.key, kind: 'member', needy: false, node: pt.node })
     for (const k of pluginCells(settings))
       out.push({
         key: k,
