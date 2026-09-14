@@ -107,6 +107,7 @@ export class TranscriptWatcher {
       t.path = t.sessionId ? this.locate(t.sessionId) : null
       if (!t.path) return
     }
+    if (!existsSync(t.path)) return
     const size = statSync(t.path).size
     if (!t.transcript.found) {
       t.transcript.found = true
