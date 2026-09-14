@@ -528,6 +528,73 @@ button {
   padding-bottom: 12px;
   font-size: 13px;
 }
+/* The pack tile: all wolfpack members collapsed into compact rows (PackTile.tsx). */
+.tile-pack {
+  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
+  cursor: default;
+}
+.pack-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.pack-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+  min-height: 0;
+}
+.pack-row:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.pack-row.is-done,
+.pack-row.is-cancelled {
+  opacity: 0.55;
+}
+.pack-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pack-mark {
+  flex: 0 0 auto;
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+}
+.pack-mark.is-done {
+  color: var(--green, #5cb85c);
+}
+.pack-mark.is-cancel {
+  color: var(--blocked);
+}
+.pack-mark.is-pause {
+  color: var(--accent);
+  font-size: 9px;
+}
+.pack-mark.is-block {
+  color: var(--blocked);
+}
+.pack-mark.is-work {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
 /* The leash dialog: the reason for a cancel, a note for a pause (LeashDialog.tsx; the picker's frame). */
 .picker.leash {
   width: min(520px, 92vw);

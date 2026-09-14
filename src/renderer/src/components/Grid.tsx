@@ -8,7 +8,7 @@ import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
-import { AgentTile } from './AgentTile'
+import { packTiles } from './PackTile'
 import { patchSettings } from '../lib/theme'
 
 /** A wolfpack's members, each a cell of its own: a subagent (no terminal; the agent pane on click) or a beta session (a real tile). */
@@ -43,12 +43,12 @@ export function Grid({ sessions, members, state, settings, onOpenAgent }: { sess
       needy: s.attention || s.status === 'blocked',
       node: <Tile session={s} />
     }))
-    for (const m of members)
-      out.push(
-        m.kind === 'beta'
-          ? { key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> }
-          : { key: `agent:${m.agent.id}`, kind: 'member', needy: false, node: <AgentTile agent={m.agent} parent={m.parent} onOpen={() => onOpenAgent(m.agent.id)} /> }
-      )
+    // Betas are still full tiles (they have terminals); subagents collapse into pack tiles.
+    for (const m of members) {
+      if (m.kind === 'beta') out.push({ key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
+    }
+    const allAgents = members.filter((m): m is Member & { kind: 'agent' } => m.kind === 'agent').map((m) => m.agent)
+    for (const pt of packTiles(allAgents, onOpenAgent)) out.push({ key: pt.key, kind: 'member', needy: false, node: pt.node })
     for (const k of pluginCells(settings))
       out.push({
         key: k,
