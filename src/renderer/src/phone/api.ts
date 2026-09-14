@@ -5,7 +5,7 @@
 // the plugin tiles) is a no-op or rejects. The socket reconnects on its own; a call made while
 // it is down waits for the next connection (up to a bound) instead of failing at once.
 
-import type { DeckApi, DeckSettings, DeckState, FileDoc, FoxEntry, Transcript } from '@shared/types'
+import type { AgentView, DeckApi, DeckSettings, DeckState, FileDoc, FoxEntry, Transcript } from '@shared/types'
 import { REMOTE_PORT, type RemoteDown, type RemoteMethod } from '@shared/remote'
 
 export type Link = 'unpaired' | 'connecting' | 'open' | 'closed' | 'unauthorized'
@@ -60,6 +60,7 @@ class Remote {
     transcript: new Set<(t: Transcript) => void>(),
     settings: new Set<(s: DeckSettings) => void>(),
     fox: new Set<(e: FoxEntry) => void>(),
+    agents: new Set<(a: AgentView[]) => void>(),
     error: new Set<(m: string) => void>(),
     link: new Set<(l: Link) => void>()
   }
@@ -156,6 +157,9 @@ class Remote {
         return
       case 'fox':
         for (const cb of this.subs.fox) cb(msg.entry)
+        return
+      case 'agents':
+        for (const cb of this.subs.agents) cb(msg.agents)
         return
       case 'error':
         for (const cb of this.subs.error) cb(msg.error)
@@ -271,6 +275,8 @@ export const api: DeckApi = {
   chooseDefaultCwd: () => Promise.resolve(''),
   foxLog: (limit) => remote.call('foxLog', [limit]),
   onFoxEntry: (cb) => remote.on('fox', cb),
+  agents: () => remote.call('agents', []),
+  onAgents: (cb) => remote.on('agents', cb),
   onUi: nothing,
   remoteInfo: notHere,
   screen: (id) => remote.call('screen', [id]),

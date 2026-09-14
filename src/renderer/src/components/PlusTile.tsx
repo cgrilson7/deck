@@ -1,23 +1,74 @@
 import { useEffect, useState } from 'react'
-import type { DeckState } from '@shared/types'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
+import { PLUGIN_KEYS, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
 import { MODELS, cleanModel } from '@shared/models'
 import { shortPath } from '../lib/format'
-import { useSettings } from '../lib/theme'
+import { patchSettings, useSettings } from '../lib/theme'
+
+/** The mini apps an empty cell can hold, with the setting that shows each. */
+export const PLUGINS: {
+  key: PluginKey
+  label: string
+  hint: string
+  setting: keyof DeckSettings
+}[] = [
+  {
+    key: 'wiki',
+    label: 'Wikipedia',
+    hint: 'The picture of the day, a clock, and search',
+    setting: 'showWiki'
+  },
+  {
+    key: 'music',
+    label: 'Music',
+    hint: 'Spotify.app now playing, or the lofi stream',
+    setting: 'showMusic'
+  },
+  {
+    key: 'git',
+    label: 'Changes',
+    hint: "The focused session's working tree and diffs",
+    setting: 'showGit'
+  },
+  {
+    key: 'vocab',
+    label: 'Vocabulary',
+    hint: 'A Spanish word a minute, flash cards, the review list',
+    setting: 'showVocab'
+  },
+  {
+    key: 'translate',
+    label: 'Translator',
+    hint: 'English ⇄ Spanish',
+    setting: 'showTranslate'
+  }
+]
+
+/** `gridLayout` with `key` pinned at `cell` and nowhere else. */
+export function pinned(layout: string[], cell: number, key: string): string[] {
+  const out = layout.map((k) => (k === key ? '' : k))
+  while (out.length <= cell) out.push('')
+  out[cell] = key
+  return out
+}
 
 /**
- * The +: click opens the chooser (where to start: the focused session's folder, recent folders,
- * a folder picker; a worktree toggle; a model; parked sessions to resume). ⌘N in the menu bar
- * is the no-questions path (focused folder, default settings).
+ * The + in every empty cell: click opens the PICKER, a modal over the window — a row of pills
+ * per choice: the mini apps (pinned to this cell), and below the cap a session (where to start:
+ * the focused session's folder, recent folders, a folder picker; a worktree toggle; a model)
+ * or a parked one to resume. Sessions are never pinned: they fill the grid in order, top left
+ * down then top right down. ⌘N in the menu bar is the no-questions path.
  */
-export function PlusTile({ state }: { state: DeckState }) {
-  const [menu, setMenu] = useState(false)
+export function PlusTile({ state, cell, canAdd }: { state: DeckState; /** The grid cell this + sits in. */ cell: number; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className={`tile tile-plus ${menu ? 'menu-open' : ''}`}>
-      <button className="plus" title="New session… (⌘N starts one here without asking)" onClick={() => setMenu(true)}>
+    <div className="tile tile-plus">
+      <button className="plus" title={canAdd ? 'New session or mini app here… (⌘N starts a session without asking)' : 'A mini app here… (every session slot is open)'} onClick={() => setOpen(true)}>
         +
       </button>
-      {menu && <PlusMenu state={state} onClose={() => setMenu(false)} />}
+      {open && createPortal(<Picker state={state} cell={cell} canAdd={canAdd} onClose={() => setOpen(false)} />, document.body)}
     </div>
   )
 }
@@ -88,7 +139,7 @@ function ModelPick({ pick }: { pick: ModelPickState }) {
   )
 }
 
-function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void }) {
+function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: number; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
   const [worktree, setWorktree] = useState(false)
@@ -100,6 +151,12 @@ function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void })
   const model = useModelPick(settings.defaultModel)
   /** ⌥-click flips the worktree toggle for that one pick. */
   const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree, model: model.value })
+  const shown = new Set(pluginCells(settings))
+  /** A mini app here: turned on if it was off, and pinned to this cell either way. */
+  const place = (p: (typeof PLUGINS)[number]) => {
+    onClose()
+    patchSettings({ [p.setting]: true, gridLayout: pinned(settings.gridLayout, cell, p.key) } as Partial<DeckSettings>)
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -108,53 +165,80 @@ function PlusMenu({ state, onClose }: { state: DeckState; onClose: () => void })
   }, [onClose])
 
   return (
-    <div className="menu" onClick={(e) => e.stopPropagation()}>
-      <div className="menu-section">
-        <div className="menu-title">Start in</div>
-        {cwd && (
-          <button onClick={(e) => start(e, cwd)} title={cwd}>
-            <span className="cwd">{shortPath(cwd)}</span>
-            <span className="menu-hint">focused</span>
+    <div className="picker-scrim" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
+      <div className="picker" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Fill this cell">
+        <header className="picker-head">
+          <span className="picker-title">{canAdd ? 'A session or a mini app here' : 'A mini app here'}</span>
+          {!canAdd && <span className="picker-note">every session slot is open</span>}
+          <span className="spacer" />
+          <button className="doc-btn" title="Close (Esc)" onClick={onClose}>
+            <X size={14} />
           </button>
-        )}
-        {recent.map((dir) => (
-          <button key={dir} onClick={(e) => start(e, dir)} title={dir}>
-            <span className="cwd">{shortPath(dir)}</span>
-            <span className="menu-hint">recent</span>
-          </button>
-        ))}
-        {!cwd && recent.length === 0 && (
-          <button onClick={(e) => start(e)} title="The default folder from Settings, else your home">
-            <span className="cwd">Default folder</span>
-          </button>
-        )}
-        <button onClick={() => run({ type: 'chooseFolder', worktree, model: model.value })}>Choose folder…</button>
-        <label className="menu-check" title="Claude creates a git worktree under .claude/worktrees/ and works there (⌥-click any folder to flip this once)">
-          <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
-          in a new git worktree
-        </label>
-        <ModelPick pick={model} />
-      </div>
-      <div className="menu-section">
-        <div className="menu-title">Parked{state.parked.length ? ` (${state.parked.length})` : ''}</div>
-        {state.parked.length === 0 && <div className="menu-empty">Nothing parked. ⌘W parks the focused session.</div>}
-        {state.parked.map((p) => (
-          <div key={p.id} className="menu-row">
-            <button className="menu-resume" onClick={() => run({ type: 'resume', id: p.id })} title={p.tmuxAlive ? 'Still running in tmux; reattach' : 'Resume with claude --resume'}>
-              <span className={`dot ${p.tmuxAlive ? 'dot-idle' : 'dot-unknown'}`} />
-              <span className="name">{p.name}</span>
-              <span className="cwd">{shortPath(p.cwd)}</span>
-            </button>
-            <button className="menu-x" title="Forget (leaves tmux alone)" onClick={() => run({ type: 'forget', id: p.id })}>
-              ×
-            </button>
+        </header>
+        <section className="picker-row">
+          <h4>Mini app</h4>
+          <div className="pills">
+            {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => (
+              <button key={p.key} className="pill" onClick={() => place(p)} title={p.hint}>
+                {p.label}
+                {shown.has(p.key) && <small>move here</small>}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="menu-section">
-        <button className="ghost" onClick={onClose}>
-          Close
-        </button>
+        </section>
+        {canAdd && (
+          <section className="picker-row">
+            <h4>New session in</h4>
+            <div className="pills">
+              {cwd && (
+                <button className="pill" onClick={(e) => start(e, cwd)} title={`${cwd} · ⌥-click flips the worktree toggle once`}>
+                  {shortPath(cwd)}
+                  <small>focused</small>
+                </button>
+              )}
+              {recent.map((dir) => (
+                <button key={dir} className="pill" onClick={(e) => start(e, dir)} title={`${dir} · ⌥-click flips the worktree toggle once`}>
+                  {shortPath(dir)}
+                  <small>recent</small>
+                </button>
+              ))}
+              {!cwd && recent.length === 0 && (
+                <button className="pill" onClick={(e) => start(e)} title="The default folder from Settings, else your home">
+                  Default folder
+                </button>
+              )}
+              <button className="pill" onClick={() => run({ type: 'chooseFolder', worktree, model: model.value })}>
+                Choose folder…
+              </button>
+            </div>
+            <div className="picker-opts">
+              <label className={`pill pill-toggle ${worktree ? 'on' : ''}`} title="Claude creates a git worktree under .claude/worktrees/ and works there">
+                <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
+                in a new git worktree
+              </label>
+              <ModelPick pick={model} />
+            </div>
+          </section>
+        )}
+        {canAdd && state.parked.length > 0 && (
+          <section className="picker-row">
+            <h4>Parked ({state.parked.length})</h4>
+            <div className="pills">
+              {state.parked.map((p) => (
+                <span key={p.id} className="pill pill-parked">
+                  <button className="pill-main" onClick={() => run({ type: 'resume', id: p.id })} title={`${p.cwd} · ${p.tmuxAlive ? 'still running in tmux; reattach' : 'resume with claude --resume'}`}>
+                    <span className={`dot ${p.tmuxAlive ? 'dot-idle' : 'dot-unknown'}`} />
+                    {p.name}
+                    <small>{shortPath(p.cwd)}</small>
+                  </button>
+                  <button className="pill-x" title="Forget (leaves tmux alone)" onClick={() => run({ type: 'forget', id: p.id })}>
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

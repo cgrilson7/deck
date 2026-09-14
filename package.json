@@ -28,7 +28,8 @@
       "build/icon.png"
     ],
     "extraResources": [
-      "tmux.conf"
+      "tmux.conf",
+      "plugin"
     ],
     "asarUnpack": [
       "**/node_modules/node-pty/**"

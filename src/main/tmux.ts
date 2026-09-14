@@ -87,6 +87,14 @@ export class Tmux {
     return r.code === 0 && p ? p : null
   }
 
+  /** The session a pane id (`%12`, tmux's $TMUX_PANE) belongs to, null when it is not on this server. */
+  async sessionOfPane(pane: string): Promise<string | null> {
+    if (!/^%\d+$/.test(pane)) return null
+    const r = await this.run(['display-message', '-p', '-t', pane, '#{session_name}'])
+    const name = r.stdout.trim()
+    return r.code === 0 && name ? name : null
+  }
+
   async panePid(name: string): Promise<number | null> {
     const r = await this.run(['display-message', '-p', '-t', name, '#{pane_pid}'])
     const n = Number(r.stdout.trim())

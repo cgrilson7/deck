@@ -11,9 +11,51 @@
 import type { IDecoration, IDisposable, Terminal } from '@xterm/xterm'
 import sheet from '../assets/fox.png?inline' // data: URL — the renderer CSP allows img-src data:
 
-/** Put the sheet where the `.fox` rule can see it. Call once before first paint. */
+/**
+ * The gold coat: slay's "yellow" ramp (foxSpriteGen.ts), swapped for the master's two coat
+ * colors. The sheet has exactly seven colors and binary alpha, so the swap is lossless. A
+ * wolfpack's betas wear it, so an Opus beta never reads as the alpha.
+ */
+const COAT: [from: string, to: string][] = [
+  ['#D67941', '#E5B843'], // coat base
+  ['#9D5021', '#B78C2A'] // coat shade
+]
+
+/** Put the sheet where the `.fox` rule can see it, and the gold one where `.fox-gold` does. Call once before first paint. */
 export function installFoxSheet(): void {
   document.documentElement.style.setProperty('--fox-sheet', `url("${sheet}")`)
+  document.documentElement.style.setProperty('--fox-sheet-gold', `url("${sheet}")`) // until the recolor is ready (a frame or two)
+  const img = new Image()
+  img.onload = () => {
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth
+    c.height = img.naturalHeight
+    const ctx = c.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(img, 0, 0)
+    const px = ctx.getImageData(0, 0, c.width, c.height)
+    const d = px.data
+    const swap = COAT.map(([a, b]) => [hex(a), hex(b)] as const)
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue
+      for (const [from, to] of swap) {
+        if (d[i] === from[0] && d[i + 1] === from[1] && d[i + 2] === from[2]) {
+          d[i] = to[0]
+          d[i + 1] = to[1]
+          d[i + 2] = to[2]
+          break
+        }
+      }
+    }
+    ctx.putImageData(px, 0, 0)
+    document.documentElement.style.setProperty('--fox-sheet-gold', `url("${c.toDataURL('image/png')}")`)
+  }
+  img.src = sheet
+}
+
+function hex(s: string): [number, number, number] {
+  const n = parseInt(s.slice(1), 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
 // ── The banner ──────────────────────────────────────────────────────────────

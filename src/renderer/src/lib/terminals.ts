@@ -75,7 +75,8 @@ function stagingEl(): HTMLDivElement {
 /** Cmd combos owned by the app menu; xterm must let them through. */
 function isDeckShortcut(ev: KeyboardEvent): boolean {
   const k = ev.key
-  if (/^[1-9]$/.test(k) && Number(k) <= CAP) return true
+  // ⌘1–9 = slots 1–9, ⌘0 = slot 10 (menu.ts).
+  if (/^[0-9]$/.test(k) && (k === '0' ? 10 : Number(k)) <= CAP) return true
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
   return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || l === 'j' || k === ','

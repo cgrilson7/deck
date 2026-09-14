@@ -2,8 +2,70 @@
 
 import type { Appearance } from './themes'
 
-/** Hard cap on open (slotted) sessions: the focus pane + six grid tiles. Slots 1..CAP are sticky. */
-export const CAP = 7
+/**
+ * Hard cap on open top-level sessions: the focus pane + the grid. Slots 1..CAP are sticky; ⌘1–9
+ * focus the first nine and ⌘0 the tenth. The live cap is lower: `liveCap()` below.
+ */
+export const CAP = 10
+
+/**
+ * A wolfpack's betas take slots from here up: never in the ⌘ range, never counted against the
+ * cap, never a grid cell of their own (they nest in their alpha's pack tile). See `PackRef`.
+ */
+export const BETA_SLOT_BASE = 100
+
+/** The most betas one alpha may run at once (`POST /pack` refuses more). */
+export const PACK_MAX = 8
+
+/** The keys a grid cell can hold, besides `slot:<n>` (a session) and `pack:<alpha id>` (a wolfpack). */
+export const PLUGIN_KEYS = ['wiki', 'music', 'git', 'vocab', 'translate'] as const
+export type PluginKey = (typeof PLUGIN_KEYS)[number]
+
+/** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
+  const out: PluginKey[] = []
+  if (s.showWiki && !s.compact) out.push('wiki')
+  if (s.showMusic && !s.compact) out.push('music')
+  if (s.showGit) out.push('git')
+  if (s.showVocab) out.push('vocab')
+  if (s.showTranslate) out.push('translate')
+  return out
+}
+
+/** How many tiles one page of the grid holds: both side columns, `gridColumns` wide and `gridRows` tall each. */
+export function pageSize(s: Pick<DeckSettings, 'gridColumns' | 'gridRows'>): number {
+  return 2 * s.gridColumns * s.gridRows
+}
+
+/** A session's place in a wolfpack: a beta carries its alpha's deck id and its task's name. */
+export interface PackRef {
+  /** Deck id of the alpha (the session that spawned it). */
+  alpha: string
+  /** The track it was given ("engine hooks"), the tile's name until Claude titles it. */
+  task: string
+}
+
+/**
+ * A subagent a session spawned (the Agent tool, a Workflow), as the CLI's SubagentStart /
+ * SubagentStop hooks report it. Its tile tails `<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl`
+ * (the documented place; same JSONL as a session's transcript) under the id `agent:<id>`.
+ */
+export interface AgentView {
+  id: string
+  /** Deck id of the session that spawned it. */
+  parent: string
+  /** The agent type (`Explore`, `general-purpose`, a custom one). */
+  type: string
+  /** The Agent tool's short description, '' when none. */
+  description: string
+  /** The task it was given (the prompt's first line as the hook reports it), '' when none. */
+  task: string
+  startedAt: number
+  /** Null while it runs. */
+  endedAt: number | null
+  /** What it said last, from the stop hook; null while it runs. */
+  lastText: string | null
+}
 
 /** Session status as best we know it: fleet poll (`claude agents --json`) + hook events. */
 export type SessionStatus = 'starting' | 'busy' | 'idle' | 'blocked' | 'dead' | 'unknown'
@@ -22,10 +84,12 @@ export interface SessionRecord {
   /** What was handed to `--model` (an alias or a full id; see shared/models.ts). Absent / '' = the CLI's default. */
   model?: string
   createdAt: number
-  /** 1..CAP while open, null while parked (detached or exited). Sticky while open. */
+  /** 1..CAP while open (BETA_SLOT_BASE+ for a beta), null while parked (detached or exited). Sticky while open. */
   slot: number | null
   /** Last known name: fleet listing name, else terminal title, else a placeholder. */
   name: string
+  /** Set on a wolfpack's beta: whose it is and what it was given. Absent = an ordinary session. */
+  pack?: PackRef
 }
 
 /** Live view of a session = record + runtime state. */
@@ -63,6 +127,8 @@ export type DeckCommand =
   | { type: 'forget'; id: string }
   /** Reload the renderer and reattach every tmux client so the terminals redraw. Sessions keep running. */
   | { type: 'refreshUi' }
+  /** End an alpha's wolfpack: kill every beta (or park them, keeping their conversations). */
+  | { type: 'dismissPack'; alpha: string; park?: boolean }
 
 /** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
 export interface WikiPicture {
@@ -261,8 +327,20 @@ export interface DeckSettings {
   appearance: Appearance
   /** Compact mode: tighter chrome, smaller headers, plugin row hidden. */
   compact: boolean
-  /** Grid columns for the six tiles (1..3). */
+  /**
+   * The grid's shape: two side columns around the focus pane, each `gridColumns` (1..2) wide
+   * and `gridRows` (2..6) tall; that many tiles make a page, and the rest page on (hover an
+   * outer edge for the arrows).
+   */
   gridColumns: number
+  gridRows: number
+  /**
+   * Where plugin and pack tiles were put: cell index (across pages, left column first) → key
+   * (a plugin key, `pack:<alpha id>`), '' for a cell nothing is pinned to. Sessions are never
+   * pinned: they always fill the first cells in order; then packs and plugins flow into what
+   * is free, pins honored.
+   */
+  gridLayout: string[]
   /** How wide the focus column is. */
   focusWidth: 'third' | 'twoFifths' | 'half'
   /** Sessions needing you jump to the front of the grid. */
@@ -317,7 +395,9 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   theme: 'cream',
   appearance: 'system',
   compact: false,
-  gridColumns: 2,
+  gridColumns: 1,
+  gridRows: 4,
+  gridLayout: [],
   focusWidth: 'third',
   attentionFirst: true,
   confirmKill: true,
@@ -501,7 +581,7 @@ export interface DeckApi {
   onPtyExit(cb: (id: string) => void): () => void
   setTitle(id: string, title: string): void
   bell(id: string): void
-  /** The tile view of a session's conversation (null until main has looked). */
+  /** The tile view of a session's conversation (null until main has looked). `agent:<id>` is a subagent's. */
   getTranscript(id: string): Promise<Transcript | null>
   onTranscript(cb: (t: Transcript) => void): () => void
   /**
@@ -579,6 +659,9 @@ export interface DeckApi {
   onSettings(cb: (s: DeckSettings) => void): () => void
   /** Folder picker for the default cwd setting. Resolves '' when cancelled. */
   chooseDefaultCwd(): Promise<string>
+  /** Every subagent of every open session, running or lately finished (main/agents.ts). */
+  agents(): Promise<AgentView[]>
+  onAgents(cb: (agents: AgentView[]) => void): () => void
   /** Foxtrot's log, newest last (the last `limit`, default 500). */
   foxLog(limit?: number): Promise<FoxEntry[]>
   /** Each new observation as Foxtrot makes it. */

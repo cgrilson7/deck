@@ -296,10 +296,10 @@ export class Foxtrot {
 
 // ---- words ------------------------------------------------------------------
 
-/** How a session is named in a sentence: `slot 4 “fix the hooks”`. */
+/** How a session is named in a sentence: `slot 4 “fix the hooks”`; a beta is `beta “engine hooks”`. */
 function who(s: SessionView): string {
   const name = clip(s.name.replace(/^[^\p{L}\p{N}]+/u, '').trim(), 32)
-  const slot = s.slot !== null ? `slot ${s.slot}` : 'a parked session'
+  const slot = s.pack ? 'beta' : s.slot !== null ? `slot ${s.slot}` : 'a parked session'
   return name ? `${slot} “${name}”` : slot
 }
 

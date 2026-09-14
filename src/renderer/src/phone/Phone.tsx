@@ -125,8 +125,8 @@ export function Phone() {
       <div className="ph-top">
         {open.map((s) => (
           <button key={s.id} type="button" className={`ph-chip ${s.id === cur ? 'on' : ''} ${s.attention ? 'attention' : ''} status-${s.status}`} onClick={() => goTo(s.id)}>
-            <span className="slot">{s.slot}</span>
-            <FoxStatus id={s.id} status={s.status} attention={s.attention} />
+            <span className={`slot ${s.pack ? 'slot-beta' : ''}`}>{s.pack ? 'β' : s.slot}</span>
+            <FoxStatus id={s.id} status={s.status} attention={s.attention} coat={s.pack ? 'gold' : undefined} />
             <span className="name">{s.name}</span>
           </button>
         ))}
@@ -254,7 +254,7 @@ function MoreSheet({ s, onClose }: { s: SessionView; onClose: () => void }) {
   return (
     <Sheet onClose={onClose}>
       <h3>
-        {s.slot} · {s.name}
+        {s.pack ? 'β' : s.slot} · {s.name}
       </h3>
       <p className="ph-hint">{shortPath(s.cwd)}</p>
       <button type="button" className="ph-row" onClick={() => run({ type: 'focus', slot: s.slot! })}>

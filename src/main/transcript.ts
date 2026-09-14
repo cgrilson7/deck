@@ -19,6 +19,8 @@ const CHUNK = 1 << 16
 interface Tail {
   id: string
   sessionId: string
+  /** A subagent's transcript: every line is a sidechain, so they are taken rather than skipped. */
+  sidechain: boolean
   path: string | null
   offset: number
   rest: string
@@ -37,21 +39,31 @@ export class TranscriptWatcher {
     this.emit = emit
   }
 
+  private sessions: { id: string; claudeSessionId: string }[] = []
+  private agents: { id: string; path: string }[] = []
+
   /** Keep exactly these sessions (deck id → claude session id) under watch. */
   sync(open: { id: string; claudeSessionId: string }[]): void {
-    const keep = new Set(open.map((s) => s.id))
+    this.sessions = open
+    this.rebuild()
+  }
+
+  /** And these subagent transcripts (`agent:<id>` → its jsonl), alongside the sessions. */
+  syncAgents(agents: { id: string; path: string }[]): void {
+    this.agents = agents
+    this.rebuild()
+  }
+
+  private rebuild(): void {
+    const keep = new Set([...this.sessions.map((s) => s.id), ...this.agents.map((a) => a.id)])
     for (const id of this.tails.keys()) if (!keep.has(id)) this.tails.delete(id)
-    for (const s of open) {
+    for (const s of this.sessions) {
       if (this.tails.has(s.id)) continue
-      this.tails.set(s.id, {
-        id: s.id,
-        sessionId: s.claudeSessionId,
-        path: null,
-        offset: 0,
-        rest: '',
-        transcript: { id: s.id, blocks: [], title: null, found: false },
-        dirty: false
-      })
+      this.tails.set(s.id, { id: s.id, sessionId: s.claudeSessionId, sidechain: false, path: null, offset: 0, rest: '', transcript: { id: s.id, blocks: [], title: null, found: false }, dirty: false })
+    }
+    for (const a of this.agents) {
+      if (this.tails.has(a.id)) continue
+      this.tails.set(a.id, { id: a.id, sessionId: '', sidechain: true, path: a.path, offset: 0, rest: '', transcript: { id: a.id, blocks: [], title: null, found: false }, dirty: false })
     }
     if (this.tails.size > 0 && !this.timer) this.timer = setInterval(() => this.poll(), POLL_MS)
     if (this.tails.size === 0 && this.timer) {
@@ -63,6 +75,11 @@ export class TranscriptWatcher {
 
   get(id: string): Transcript | null {
     return this.tails.get(id)?.transcript ?? null
+  }
+
+  /** The transcript file of a watched session, null until the CLI has written it. */
+  pathOf(id: string): string | null {
+    return this.tails.get(id)?.path ?? null
   }
 
   stop(): void {
@@ -87,7 +104,7 @@ export class TranscriptWatcher {
 
   private read(t: Tail): void {
     if (!t.path) {
-      t.path = this.locate(t.sessionId)
+      t.path = t.sessionId ? this.locate(t.sessionId) : null
       if (!t.path) return
       t.transcript.found = true
       t.dirty = true
@@ -110,7 +127,7 @@ export class TranscriptWatcher {
         t.rest += buf.toString('utf8', 0, n)
         const lines = t.rest.split('\n')
         t.rest = lines.pop() ?? ''
-        for (const line of lines) if (applyLine(t.transcript, line)) t.dirty = true
+        for (const line of lines) if (applyLine(t.transcript, line, t.sidechain)) t.dirty = true
       }
     } finally {
       closeSync(fd)
@@ -140,8 +157,8 @@ export class TranscriptWatcher {
 
 type Json = Record<string, unknown>
 
-/** Fold one transcript line into `t`. Returns true when something a tile shows changed. */
-export function applyLine(t: Transcript, line: string): boolean {
+/** Fold one transcript line into `t`. Returns true when something a tile shows changed. `sidechain` = a subagent's file, whose lines all are. */
+export function applyLine(t: Transcript, line: string, sidechain = false): boolean {
   if (!line.trim()) return false
   let o: Json
   try {
@@ -153,7 +170,7 @@ export function applyLine(t: Transcript, line: string): boolean {
     t.title = o.aiTitle
     return true
   }
-  if (o.isSidechain || o.isMeta) return false
+  if ((o.isSidechain && !sidechain) || o.isMeta) return false
   const msg = o.message as Json | undefined
   if (!msg) return false
   const ts = Date.parse(String(o.timestamp ?? '')) || Date.now()

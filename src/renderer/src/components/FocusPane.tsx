@@ -6,7 +6,7 @@ import { Fox } from './Fox'
 import { shortPath } from '../lib/format'
 import { useDropTarget } from './useDropTarget'
 
-export function FocusPane({ session, recent }: { session: SessionView | null; recent: string[] }) {
+export function FocusPane({ session, recent, alpha }: { session: SessionView | null; recent: string[]; /** For a beta: its alpha, so the head can say whose it is. */ alpha?: SessionView | null }) {
   if (!session) {
     return (
       <section className="focus focus-empty">
@@ -31,15 +31,21 @@ export function FocusPane({ session, recent }: { session: SessionView | null; re
   }
 
   const s = session
+  const beta = !!s.pack
   const drop = useDropTarget(s.id)
   return (
-    <section className={`focus status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''}`} {...drop.handlers}>
+    <section className={`focus status-${s.status} ${s.attention ? 'attention' : ''} ${drop.over ? 'drop-over' : ''} ${beta ? 'focus-beta' : ''}`} {...drop.handlers}>
       <header className="pane-head">
-        <span className="slot">{s.slot}</span>
-        <FoxStatus id={s.id} status={s.status} attention={s.attention} />
+        <span className={`slot ${beta ? 'slot-beta' : ''}`}>{beta ? 'β' : s.slot}</span>
+        <FoxStatus id={s.id} status={s.status} attention={s.attention} coat={beta ? 'gold' : undefined} />
         <span className="name" title={s.name}>
           {s.name}
         </span>
+        {beta && (
+          <button className="badge badge-pack" title={alpha ? `Beta of slot ${alpha.slot} “${alpha.name}” — click to focus the alpha` : 'A wolfpack beta'} onClick={() => alpha && void window.deck.command({ type: 'focus', slot: alpha.slot! })}>
+            pack of {alpha ? alpha.slot : '?'}
+          </button>
+        )}
         {s.worktree && <span className="badge">worktree</span>}
         {s.model && (
           <span className="badge" title={`--model ${s.model}`}>

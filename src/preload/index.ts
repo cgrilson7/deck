@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { AgentView, DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -88,6 +88,12 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('settings:changed', h)
   },
   chooseDefaultCwd: () => ipcRenderer.invoke('settings:chooseDefaultCwd') as Promise<string>,
+  agents: () => ipcRenderer.invoke('agents:list') as Promise<AgentView[]>,
+  onAgents: (cb) => {
+    const h = (_e: unknown, list: AgentView[]) => cb(list)
+    ipcRenderer.on('agents:update', h)
+    return () => ipcRenderer.removeListener('agents:update', h)
+  },
   foxLog: (limit?: number) => ipcRenderer.invoke('fox:log', limit) as Promise<FoxEntry[]>,
   onFoxEntry: (cb) => {
     const h = (_e: unknown, entry: FoxEntry) => cb(entry)

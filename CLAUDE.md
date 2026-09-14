@@ -1,10 +1,12 @@
 # deck
 
-Seven Claude Code sessions in one Electron window (four with every plugin tile on). The focused session fills the left third
-as a real terminal; the others live in a grid on the right as conversation views (your prompts,
-Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), with a
-plugin row (Wikipedia's featured content, a music tile: Spotify.app, or the lofi YouTube stream) beneath them. Click a tile to
-swap it into focus.
+Up to ten Claude Code sessions in one Electron window. The focused session fills the CENTER column
+as a real terminal; everything else lives in two columns of tiles either side of it, four a
+side, paged (hover an outer edge for the arrows): the other sessions as conversation views (your
+prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, changes, vocabulary, translator),
+and any WOLFPACK — a Fable alpha's Opus betas, nested in one tile, gold foxes. Click a tile to
+swap it into focus; drag one by its grip to keep it somewhere.
 The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. The same sessions are reachable from a phone (the `phone` button in the top bar: a QR code, over Tailscale). A personal tool, macOS only.
 
 ## What it is, in one paragraph
@@ -45,7 +47,12 @@ src/main/index.ts          app boot: profile, single-instance lock, window, IPC,
 src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resume, state
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
-src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"
+src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door
+src/main/agents.ts         subagents as tiles: SubagentStart/Stop hooks → the list per session, their transcripts handed to the tailer
+src/main/pack.ts           beta SESSIONS: an alpha (a session inside the deck) spawns / asks after / talks to / dismisses Opus sessions of its own
+plugin/                    the deck's Claude Code plugin, `--plugin-dir` on every session it starts (extraResources when packaged):
+                             .claude-plugin/plugin.json (name `deck`), skills/wolfpack/SKILL.md (the skill, `/deck:wolfpack`),
+                             scripts/wolfpack.mjs (the alpha's CLI: spawn, status, wait, say, dismiss; its path is DECK_WOLFPACK in every session's env)
 src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
@@ -80,7 +87,8 @@ src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and
 src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live) and the newest live one, which makes him bark
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
-src/renderer/src/components/        FocusPane, Grid, Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+src/renderer/src/components/        FocusPane, Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+                                    PackTile (a wolfpack as one cell: subagents + beta sessions nested), AgentTile (a subagent's transcript), PackPane (the pack over the grid, every member full size),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
@@ -93,15 +101,81 @@ scripts/smoke.mjs          the smoke test
 
 ## Rules the code enforces (keep them)
 
-- **Cap = 7** (`CAP` in `src/shared/types.ts`). Slots 1..7 are sticky while open: a session keeps its
-  number until parked/killed; a new session takes the lowest free slot. ⌘1–7 = focus slot.
-  The live cap is `SessionManagerOptions.cap()` = CAP minus one per grid-cell plugin tile that
-  is on (`showGit`, `showVocab`, `showTranslate`; all on by default, so 4). Turning one on with every
-  slot open leaves the top slot open (and the grid a cell over) until that session is parked.
-  A saved record whose slot is above the cap is parked on load.
-- **Focus + grid + plugins**: the grid shows cap−1 session cells, then a plugin row one grid row
-  tall (`Grid.tsx`, `.grid-col` in styles.css). Sessions with `attention` sort first, then slot
-  order (`App.tsx`). The first empty cell is the `+`; at cap the `+` disappears.
+- **Cap = 10** (`CAP` in `src/shared/types.ts`). Slots 1..10 are sticky while open: a session keeps its
+  number until parked/killed; a new session takes the lowest free slot. ⌘1–9 = focus slots 1–9,
+  ⌘0 = slot 10. Plugin and wolfpack tiles cost no slot: the grid pages. A config.json from
+  before the two-sided grid (no `gridRows`) has its `gridColumns` reset, since it meant the whole
+  grid's columns then. A saved record whose slot
+  is above the cap is parked on load. Betas (below) sit at `BETA_SLOT_BASE` (100) and up: sticky
+  too, never in the ⌘ range, never counted.
+- **The grid** (`Grid.tsx`): TWO columns of cells either side of the focus pane (`.main` is
+  tiles · focus · tiles; `focusWidth` sets the center's share), each `gridColumns` (1) wide and
+  `gridRows` (4) tall, so a PAGE is eight tiles around the center; cells are numbered down the
+  left column, then down the right (`grid-auto-flow: column`), then the next page. SESSIONS
+  ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`); they are never
+  pinned and have no grip. After the session block come the wolfpacks and the plugins
+  (`pluginCells()`: wiki, music, git, vocab, translate; compact mode drops the first two), into
+  the free cells, except where one is pinned (`gridLayout` in config.json: cell index across
+  pages → a plugin key / `pack:<alpha id>`; a pin inside the session block waits until the
+  sessions leave it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
+  unpins). Every EMPTY cell is a `+` (`PlusTile` with its cell index) that opens the PICKER, a
+  modal over the window of pill rows that scroll sideways: the mini apps (turned on if off,
+  pinned to that cell either way; one already showing says "move here"), and below the cap a
+  session (the focused folder, recents, a folder picker; a worktree toggle and the model row)
+  and the parked ones to resume — a session takes its place in the block, not the cell. A full
+  last page grows one more while a session can still be added. A plugin or pack tile's grip (⠿,
+  top right on hover) drags it onto another non-session cell and both are pinned; a plugin
+  tile's × (beside the grip) turns its setting off. Hover a column and its outer-edge arrow
+  pages (accent when a session needing you is that way); dots at the foot of the right column
+  jump. Plugin tiles wear an accent-tinted frame
+  (`.tile-plugin`) so they never pass for a session. The preview pane, Foxtrot's log and a pack
+  pane open over the RIGHT column (`.doc`, grid column 3; ⤢ = the whole window).
+- **Wolfpack** (`plugin/skills/wolfpack/`, `PackTile`, `AgentTile`, `PackPane`): a session
+  (the ALPHA, Fable as a rule) and the Opus agents doing its typing, every one a tile under
+  the alpha's PACK TILE. The skill reaches every session as `/deck:wolfpack` because the deck
+  starts each one with `--plugin-dir <plugin/>` (beside `--settings`), so no repo and no user
+  needs a copy of it; outside the deck it does not exist, which is right — it can do nothing
+  there. Two kinds of member, one tile treatment (β, gold fox, gold border):
+  - **Subagents** (`main/agents.ts`; the canonical pack): whatever the session runs through
+    the Agent tool or a Workflow. The CLI's documented `SubagentStart` / `SubagentStop` hooks
+    (payload: `agent_id`, `agent_type`, and on stop `agent_transcript_path` +
+    `last_assistant_message`) are in our `--settings` hooks file and POST to the hooks server;
+    the tracker keeps the list per parent and hands each agent's transcript
+    (`<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl`, the documented place, the same
+    JSONL as a session's — its lines are all `isSidechain`, which the tailer accepts for these)
+    to the TranscriptWatcher under `agent:<id>`, so `ChatView` shows it unchanged. No terminal,
+    nothing to type into: it is the parent's. Broadcast as `agents:update` (`DeckApi.agents` /
+    `onAgents`; the phone gets the frame). A finished agent stays until the parent's next TYPED
+    prompt — the CLI also fires `UserPromptSubmit` when a background agent's result comes back
+    as a `<task-notification>` turn, and that one must not clear the pack — or 30 min, 12 per
+    parent. `userData/hooks.log` has one line per hook that arrived (capped at 1MB at boot).
+  - **Beta sessions** (`main/pack.ts`, `plugin/scripts/wolfpack.mjs`): for a track that needs its own
+    terminal, permission mode, or a life beyond the alpha's. The alpha spawns up to
+    `PACK_MAX` (8) of them — Opus by default — as deck sessions of their own, each
+  `claude --name <task> --model opus [--permission-mode m] [--worktree] "<prompt>"` (the prompt is
+  the CLI's positional first prompt, so nothing races the TUI). A beta's record carries
+  `pack: { alpha, task }`; it is open (attached, transcript tailed, hooks, fleet) but it is not a
+  top-level session: no cell of its own, never focused by ⌘, the focus stays on the alpha when
+  it spawns. It shows a `β` and the GOLD fox (`Fox coat="gold"`: the sheet with slay's yellow
+  ramp swapped in for the two coat colors, generated on a canvas at boot, `--fox-sheet-gold`) in
+  its head and a gold border, and lives in the alpha's PACK TILE — one cell, `α<slot>` on the
+  head (click = focus the alpha), the betas as small tiles (conversation, click = focus; no
+  prompt bar at that size), ⤢ = the PACK PANE over the right column with every beta full size,
+  a prompt bar each, and park-all / dismiss. The alpha's own tile (or the focus pane) is
+  untouched; the pack tile stands beside it. Cascades: parking the alpha (⌘W, or its Claude
+  exiting) parks the betas; killing it kills them; resuming it resumes the betas still alive in
+  tmux; a beta resumed on its own after its alpha is gone becomes an ordinary session. The
+  alpha talks to the deck over the hooks server: `POST 127.0.0.1:<hook port>/pack` with
+  `{ op, alpha: <CLAUDE_CODE_SESSION_ID>, pane: <$TMUX_PANE> }` — `spawn` (a manifest of betas),
+  `status` (status, attention, transcript path, last prose / tool line, and its own subagents,
+  per beta, plus the alpha's subagents), `say` (paste + ⏎ into one), `dismiss` (kill, or
+  `park`); the settings file now also sets `DECK_HOOK_PORT` / `DECK_PROFILE` / `DECK_WOLFPACK`
+  (the script's absolute path, repo tree or app Resources) in every session's env, and the
+  script falls back to the tmux socket's name for the port. Only an
+  open, top-level session may spawn (a beta cannot). Foxtrot names a beta `beta “task”`; the
+  phone shows it as a β chip.
+  The pack tile shows subagents first, then beta sessions; the pack pane's park / dismiss act
+  on beta sessions only (subagents are the alpha's own).
 - **Plugins**: Wikipedia = the picture of the day (the featured feed's `image`), full bleed,
   click opens its file page via `deck:openExternal` (http(s) only). It rotates: every 2 minutes
   (`CYCLE_MS` in `WikiTile`) a random day's picture from the archive (2016 on, the feed is empty
@@ -145,7 +219,7 @@ scripts/smoke.mjs          the smoke test
   Spotify unmounts the webview. Play/pause and mute call the embed's player object
   (`#movie_player`) through `executeJavaScript`, never the `<video>` element (the player
   re-applies its own mute state to it). Not on the phone.
-- **Changes** (`GitTile`, the cell before the vocabulary tile, i.e. where slot 5 sat; `main/git.ts`):
+- **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
   cwd, then `defaultCwd`, as fallbacks) and runs `rev-parse --show-toplevel`, `branch
@@ -415,19 +489,20 @@ scripts/smoke.mjs          the smoke test
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both.
+  decline them). Add to both. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
 `~/Library/Application Support/<profile>/`
-- `sessions.json` — records (`slot` sticky, null = parked) + `focusSlot` + `recentCwds` (last 10 start folders)
+- `sessions.json` — records (`slot` sticky, null = parked, 101+ = a beta; `pack: { alpha, task }` on a beta) + `focusSlot` + `recentCwds` (last 10 start folders)
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
+- `hooks.log` — one line per hook request the hooks server got (event, session, agent); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
-- `config.json` — `DeckSettings` (theme, appearance, gridColumns, focusWidth, fonts, plugins, defaultCwd, defaultModel,
+- `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridLayout, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)

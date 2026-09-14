@@ -4,7 +4,7 @@ Seven Claude Code sessions in one window. One in focus on the left third as a te
 
 ## Requirements
 
-macOS, [tmux](https://github.com/tmux/tmux), Node 20+, and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and logged in. deck runs the unchanged `claude` CLI in a real terminal, so your skills, hooks, MCP servers and slash commands all work as they do in a terminal.
+macOS, [tmux](https://github.com/tmux/tmux), Node 20+, and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and logged in. deck runs the unchanged `claude` CLI in a real terminal, so your skills, hooks, MCP servers and slash commands all work as they do in a terminal. Every session deck starts also gets one skill of its own, `/deck:wolfpack` (loaded from `plugin/` with `--plugin-dir`, nothing to install): once Claude has settled what to build, it splits the work into tracks that share no files and runs each as a parallel Opus subagent, and every one of them shows up as a tile under the session, so you watch the pack work.
 
 ```bash
 npm install     # also rebuilds node-pty for Electron

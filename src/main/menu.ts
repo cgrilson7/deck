@@ -55,10 +55,18 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
   if (s.defaultModel && !MODELS.some((m) => m.id === s.defaultModel)) {
     defaultModelItems.push({ label: s.defaultModel, type: 'radio', checked: true, toolTip: 'Set by hand in config.json' })
   }
+  // ⌘1–9 for the first nine slots, ⌘0 for the tenth.
   const slotItems: MenuItemConstructorOptions[] = []
   for (let n = 1; n <= CAP; n++) {
-    slotItems.push({ label: `Focus slot ${n}`, accelerator: `CmdOrCtrl+${n}`, click: () => run({ type: 'focus', slot: n }) })
+    slotItems.push({ label: `Focus slot ${n}`, accelerator: `CmdOrCtrl+${n % 10}`, click: () => run({ type: 'focus', slot: n }) })
   }
+  const gridItems: MenuItemConstructorOptions[] = [
+    ...[1, 2].map((n): MenuItemConstructorOptions => ({ label: `${n} column${n === 1 ? '' : 's'} each side`, type: 'radio', checked: s.gridColumns === n, click: () => patch({ gridColumns: n }) })),
+    { type: 'separator' },
+    ...[2, 3, 4, 5, 6].map((n): MenuItemConstructorOptions => ({ label: `${n} rows`, type: 'radio', checked: s.gridRows === n, click: () => patch({ gridRows: n }) })),
+    { type: 'separator' },
+    { label: 'Reset Layout (unpin every tile)', enabled: s.gridLayout.some(Boolean), click: () => patch({ gridLayout: [] }) }
+  ]
 
   const template: MenuItemConstructorOptions[] = [
     {
@@ -98,6 +106,7 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
       submenu: [
         { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
         { label: 'Fox Barks', type: 'checkbox', checked: s.foxBark, click: () => patch({ foxBark: !settings().foxBark }) },
+        { label: 'Grid', submenu: gridItems },
         {
           label: 'Music',
           submenu: [

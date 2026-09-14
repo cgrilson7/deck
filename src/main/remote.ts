@@ -128,6 +128,8 @@ export class RemoteServer {
         return this.publish({ type: 'settings', settings: args[0] as never })
       case 'fox:entry':
         return this.publish({ type: 'fox', entry: args[0] as never })
+      case 'agents:update':
+        return this.publish({ type: 'agents', agents: args[0] as never })
       case 'deck:error':
         return this.publish({ type: 'error', error: String(args[0] ?? '') })
     }

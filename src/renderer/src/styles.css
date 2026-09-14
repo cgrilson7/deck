@@ -221,11 +221,15 @@ button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  /* tiles · focus · tiles; App.tsx sets the widths from `focusWidth`. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   padding: 8px;
 }
 
+.focus {
+  grid-area: 1 / 2 / 2 / 3;
+}
 .focus,
 .tile {
   display: flex;
@@ -245,31 +249,165 @@ button {
   color: var(--muted);
 }
 
+/* ---- the grid: a column of cells either side of the focus pane (Grid.tsx) ---- */
 .grid-col {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   min-height: 0;
   min-width: 0;
 }
+.grid-left {
+  grid-area: 1 / 1 / 2 / 2;
+}
+.grid-right {
+  grid-area: 1 / 3 / 2 / 4;
+}
 .grid {
-  flex: var(--rows) 1 0;
+  flex: 1 1 0;
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+  grid-auto-flow: column; /* down a column, then the next: the order the cells are numbered in */
   gap: 8px;
   min-height: 0;
   min-width: 0;
 }
-/* Plugin row: one grid row tall, split between whichever plugins are on. */
-.plugins {
-  flex: 1 1 0;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 8px;
+/* One cell: the tile fills it; the grip (⠿) shows on hover, top right, and is what you drag. */
+.cell {
+  position: relative;
+  display: flex;
   min-height: 0;
   min-width: 0;
+  border-radius: var(--radius);
+}
+.cell > .tile {
+  flex: 1 1 0;
+  width: 100%;
+}
+.cell-over {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.cell-over > .tile {
+  opacity: 0.6;
+}
+.grip {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  z-index: 3;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  user-select: none;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+}
+.cell:hover .grip {
+  opacity: 0.6;
+}
+.grip:hover {
+  opacity: 1 !important;
+  color: var(--ink);
+}
+.grip:active {
+  cursor: grabbing;
+}
+/* A plugin tile's ×, beside the grip. */
+.cell-x {
+  position: absolute;
+  top: 3px;
+  right: 26px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+}
+.cell:hover .cell-x {
+  opacity: 0.6;
+}
+.cell-x:hover {
+  opacity: 1 !important;
+  color: var(--blocked);
+}
+/* An agent tile has no prompt bar: the conversation gets the room. */
+.tile-body-agent .chat {
+  padding-bottom: 8px;
+}
+/* Paging: an arrow on the outer edge of each column, on hover; accent when a session needing you is that way. */
+.page-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 26px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--line);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.page-prev {
+  left: -4px;
+}
+.page-next {
+  right: -4px;
+}
+.grid-col:hover .page-arrow:not(:disabled) {
+  opacity: 0.7;
+}
+.page-arrow:hover:not(:disabled) {
+  opacity: 1 !important;
+  color: var(--ink);
+}
+.page-arrow:disabled {
+  opacity: 0 !important;
+  cursor: default;
+}
+.page-arrow.needy:not(:disabled) {
+  opacity: 1;
+  color: var(--blocked);
+  border-color: var(--blocked);
+}
+.pager {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.grid-col:hover .pager {
+  opacity: 1;
+}
+.pager-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.pager-dot.on {
+  background: var(--accent);
 }
 
 .tile {
@@ -293,6 +431,81 @@ button {
   background: transparent;
   border-style: dashed;
   cursor: default;
+}
+/* A wolfpack's beta: gold, like its fox. */
+.tile-beta,
+.focus-beta {
+  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
+}
+.slot-beta,
+.slot-pack {
+  background: #c9a227;
+  color: #fff;
+}
+.slot-pack {
+  cursor: pointer;
+  font-size: 10px;
+}
+.badge-pack {
+  cursor: pointer;
+  border-color: #c9a227;
+  color: #a6821c;
+}
+.badge-pack:hover {
+  background: color-mix(in srgb, #e5b843 20%, transparent);
+}
+/* The pack tile: the betas as small tiles, nested. */
+.tile-pack {
+  cursor: default;
+  border-color: color-mix(in srgb, #c9a227 60%, var(--line));
+}
+.tile-pack .pack-open {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+}
+.pack-mini {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--pc, 2), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+}
+.pack-mini .tile {
+  border-width: 1px;
+}
+.pack-mini .tile .pane-head {
+  padding: 2px 6px;
+  font-size: 10px;
+  gap: 5px;
+}
+.pack-mini .tile .badge {
+  display: none;
+}
+.pack-mini .tile-prompt {
+  display: none;
+}
+.pack-mini .chat {
+  font-size: 10px;
+  padding: 4px 6px 6px;
+}
+/* The pack pane: every beta full size over the right column (or the window). */
+.pack-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--pc, 2), minmax(0, 1fr));
+  grid-auto-rows: minmax(160px, 1fr);
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+}
+.doc-btn.danger:hover {
+  color: var(--blocked);
 }
 .tile-body {
   position: relative;
@@ -675,6 +888,119 @@ button {
   pointer-events: none;
 }
 
+/* ---- the picker: the + of an empty cell, as a modal of pill rows (PlusTile.tsx) ---- */
+.picker-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+.picker {
+  width: min(760px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px 16px;
+  background: var(--panel);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+.picker-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.picker-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.picker-row h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+.pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.pill:hover,
+.pill-parked:hover {
+  border-color: var(--accent);
+}
+.pill small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.pill-toggle input {
+  margin: 0;
+}
+.pill-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pill-parked {
+  padding: 0;
+  overflow: hidden;
+}
+.pill-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 6px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill-x {
+  padding: 6px 10px 6px 6px;
+  color: var(--muted);
+}
+.pill-x:hover {
+  color: var(--blocked);
+}
+.picker-opts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* ---- the + ---- */
 .tile-plus {
   position: relative;
@@ -778,12 +1104,14 @@ button {
   background: var(--bg);
 }
 
-/* ---- plugins ---- */
+/* ---- plugins: a tinted frame, so the fun tiles never pass for a session ---- */
 .tile-plugin {
   cursor: default;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .tile-plugin:hover {
-  border-color: var(--line);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
 }
 .plugin-empty {
   flex: 1;
@@ -1961,6 +2289,9 @@ button {
   --fox-frames: 6;
   --fox-ms: 2000ms;
 }
+.fox-gold {
+  background-image: var(--fox-sheet-gold);
+}
 .fox-down {
   /* one-shot: 6 jumps land on the 7th frame and hold there */
   --fox-row: 6;
@@ -2189,7 +2520,7 @@ button {
 
 /* ---- the preview pane (DocPane): laid over the grid, so the terminal stays in view ---- */
 .doc {
-  grid-area: 1 / 2 / 2 / 3;
+  grid-area: 1 / 3 / 2 / 4;
   position: relative;
   display: flex;
   min-width: 0;
@@ -2198,7 +2529,7 @@ button {
 }
 /* ⤢: the whole window, focus column included, for something wide. */
 .doc.is-wide {
-  grid-area: 1 / 1 / 2 / 3;
+  grid-area: 1 / 1 / 2 / 4;
 }
 .doc-scrim {
   position: absolute;

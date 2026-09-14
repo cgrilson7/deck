@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Smoke test for the parts that don't need Electron: login-shell env, tmux on the deck
-// socket, and `claude agents --json` parsing. Run: npm run smoke
+// socket, the plugin every session is started with, and `claude agents --json` parsing. Run: npm run smoke
 // Uses socket `deck-smoke` and a plain shell command, never a real Claude session.
 
 import { execFileSync, execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,6 +25,16 @@ const path = (envOut.match(/^PATH=(.*)$/m) || [])[1] || ''
 const has = (bin) => path.split(':').some((d) => d && existsSync(join(d, bin)))
 check('login shell PATH has claude', has('claude'))
 check('login shell PATH has tmux', has('tmux'))
+
+// 1b. the plugin handed to every session (`--plugin-dir plugin/`): manifest, skill, and the CLI it drives
+const plugin = join(root, 'plugin')
+let manifestName = ''
+try {
+  manifestName = JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).name
+} catch {}
+check('plugin manifest names the plugin "deck"', manifestName === 'deck', manifestName || 'unreadable')
+check('plugin ships skills/wolfpack/SKILL.md', existsSync(join(plugin, 'skills', 'wolfpack', 'SKILL.md')))
+check('plugin ships scripts/wolfpack.mjs', existsSync(join(plugin, 'scripts', 'wolfpack.mjs')))
 
 // 2. tmux round trip on a private socket
 const tmux = (...args) => execFileSync('tmux', ['-L', SOCK, '-f', conf, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

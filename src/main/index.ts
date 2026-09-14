@@ -27,6 +27,8 @@ import { readDoc, resolveRef } from './files'
 import { gitChanges, gitDiff } from './git'
 import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
+import { Wolfpack } from './pack'
+import { AgentTracker } from './agents'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -54,6 +56,8 @@ let store: VocabStore | null = null
 let transcripts: TranscriptWatcher | null = null
 let foxtrot: Foxtrot | null = null
 let remote: RemoteServer | null = null
+let wolfpack: Wolfpack | null = null
+let agents: AgentTracker | null = null
 
 /** A broadcast reaches the window and, relayed by channel name, every phone (main/remote.ts). */
 function send(channel: string, ...args: unknown[]): void {
@@ -150,6 +154,9 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
       case 'refreshUi':
         refreshUi()
         break
+      case 'dismissPack':
+        await manager.dismissPack(cmd.alpha, !!cmd.park)
+        break
     }
     return { ok: true }
   } catch (err) {
@@ -199,13 +206,30 @@ app.whenReady().then(async () => {
     void remote?.setEnabled(s.remote)
   })
   nativeTheme.on('updated', () => settings && win?.setBackgroundColor(windowBackground(settings.get())))
-  const tmux = new Tmux(profile, join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 'tmux.conf'), env)
+  // Files that ship beside the code: tmux.conf and the plugin (package.json `extraResources`),
+  // in the repo tree during dev and under the app's Resources once packaged.
+  const shipped = app.isPackaged ? process.resourcesPath : app.getAppPath()
+  const tmux = new Tmux(profile, join(shipped, 'tmux.conf'), env)
+  // The deck's Claude Code plugin: `--plugin-dir` on every session, so each has the wolfpack
+  // skill (`/deck:wolfpack`) and DECK_WOLFPACK points at the CLI it drives (plugin/scripts/wolfpack.mjs).
+  const pluginDir = join(shipped, 'plugin')
 
   // Foxtrot watches every session from the top bar: state and transcripts in, a running log out.
   foxtrot = new Foxtrot(userData, (e) => send('fox:entry', e))
   ipcMain.handle('fox:log', (_e, limit?: number) => foxtrot!.log(limit))
 
-  const hooks = new HooksServer(HOOK_PORT, userData, (event, payload) => manager?.onHook(event, payload))
+  // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
+  const hooks = new HooksServer(
+    HOOK_PORT,
+    userData,
+    profile,
+    join(pluginDir, 'scripts', 'wolfpack.mjs'),
+    (event, payload) => {
+      manager?.onHook(event, payload)
+      agents?.onHook(event, payload)
+    },
+    (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready')))
+  )
   await hooks.start()
 
   manager = new SessionManager({
@@ -213,34 +237,39 @@ app.whenReady().then(async () => {
     env,
     userDataDir: userData,
     hooksSettingsPath: hooks.settingsPath,
+    pluginDir,
     profile,
     defaults: () => {
       const s = settings!.get()
       return { cwd: s.defaultCwd, worktree: s.worktreeByDefault, model: s.defaultModel }
     },
-    // The changes, vocabulary and translator tiles each take a grid cell, so each costs a session slot while shown.
-    cap: () => {
-      const s = settings!.get()
-      return CAP - Number(s.showTranslate) - Number(s.showVocab) - Number(s.showGit)
-    },
+    // The grid pages, so plugin and wolfpack tiles never cost a slot: the cap is the hard one.
+    cap: () => CAP,
     events: {
       state: (state) => {
         send('deck:state', state)
         syncMenuRecent(state.recent)
         transcripts?.sync(state.open)
         foxtrot?.onState(state)
+        agents?.onState(state)
       },
       data: (id, data) => send('pty:data', id, data),
       exit: (id) => send('pty:exit', id)
     }
   })
 
+  wolfpack = new Wolfpack(manager, tmux, () => transcripts, () => agents)
+
   // Grid tiles show the conversation itself, tailed from Claude Code's transcript files.
-  transcripts = new TranscriptWatcher(join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), '.claude'), 'projects'), (t) => {
+  const projectsDir = join(env.CLAUDE_CONFIG_DIR || join(env.HOME ?? homedir(), '.claude'), 'projects')
+  transcripts = new TranscriptWatcher(projectsDir, (t) => {
     send('transcript:update', t)
     foxtrot?.onTranscript(t)
   })
   ipcMain.handle('transcript:get', (_e, id: string) => transcripts!.get(String(id ?? '')))
+  // Subagents (SubagentStart / SubagentStop hooks) become tiles under their session.
+  agents = new AgentTracker(manager, projectsDir, () => transcripts, (list) => send('agents:update', list))
+  ipcMain.handle('agents:list', () => agents!.list())
 
   ipcMain.handle('deck:getState', () => manager!.getState())
   // A dropped file that lives in a temp dir (a screenshot thumbnail, a promised file) is copied somewhere that lasts.
@@ -332,6 +361,8 @@ app.whenReady().then(async () => {
           return screen(String(args[0] ?? ''))
         case 'openPath':
           return shell.openPath(resolveRef(String(args[0] ?? '')))
+        case 'agents':
+          return agents!.list()
       }
     }
   })

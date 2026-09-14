@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { SessionStatus } from '@shared/types'
-import { Fox, type FoxAnim } from './Fox'
+import { Fox, type FoxAnim, type FoxCoat } from './Fox'
 import { BARK_EVERY_MS, BARK_LIFE_MS, BARK_SCATTER, BARK_WORDS, useBark } from '../lib/bark'
 import { useSettings } from '../lib/theme'
 
@@ -29,7 +29,7 @@ const LABEL: Record<SessionStatus, string> = {
  * (a hop and slay's three comic bursts, silent) on the transition into needing you and
  * when a turn finishes.
  */
-export function FoxStatus({ id, status, attention }: { id: string; status: SessionStatus; attention: boolean }) {
+export function FoxStatus({ id, status, attention, coat }: { id: string; status: SessionStatus; attention: boolean; /** Gold for a wolfpack's beta. */ coat?: FoxCoat }) {
   const settings = useSettings()
   const run = useBark(id, status, attention)
   const barking = run > 0 && settings.foxBark
@@ -37,7 +37,7 @@ export function FoxStatus({ id, status, attention }: { id: string; status: Sessi
   const label = needs ? `needs you (${LABEL[status]})` : LABEL[status]
   return (
     <span className={`fox-status ${barking ? 'barking' : ''}`}>
-      <Fox anim={needs ? 'alert' : POSE[status]} scale={1} title={label} />
+      <Fox anim={needs ? 'alert' : POSE[status]} scale={1} coat={coat} title={label} />
       {barking &&
         BARK_WORDS.map((word, i) => {
           const s = BARK_SCATTER[i % BARK_SCATTER.length]

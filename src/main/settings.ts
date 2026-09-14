@@ -54,6 +54,9 @@ export class SettingsStore {
   }
 }
 
+/** What a grid cell may be pinned to: a slot, a wolfpack (by its alpha's id), a plugin, the +. */
+const LAYOUT_KEY = /^(slot:\d{1,2}|pack:[0-9a-f]{6}|wiki|music|git|vocab|translate|plus)$/
+
 const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : dflt
   return Math.min(hi, Math.max(lo, n))
@@ -74,7 +77,10 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     ),
     appearance: oneOf(raw.appearance, ['system', 'light', 'dark'] as const, d.appearance),
     compact: bool(raw.compact, d.compact),
-    gridColumns: clampInt(raw.gridColumns, 1, 3, d.gridColumns),
+    // A file from before the two-sided grid had `gridColumns` meaning the whole grid's; start it over.
+    gridColumns: raw.gridRows === undefined ? d.gridColumns : clampInt(raw.gridColumns, 1, 2, d.gridColumns),
+    gridRows: clampInt(raw.gridRows, 2, 6, d.gridRows),
+    gridLayout: Array.isArray(raw.gridLayout) ? raw.gridLayout.slice(0, 64).map((k) => (typeof k === 'string' && LAYOUT_KEY.test(k) ? k : '')) : d.gridLayout,
     focusWidth: oneOf(raw.focusWidth, ['third', 'twoFifths', 'half'] as const, d.focusWidth),
     attentionFirst: bool(raw.attentionFirst, d.attentionFirst),
     confirmKill: bool(raw.confirmKill, d.confirmKill),

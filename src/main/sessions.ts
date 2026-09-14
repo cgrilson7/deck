@@ -6,7 +6,7 @@ import * as pty from 'node-pty'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type DeckState, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
+import { BETA_SLOT_BASE, type DeckState, type PackRef, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
 import { cleanModel } from '@shared/models'
 import type { FleetEntry } from './fleet'
 import type { HookEvent, HookPayload } from './hooks'
@@ -35,16 +35,35 @@ export interface SessionManagerOptions {
   env: NodeJS.ProcessEnv
   userDataDir: string
   hooksSettingsPath: string
+  /** The deck's Claude Code plugin (the wolfpack skill + its CLI), `--plugin-dir` on every session. */
+  pluginDir: string
   profile: string
   /** Live settings: where a new session starts when nothing is focused, the --worktree default, and the --model default ('' = none). */
   defaults: () => { cwd: string; worktree: boolean; model: string }
-  /** Live slot cap: CAP, minus one per plugin tile (vocabulary, translator) occupying a grid cell. */
+  /** Live slot cap for top-level sessions (CAP today; betas sit above it, see BETA_SLOT_BASE). */
   cap: () => number
   events: SessionEvents
 }
 
 const SPAWN_COLS = 120
 const SPAWN_ROWS = 40
+/** Bracketed paste lands first; ⏎ follows a beat later (what TilePrompt does in the renderer). */
+const PASTE_ENTER_MS = 40
+
+export interface NewSessionOpts {
+  cwd?: string
+  worktree?: boolean
+  /** What to hand `--model`; '' = nothing; undefined = the `defaultModel` setting. */
+  model?: string
+  /** A wolfpack beta: nested under its alpha, slotted above the ⌘ range, focus left where it is. */
+  pack?: PackRef
+  /** The CLI's `--name` (the fleet listing's name): a beta's task. */
+  name?: string
+  /** The first prompt, handed to the CLI as its positional argument so nothing races the TUI. */
+  prompt?: string
+  /** `--permission-mode`, as the CLI takes it (acceptEdits, plan, …). */
+  permissionMode?: string
+}
 /** How many start folders we remember (sessions.json) and how many of those the UI offers. */
 const RECENT_KEEP = 10
 export const RECENT_SHOW = 3
@@ -71,11 +90,15 @@ export class SessionManager {
     for (const rec of this.records) {
       const alive = await this.o.tmux.hasSession(rec.tmuxName)
       this.rt.set(rec.id, { status: alive ? 'unknown' : 'idle', attention: false, tmuxAlive: alive, title: '', userDetached: false })
-      if (rec.slot !== null && rec.slot > this.o.cap()) rec.slot = null // cap shrank since this was saved
+      if (rec.slot !== null && !rec.pack && rec.slot > this.cap()) rec.slot = null // cap shrank since this was saved
       if (rec.slot !== null) {
         if (alive) this.attach(rec.id)
         else rec.slot = null // tmux server gone (reboot); parked, resumable via --resume
       }
+    }
+    // A beta only shows inside its alpha's tile: with the alpha parked, so is the beta.
+    for (const rec of this.records) {
+      if (rec.pack && rec.slot !== null && !this.isOpen(rec.pack.alpha)) this.detach(rec.slot)
     }
     this.ensureFocus()
     this.save()
@@ -103,10 +126,14 @@ export class SessionManager {
 
   // ---- commands ----------------------------------------------------------
 
-  /** `model`: what to hand `--model`; '' = nothing; undefined = the `defaultModel` setting. */
-  async newSession(opts: { cwd?: string; worktree?: boolean; model?: string }): Promise<SessionRecord> {
-    const slot = this.freeSlot()
-    if (slot === null) throw new Error(`All ${this.o.cap()} slots are open. Close one first.`)
+  async newSession(opts: NewSessionOpts): Promise<SessionRecord> {
+    if (opts.pack) {
+      const alpha = this.records.find((r) => r.id === opts.pack!.alpha)
+      if (!alpha || alpha.slot === null) throw new Error('The alpha is not open.')
+      if (alpha.pack) throw new Error('A beta cannot run a pack of its own.')
+    }
+    const slot = opts.pack ? this.freeBetaSlot() : this.freeSlot()
+    if (slot === null) throw new Error(`All ${this.cap()} slots are open. Close one first.`)
     const defaults = this.o.defaults()
     const cwd = opts.cwd ?? this.focusedCwd() ?? defaults.cwd
     if (!existsSync(cwd)) throw new Error(`Folder does not exist: ${cwd}`)
@@ -122,17 +149,22 @@ export class SessionManager {
       model,
       createdAt: Date.now(),
       slot,
-      name: worktree ? 'new worktree' : 'new session'
+      name: opts.name || opts.pack?.task || (worktree ? 'new worktree' : 'new session'),
+      ...(opts.pack ? { pack: opts.pack } : {})
     }
     const args = ['--session-id', rec.claudeSessionId]
     if (worktree) args.push('--worktree')
     if (model) args.push('--model', model)
+    if (opts.name) args.push('--name', opts.name)
+    if (opts.permissionMode) args.push('--permission-mode', opts.permissionMode)
+    if (opts.prompt) args.push(opts.prompt)
     await this.o.tmux.newSession({ name: rec.tmuxName, cwd, command: this.claudeCommand(args), cols: SPAWN_COLS, rows: SPAWN_ROWS })
     this.records.push(rec)
-    this.touchRecent(cwd)
+    if (!opts.pack) this.touchRecent(cwd)
     this.rt.set(id, { status: 'starting', attention: false, tmuxAlive: true, title: '', userDetached: false })
     this.attach(id)
-    this.focusSlot = slot
+    // A beta joins quietly: the alpha (usually the one you are talking to) keeps the focus.
+    if (!opts.pack) this.focusSlot = slot
     this.save()
     this.broadcast()
     return rec
@@ -146,8 +178,10 @@ export class SessionManager {
       this.broadcast()
       return
     }
-    const slot = this.freeSlot()
-    if (slot === null) throw new Error(`All ${this.o.cap()} slots are open. Close one first.`)
+    // A beta whose alpha is gone comes back as a session of its own.
+    if (rec.pack && !this.isOpen(rec.pack.alpha)) delete rec.pack
+    const slot = rec.pack ? this.freeBetaSlot() : this.freeSlot()
+    if (slot === null) throw new Error(`All ${this.cap()} slots are open. Close one first.`)
     r.tmuxAlive = await this.o.tmux.hasSession(rec.tmuxName)
     if (!r.tmuxAlive) {
       if (!existsSync(rec.cwd)) throw new Error(`Folder no longer exists: ${rec.cwd}`)
@@ -165,27 +199,33 @@ export class SessionManager {
       r.tmuxAlive = true
       r.status = 'starting'
     }
-    this.touchRecent(rec.cwd)
+    if (!rec.pack) this.touchRecent(rec.cwd)
     rec.slot = slot
     this.attach(id)
-    this.focusSlot = slot
+    if (!rec.pack) this.focusSlot = slot
     this.save()
     this.broadcast()
+    // An alpha brings back the betas that are still running in tmux (a dead beta is left parked).
+    for (const beta of this.betasOf(id, false)) {
+      if (await this.o.tmux.hasSession(beta.tmuxName)) await this.resume(beta.id).catch((err) => console.warn('[deck] beta did not resume:', err))
+    }
   }
 
-  /** Close the tile; the tmux session and the Claude conversation stay resumable. */
+  /** Close the tile; the tmux session and the Claude conversation stay resumable. An alpha parks its betas too. */
   detach(slot: number): void {
     const rec = this.bySlot(slot)
     if (!rec) return
+    for (const beta of this.betasOf(rec.id)) this.detach(beta.slot!)
     const r = this.rt.get(rec.id)!
     r.userDetached = true
     if (r.pty) r.pty.kill() // handlePtyExit parks it
     else this.park(rec)
   }
 
-  /** Kill the tmux session and forget the record entirely. */
+  /** Kill the tmux session and forget the record entirely. An alpha takes its betas with it. */
   async kill(id: string): Promise<void> {
     const rec = this.get(id)
+    for (const beta of this.betasOf(id, false)) await this.kill(beta.id)
     const r = this.rt.get(id)
     if (r) {
       r.userDetached = true
@@ -193,6 +233,15 @@ export class SessionManager {
     }
     await this.o.tmux.killSession(rec.tmuxName)
     this.remove(id)
+  }
+
+  /** End a wolfpack: kill its betas, or park them so their conversations can be picked up. */
+  async dismissPack(alpha: string, park: boolean, only?: string[]): Promise<void> {
+    const betas = this.betasOf(alpha).filter((b) => !only || only.includes(b.id))
+    for (const beta of betas) {
+      if (park) this.detach(beta.slot!)
+      else await this.kill(beta.id)
+    }
   }
 
   /** Drop a parked record (does not touch tmux; use kill for that). */
@@ -235,6 +284,12 @@ export class SessionManager {
       r.attention = false
       this.broadcast()
     }
+  }
+
+  /** Paste a prompt into a session and submit it (bracketed paste, then ⏎ a beat later). */
+  paste(id: string, text: string): void {
+    this.input(id, `\x1b[200~${text}\x1b[201~`)
+    setTimeout(() => this.input(id, '\r'), PASTE_ENTER_MS)
   }
 
   resize(id: string, cols: number, rows: number): void {
@@ -337,6 +392,30 @@ export class SessionManager {
     return this.records.find((r) => r.id === id)?.cwd ?? null
   }
 
+  /** The record behind a deck id, or the one that was handed this Claude session id; null when unknown. */
+  find(ref: { id?: string; claudeSessionId?: string; tmuxName?: string }): SessionRecord | null {
+    return this.records.find((r) => (ref.id && r.id === ref.id) || (ref.claudeSessionId && r.claudeSessionId === ref.claudeSessionId) || (ref.tmuxName && r.tmuxName === ref.tmuxName)) ?? null
+  }
+
+  /** The live view of one session, null when unknown. */
+  view(id: string): SessionView | null {
+    return this.getState().open.find((s) => s.id === id) ?? this.getState().parked.find((s) => s.id === id) ?? null
+  }
+
+  /** An alpha's betas: the open ones (default), or every one it ever had, parked included. */
+  betasOf(alpha: string, openOnly = true): SessionRecord[] {
+    return this.records.filter((r) => r.pack?.alpha === alpha && (!openOnly || r.slot !== null))
+  }
+
+  isOpen(id: string): boolean {
+    const rec = this.records.find((r) => r.id === id)
+    return !!rec && rec.slot !== null
+  }
+
+  private cap(): number {
+    return this.o.cap()
+  }
+
   getState(): DeckState {
     const views: SessionView[] = this.records.map((rec) => {
       const r = this.rt.get(rec.id)
@@ -350,7 +429,7 @@ export class SessionManager {
       }
     })
     return {
-      cap: this.o.cap(),
+      cap: this.cap(),
       focusSlot: this.focusSlot,
       open: views.filter((v) => v.slot !== null).sort((a, b) => a.slot! - b.slot!),
       parked: views.filter((v) => v.slot === null).sort((a, b) => b.createdAt - a.createdAt),
@@ -372,7 +451,8 @@ export class SessionManager {
 
   private claudeCommand(args: string[]): string {
     // exec so the pane's process IS claude (clean exit → session ends → slot frees).
-    const parts = ['claude', '--settings', this.o.hooksSettingsPath, ...args]
+    // --settings merges with the user's own; --plugin-dir adds ours beside their installed plugins.
+    const parts = ['claude', '--settings', this.o.hooksSettingsPath, '--plugin-dir', this.o.pluginDir, ...args]
     return 'exec ' + parts.map(shq).join(' ')
   }
 
@@ -420,6 +500,8 @@ export class SessionManager {
       if (this.focusSlot === rec.slot) this.focusSlot = null
       rec.slot = null
     }
+    // However the alpha went (⌘W, or its Claude exiting), the betas have no tile to live in.
+    for (const beta of this.betasOf(rec.id)) this.detach(beta.slot!)
     this.ensureFocus()
     this.save()
     this.broadcast()
@@ -437,20 +519,36 @@ export class SessionManager {
 
   private ensureFocus(): void {
     if (this.focusSlot !== null && this.bySlot(this.focusSlot)) return
-    const open = this.openSorted()
+    // A top-level session before a beta, one needing you before the rest.
+    const open = this.openSorted().sort((a, b) => Number(!!a.pack) - Number(!!b.pack))
     const needy = open.find((s) => this.rt.get(s.id)?.attention)
     this.focusSlot = (needy ?? open[0])?.slot ?? null
   }
 
   private freeSlot(): number | null {
     const used = new Set(this.records.map((r) => r.slot))
-    for (let n = 1; n <= this.o.cap(); n++) if (!used.has(n)) return n
+    for (let n = 1; n <= this.cap(); n++) if (!used.has(n)) return n
     return null
+  }
+
+  /** Betas are slotted from BETA_SLOT_BASE up: sticky like the rest, outside the cap and the ⌘ keys. */
+  private freeBetaSlot(): number {
+    const used = new Set(this.records.map((r) => r.slot))
+    let n = BETA_SLOT_BASE + 1
+    while (used.has(n)) n++
+    return n
   }
 
   private focusedCwd(): string | null {
     const rec = this.focusSlot !== null ? this.bySlot(this.focusSlot) : null
     return rec && existsSync(rec.cwd) ? rec.cwd : null
+  }
+
+  /** The folder a session's pane is in now (a --worktree session's worktree), else the folder it was started in. */
+  async liveCwd(id: string): Promise<string | null> {
+    const rec = this.records.find((r) => r.id === id)
+    if (!rec) return null
+    return (await this.o.tmux.paneCwd(rec.tmuxName)) ?? rec.cwd
   }
 
   private openSorted(): SessionRecord[] {
