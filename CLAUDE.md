@@ -5,8 +5,9 @@ as a real terminal; everything else lives in two columns of tiles either side of
 side, paged (hover an outer edge for the arrows): the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
 plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, changes, vocabulary, translator),
-and any WOLFPACK — a Fable alpha's Opus betas, nested in one tile, gold foxes. Click a tile to
-swap it into focus; drag one by its grip to keep it somewhere.
+and any WOLFPACK member — a Fable alpha's Opus subagents and beta sessions, one tile EACH, gold
+foxes, a pause and a cancel-with-reason on every head. Click a tile to
+swap it into focus (a subagent's opens full size over the grid); drag one by its grip to keep it somewhere.
 The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. The same sessions are reachable from a phone (the `phone` button in the top bar: a QR code, over Tailscale). A personal tool, macOS only.
 
 ## What it is, in one paragraph
@@ -47,8 +48,10 @@ src/main/index.ts          app boot: profile, single-instance lock, window, IPC,
 src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resume, state
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
-src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door
-src/main/agents.ts         subagents as tiles: SubagentStart/Stop hooks → the list per session, their transcripts handed to the tailer
+src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door,
+                             and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
+src/main/agents.ts         subagents as tiles + THE LEASH: SubagentStart/Stop hooks → the list, names off the parent's Agent call, transcripts
+                             handed to the tailer; pause / resume / cancel of any member (subagent or beta), the alpha told in its terminal
 src/main/pack.ts           beta SESSIONS: an alpha (a session inside the deck) spawns / asks after / talks to / dismisses Opus sessions of its own
 plugin/                    the deck's Claude Code plugin, `--plugin-dir` on every session it starts (extraResources when packaged):
                              .claude-plugin/plugin.json (name `deck`), skills/wolfpack/SKILL.md (the skill, `/deck:wolfpack`),
@@ -87,8 +90,10 @@ src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and
 src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live) and the newest live one, which makes him bark
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
+src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
 src/renderer/src/components/        FocusPane, Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
-                                    PackTile (a wolfpack as one cell: subagents + beta sessions nested), AgentTile (a subagent's transcript), PackPane (the pack over the grid, every member full size),
+                                    AgentTile (a subagent as a cell of its own), AgentPane (a subagent full size over the right column), LeashButtons (⏸ ▶ ✕ on a member's head),
+                                    LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
@@ -103,7 +108,7 @@ scripts/smoke.mjs          the smoke test
 
 - **Cap = 10** (`CAP` in `src/shared/types.ts`). Slots 1..10 are sticky while open: a session keeps its
   number until parked/killed; a new session takes the lowest free slot. ⌘1–9 = focus slots 1–9,
-  ⌘0 = slot 10. Plugin and wolfpack tiles cost no slot: the grid pages. A config.json from
+  ⌘0 = slot 10. Plugin and wolfpack member tiles cost no slot: the grid pages. A config.json from
   before the two-sided grid (no `gridRows`) has its `gridColumns` reset, since it meant the whole
   grid's columns then. A saved record whose slot
   is above the cap is parked on load. Betas (below) sit at `BETA_SLOT_BASE` (100) and up: sticky
@@ -112,70 +117,103 @@ scripts/smoke.mjs          the smoke test
   tiles · focus · tiles; `focusWidth` sets the center's share), each `gridColumns` (1) wide and
   `gridRows` (4) tall, so a PAGE is eight tiles around the center; cells are numbered down the
   left column, then down the right (`grid-auto-flow: column`), then the next page. SESSIONS
-  ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`); they are never
-  pinned and have no grip. After the session block come the wolfpacks and the plugins
+  ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`), and the wolfpack
+  MEMBERS (each beta session and each subagent, a cell apiece) right behind them; that block
+  is never pinned and has no grip. After it come the plugins
   (`pluginCells()`: wiki, music, git, vocab, translate; compact mode drops the first two), into
   the free cells, except where one is pinned (`gridLayout` in config.json: cell index across
-  pages → a plugin key / `pack:<alpha id>`; a pin inside the session block waits until the
-  sessions leave it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
+  pages → a plugin key; a pin inside the block waits until the
+  block shrinks past it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
   unpins). Every EMPTY cell is a `+` (`PlusTile` with its cell index) that opens the PICKER, a
   modal over the window of pill rows that scroll sideways: the mini apps (turned on if off,
   pinned to that cell either way; one already showing says "move here"), and below the cap a
   session (the focused folder, recents, a folder picker; a worktree toggle and the model row)
   and the parked ones to resume — a session takes its place in the block, not the cell. A full
-  last page grows one more while a session can still be added. A plugin or pack tile's grip (⠿,
-  top right on hover) drags it onto another non-session cell and both are pinned; a plugin
-  tile's × (beside the grip) turns its setting off. Hover a column and its outer-edge arrow
+  last page grows one more while a session can still be added. A plugin tile's grip (⠿,
+  top right on hover) drags it onto another plugin or empty cell and both are pinned; its
+  × (beside the grip) turns its setting off. Hover a column and its outer-edge arrow
   pages (accent when a session needing you is that way); dots at the foot of the right column
   jump. Plugin tiles wear an accent-tinted frame
-  (`.tile-plugin`) so they never pass for a session. The preview pane, Foxtrot's log and a pack
+  (`.tile-plugin`) so they never pass for a session. The preview pane, Foxtrot's log and the agent
   pane open over the RIGHT column (`.doc`, grid column 3; ⤢ = the whole window).
-- **Wolfpack** (`plugin/skills/wolfpack/`, `PackTile`, `AgentTile`, `PackPane`): a session
-  (the ALPHA, Fable as a rule) and the Opus agents doing its typing, every one a tile under
-  the alpha's PACK TILE. The skill reaches every session as `/deck:wolfpack` because the deck
-  starts each one with `--plugin-dir <plugin/>` (beside `--settings`), so no repo and no user
-  needs a copy of it; outside the deck it does not exist, which is right — it can do nothing
-  there. Two kinds of member, one tile treatment (β, gold fox, gold border):
+- **Wolfpack** (`plugin/skills/wolfpack/`, `main/agents.ts`, `AgentTile`, `AgentPane`, `LeashButtons`,
+  `LeashDialog`, `lib/leash.ts`): a session (the ALPHA, Fable as a rule) and the Opus agents
+  doing its typing, EVERY ONE A GRID CELL OF ITS OWN, right after the sessions (grouped by
+  alpha in slot order, its betas needing you first, then its subagents as they started; part
+  of the unpinnable block like the sessions; never nested, no pack tile, no pack pane). The
+  skill reaches every session as `/deck:wolfpack` because the deck starts each one with
+  `--plugin-dir <plugin/>` (beside `--settings`), so no repo and no user needs a copy of it;
+  outside the deck it does not exist, which is right — it can do nothing there. Two kinds of
+  member, one tile treatment (β, gold fox, gold border) and ONE LEASH (below):
   - **Subagents** (`main/agents.ts`; the canonical pack): whatever the session runs through
-    the Agent tool or a Workflow. The CLI's documented `SubagentStart` / `SubagentStop` hooks
-    (payload: `agent_id`, `agent_type`, and on stop `agent_transcript_path` +
-    `last_assistant_message`) are in our `--settings` hooks file and POST to the hooks server;
-    the tracker keeps the list per parent and hands each agent's transcript
+    the Agent tool or a Workflow, at the root or inside one. The CLI's `SubagentStart` /
+    `SubagentStop` hooks (payload: `agent_id`, `agent_type`; the stop adds
+    `agent_transcript_path` + `last_assistant_message` — NO description or task, whatever
+    older notes said) are in our `--settings` hooks file and POST to the hooks server; the
+    tracker keeps the list and hands each agent's transcript
     (`<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl`, the documented place, the same
     JSONL as a session's — its lines are all `isSidechain`, which the tailer accepts for these)
-    to the TranscriptWatcher under `agent:<id>`, so `ChatView` shows it unchanged. No terminal,
-    nothing to type into: it is the parent's. Broadcast as `agents:update` (`DeckApi.agents` /
-    `onAgents`; the phone gets the frame). A finished agent stays until the parent's next TYPED
+    to the TranscriptWatcher under `agent:<id>`, so `ChatView` shows it unchanged. NAMES: the
+    parent's own `PreToolUse` for the `Agent` tool carries `description`, `prompt`, `model`
+    and `run_in_background`; the tracker queues those per session and matches the next
+    `SubagentStart` of the same type to the oldest (the CLI starts them in order), so the tile
+    is named by the Agent call's description; a Workflow's agents (no Agent call) take the
+    prompt's first line once the transcript shows it, else the type. A stop (or a tool call)
+    for an agent never seen to start still makes a tile. No terminal, nothing to type into:
+    it is the parent's. Click = the AGENT PANE over the right column (the `.doc` slot, one
+    pane at a time with the preview and Foxtrot's log; ⤢ = the whole window): the whole
+    conversation full size, its type / model / background, an `α<slot>` button to focus the
+    parent, and the leash. Broadcast as `agents:update` (`DeckApi.agents` / `onAgents`; the
+    phone gets the frame and shows each one as a gold β chip and a swipe page after its
+    parent, the leash under ⋯). A finished agent stays until the parent's next TYPED
     prompt — the CLI also fires `UserPromptSubmit` when a background agent's result comes back
     as a `<task-notification>` turn, and that one must not clear the pack — or 30 min, 12 per
-    parent. `userData/hooks.log` has one line per hook that arrived (capped at 1MB at boot).
+    parent, or its × (`agentDismiss`). `userData/hooks.log` has one line per hook that
+    arrived (capped at 1MB at boot; tool calls are logged only when refused).
   - **Beta sessions** (`main/pack.ts`, `plugin/scripts/wolfpack.mjs`): for a track that needs its own
     terminal, permission mode, or a life beyond the alpha's. The alpha spawns up to
     `PACK_MAX` (8) of them — Opus by default — as deck sessions of their own, each
   `claude --name <task> --model opus [--permission-mode m] [--worktree] "<prompt>"` (the prompt is
   the CLI's positional first prompt, so nothing races the TUI). A beta's record carries
   `pack: { alpha, task }`; it is open (attached, transcript tailed, hooks, fleet) but it is not a
-  top-level session: no cell of its own, never focused by ⌘, the focus stays on the alpha when
-  it spawns. It shows a `β` and the GOLD fox (`Fox coat="gold"`: the sheet with slay's yellow
-  ramp swapped in for the two coat colors, generated on a canvas at boot, `--fox-sheet-gold`) in
-  its head and a gold border, and lives in the alpha's PACK TILE — one cell, `α<slot>` on the
-  head (click = focus the alpha), the betas as small tiles (conversation, click = focus; no
-  prompt bar at that size), ⤢ = the PACK PANE over the right column with every beta full size,
-  a prompt bar each, and park-all / dismiss. The alpha's own tile (or the focus pane) is
-  untouched; the pack tile stands beside it. Cascades: parking the alpha (⌘W, or its Claude
+  top-level session: never focused by ⌘, the focus stays on the alpha when it spawns, and it
+  takes no slot in the ⌘ range (`BETA_SLOT_BASE`). It shows a `β` and the GOLD fox (`Fox
+  coat="gold"`: the sheet with slay's yellow ramp swapped in for the two coat colors, generated
+  on a canvas at boot, `--fox-sheet-gold`) in its head and a gold border, in a cell of its own
+  (a real `Tile`: conversation, prompt bar, click = focus its terminal; the focus pane's head
+  says `pack of <slot>`, click = the alpha). Cascades: parking the alpha (⌘W, or its Claude
   exiting) parks the betas; killing it kills them; resuming it resumes the betas still alive in
   tmux; a beta resumed on its own after its alpha is gone becomes an ordinary session. The
   alpha talks to the deck over the hooks server: `POST 127.0.0.1:<hook port>/pack` with
   `{ op, alpha: <CLAUDE_CODE_SESSION_ID>, pane: <$TMUX_PANE> }` — `spawn` (a manifest of betas),
   `status` (status, attention, transcript path, last prose / tool line, and its own subagents,
-  per beta, plus the alpha's subagents), `say` (paste + ⏎ into one), `dismiss` (kill, or
-  `park`); the settings file now also sets `DECK_HOOK_PORT` / `DECK_PROFILE` / `DECK_WOLFPACK`
-  (the script's absolute path, repo tree or app Resources) in every session's env, and the
-  script falls back to the tmux socket's name for the port. Only an
-  open, top-level session may spawn (a beta cannot). Foxtrot names a beta `beta “task”`; the
-  phone shows it as a β chip.
-  The pack tile shows subagents first, then beta sessions; the pack pane's park / dismiss act
-  on beta sessions only (subagents are the alpha's own).
+  per beta, plus the alpha's subagents with their leash state), `say` (paste + ⏎ into one),
+  `dismiss` (kill, or `park`); the settings file now also sets `DECK_HOOK_PORT` / `DECK_PROFILE`
+  / `DECK_WOLFPACK` (the script's absolute path, repo tree or app Resources) in every session's
+  env, and the script falls back to the tmux socket's name for the port. Only an open,
+  top-level session may spawn (a beta cannot). Foxtrot names a beta `beta “task”`.
+  - **The leash** (`main/agents.ts`, the `PreToolUse` hook in `main/hooks.ts`; commands
+    `leashPause` / `leashResume` / `leashCancel` with a subagent's id or a beta's deck id):
+    EVERY tool call of EVERY deck session POSTs `/pretool` first (the hook's command is
+    `curl -m 3600` with `timeout: 3600`, and whatever the server answers is the hook's
+    stdout; no deck listening = curl fails at once = the call goes through; the payload
+    carries `agent_id` when the call is a subagent's, verified). Normally the answer is a 204
+    at once. PAUSE (⏸ on the head; the dialog takes an optional note) holds the member's next
+    tool call: the response waits until ▶ resume (`held` on the view says it has bitten; the
+    fox sits up alert), at most the hour. CANCEL (✕; the dialog REQUIRES a reason) refuses the
+    member's tool calls from then on with a PreToolUse `deny` decision carrying the reason,
+    which the agent reads as its tool result and returns early on (verified end to end: the
+    parent gets "I was cancelled: <reason>"); a beta is killed a beat later. Both are TOLD TO
+    THE ALPHA by typing into its terminal (`manager.paste`: a message typed while Claude works
+    is delivered at the next tool boundary within the same turn — documented): a pause only
+    with a note (and then the resume too), a cancel always, as `[deck] The user cancelled your
+    subagent “name” … Reason: … fix its brief and relaunch it, fold the track into another
+    agent, or drop it — and say which`. The skill tells the alpha how to take these. A
+    finished agent's ✕ only dismisses its tile. The dialog is one component (`LeashDialog`,
+    the picker's frame) raised through `lib/leash.ts` (a window event, like a path opening the
+    preview) from a tile head, the agent pane, or a beta's focus pane; the phone uses a plain
+    prompt. A paused beta shows `paused` on its view (`SessionView.paused`, set by
+    `manager.setPaused`).
 - **Plugins**: Wikipedia = the picture of the day (the featured feed's `image`), full bleed,
   click opens its file page via `deck:openExternal` (http(s) only). It rotates: every 2 minutes
   (`CYCLE_MS` in `WikiTile`) a random day's picture from the archive (2016 on, the feed is empty
@@ -424,8 +462,11 @@ scripts/smoke.mjs          the smoke test
   ours (`randomUUID()`), which is how fleet rows and hook payloads are matched back to a tile.
   `--worktree` lets Claude create/clean the worktree itself under `<repo>/.claude/worktrees/`.
 - **`--settings` merges** with the user's own settings (list keys combine), so any global
-  Notification/Stop hooks the user has keep firing inside deck sessions. Our hooks file only adds POSTs to
-  `127.0.0.1:<port>/{notification,stop,prompt}`; it must never block Claude (`; exit 0`).
+  Notification/Stop hooks the user has keep firing inside deck sessions. Our hooks file adds POSTs to
+  `127.0.0.1:<port>/{notification,stop,prompt,subagent-start,subagent-stop}` that never block
+  Claude (`-m 2`, `; exit 0`), and ONE that may, on purpose: `PreToolUse` → `/pretool`, the
+  leash (see Wolfpack), whose stdout is the server's answer and which waits only while the
+  user has that member paused.
 - **Status** = fleet poll (truth) + hooks (instant). Notification → attention; Stop → attention
   + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention. Shown by
   Foxtrot's pose in the pane head (see Foxtrot), not a dot.
@@ -499,7 +540,7 @@ scripts/smoke.mjs          the smoke test
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
-- `hooks.log` — one line per hook request the hooks server got (event, session, agent); starts over past 1MB
+- `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridLayout, focusWidth, fonts, plugins, defaultCwd, defaultModel,

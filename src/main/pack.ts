@@ -1,6 +1,6 @@
 // The wolfpack: an alpha (a session inside the deck, Fable as a rule) spawns betas (Opus
-// sessions, one per track of work), each a real deck session nested under the alpha's pack
-// tile, and later asks after them, talks to them, and dismisses them. The calls come over the
+// sessions, one per track of work), each a real deck session in a grid cell of its own behind
+// the sessions, and later asks after them, talks to them, and dismisses them. The calls come over the
 // hooks server (`POST /pack`, hooks.ts) from scripts/wolfpack.mjs, run by the alpha's own Bash
 // tool, which identifies itself by CLAUDE_CODE_SESSION_ID (the UUID handed to --session-id)
 // or, failing that, by its tmux pane.

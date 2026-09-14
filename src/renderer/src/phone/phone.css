@@ -84,6 +84,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A subagent's chip: gold, like its fox. */
+.ph-chip.ph-chip-agent {
+  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
+}
 .ph-chip.ph-plus {
   width: 34px;
   padding: 0;
@@ -260,6 +264,33 @@ body {
   margin: 12px 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* a subagent's page: the leash's word at the top, its type and state along the bar */
+.ph-agent-note {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 13px;
+}
+.ph-agent-note.is-cancel {
+  color: var(--blocked);
+}
+.ph-page-agent {
+  display: flex;
+  flex-direction: column;
+}
+.ph-bar-agent {
+  align-items: center;
+}
+.ph-agent-who {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* bottom sheets (+ and ⋯) */

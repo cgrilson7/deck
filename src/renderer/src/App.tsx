@@ -5,13 +5,14 @@ import { DocPane } from './components/DocPane'
 import { FocusPane } from './components/FocusPane'
 import { FoxHead } from './components/FoxHead'
 import { FoxLog } from './components/FoxLog'
-import { Grid } from './components/Grid'
-import { PackPane } from './components/PackPane'
-import type { Pack } from './components/PackTile'
+import { Grid, type Member } from './components/Grid'
+import { AgentPane } from './components/AgentPane'
+import { LeashDialog } from './components/LeashDialog'
 import { PhonePair } from './components/PhonePair'
 import { ThemeControls } from './components/ThemeControls'
 import { dispose, liveIds } from './lib/terminals'
 import { onOpenDoc, type DocRef } from './lib/paths'
+import { onLeash, type LeashAsk } from './lib/leash'
 import { useFoxLog } from './lib/foxlog'
 import { useSettings } from './lib/theme'
 
@@ -31,11 +32,13 @@ export default function App() {
   const [doc, setDoc] = useState<DocRef | null>(null)
   // Foxtrot's whole log, over the grid like the file preview. One pane at a time: opening either closes the other.
   const [foxOpen, setFoxOpen] = useState(false)
-  // A wolfpack tapped into: its alpha's id, and the pane shows every beta full size.
-  const [packOpen, setPackOpen] = useState<string | null>(null)
+  // A subagent tapped into: its id, and the agent pane shows its conversation full size with the leash.
+  const [agentOpen, setAgentOpen] = useState<string | null>(null)
+  // The leash dialog: a cancel asking for its reason, a pause for a note.
+  const [leash, setLeash] = useState<LeashAsk | null>(null)
   const fox = useFoxLog()
   const settings = useSettings()
-  // Subagents of every open session (SubagentStart / SubagentStop hooks), for the pack tiles.
+  // Subagents of every open session (SubagentStart / SubagentStop hooks), each a tile of its own.
   const [agents, setAgents] = useState<AgentView[]>([])
 
   useEffect(() => {
@@ -53,11 +56,12 @@ export default function App() {
         setThemeOpen(false)
         setDoc(null)
         setFoxOpen(false)
-        setPackOpen(null)
+        setAgentOpen(null)
+        setLeash(null)
       }
       if (ev.type === 'toggleFoxLog') {
         setDoc(null)
-        setPackOpen(null)
+        setAgentOpen(null)
         setFoxOpen((v) => !v)
       }
     })
@@ -65,15 +69,17 @@ export default function App() {
     const offAgents = window.deck.onAgents(setAgents)
     const offDoc = onOpenDoc((r) => {
       setFoxOpen(false)
-      setPackOpen(null)
+      setAgentOpen(null)
       setDoc(r)
     })
+    const offLeash = onLeash(setLeash)
     return () => {
       offState()
       offErr()
       offUi()
       offDoc()
       offAgents()
+      offLeash()
       window.clearTimeout(t)
     }
   }, [])
@@ -88,17 +94,21 @@ export default function App() {
   if (!state) return <div className="boot">deck</div>
 
   const focused = state.open.find((s) => s.slot === state.focusSlot) ?? null
-  // Betas live inside their alpha's pack tile, never in a cell of their own.
+  // Top-level sessions hold the ⌘ slots; a wolfpack's members (betas, subagents) are cells of their own behind them.
   const top = state.open.filter((s) => !s.pack)
   const betas = state.open.filter((s) => s.pack)
   const others = top
     .filter((s) => s.slot !== state.focusSlot)
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
-  const packs: Pack[] = top
-    .map((alpha) => ({ alpha, betas: betas.filter((b) => b.pack!.alpha === alpha.id), agents: agents.filter((a) => a.parent === alpha.id) }))
-    .filter((p) => p.betas.length + p.agents.length > 0)
+  // Members grouped by alpha (in slot order), each group's betas needing you first, then subagents as they started.
+  const members: Member[] = []
+  for (const alpha of [...top].sort((a, b) => a.slot! - b.slot!)) {
+    for (const b of betas.filter((b) => b.pack!.alpha === alpha.id && b.slot !== state.focusSlot).sort((a, b) => Number(b.attention) - Number(a.attention) || a.slot! - b.slot!))
+      members.push({ kind: 'beta', session: b })
+    for (const a of agents.filter((a) => a.parent === alpha.id)) members.push({ kind: 'agent', agent: a, parent: alpha })
+  }
   const alphaOf = focused?.pack ? (top.find((a) => a.id === focused.pack!.alpha) ?? null) : null
-  const openPack = packOpen ? (packs.find((p) => p.alpha.id === packOpen) ?? null) : null
+  const openAgent = agentOpen ? (agents.find((a) => a.id === agentOpen) ?? null) : null
   const needy = state.open.filter((s) => s.attention && s.slot !== state.focusSlot).length
 
   return (
@@ -144,20 +154,21 @@ export default function App() {
         <FocusPane session={focused} recent={state.recent} alpha={alphaOf} />
         <Grid
           sessions={others}
-          packs={packs}
+          members={members}
           state={state}
           settings={settings}
-          onOpenPack={(id) => {
+          onOpenAgent={(id) => {
             setDoc(null)
             setFoxOpen(false)
-            setPackOpen(id)
+            setAgentOpen(id)
           }}
         />
         {/* Over the right column, never over the terminal: read the file while the session keeps going. */}
         {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
         {foxOpen && <FoxLog state={state} entries={fox.entries} onClose={() => setFoxOpen(false)} />}
-        {openPack && <PackPane pack={openPack} onClose={() => setPackOpen(null)} />}
+        {openAgent && <AgentPane agent={openAgent} parent={top.find((s) => s.id === openAgent.parent) ?? null} onClose={() => setAgentOpen(null)} />}
       </main>
+      {leash && <LeashDialog ask={leash} onClose={() => setLeash(null)} />}
     </div>
   )
 }

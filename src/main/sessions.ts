@@ -19,6 +19,8 @@ interface Runtime {
   title: string
   pty?: pty.IPty
   userDetached: boolean
+  /** A beta paused from the deck (main/agents.ts holds its tool calls); shown on the view. */
+  paused?: boolean
   /** Last size the renderer asked for, so a reattach starts at the right size. */
   cols?: number
   rows?: number
@@ -55,7 +57,7 @@ export interface NewSessionOpts {
   worktree?: boolean
   /** What to hand `--model`; '' = nothing; undefined = the `defaultModel` setting. */
   model?: string
-  /** A wolfpack beta: nested under its alpha, slotted above the ⌘ range, focus left where it is. */
+  /** A wolfpack beta: a cell of its own behind the sessions, slotted above the ⌘ range, focus left where it is. */
   pack?: PackRef
   /** The CLI's `--name` (the fleet listing's name): a beta's task. */
   name?: string
@@ -286,6 +288,14 @@ export class SessionManager {
     }
   }
 
+  /** The leash's paused flag on a session's view (the tracker holds the tool calls; this only shows it). */
+  setPaused(id: string, on: boolean): void {
+    const r = this.rt.get(id)
+    if (!r || !!r.paused === on) return
+    r.paused = on
+    this.broadcast()
+  }
+
   /** Paste a prompt into a session and submit it (bracketed paste, then ⏎ a beat later). */
   paste(id: string, text: string): void {
     this.input(id, `\x1b[200~${text}\x1b[201~`)
@@ -425,7 +435,8 @@ export class SessionManager {
         status: r?.status ?? 'unknown',
         attention: r?.attention ?? false,
         attached: !!r?.pty,
-        tmuxAlive: r?.tmuxAlive ?? false
+        tmuxAlive: r?.tmuxAlive ?? false,
+        paused: r?.paused ?? false
       }
     })
     return {

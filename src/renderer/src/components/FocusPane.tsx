@@ -5,6 +5,8 @@ import { TermHost } from './TermHost'
 import { Fox } from './Fox'
 import { shortPath } from '../lib/format'
 import { useDropTarget } from './useDropTarget'
+import { LeashButtons } from './LeashButtons'
+import { leashOfBeta } from '../lib/leash'
 
 export function FocusPane({ session, recent, alpha }: { session: SessionView | null; recent: string[]; /** For a beta: its alpha, so the head can say whose it is. */ alpha?: SessionView | null }) {
   if (!session) {
@@ -52,10 +54,12 @@ export function FocusPane({ session, recent, alpha }: { session: SessionView | n
             {modelLabel(s.model)}
           </span>
         )}
+        {s.paused && <span className="badge badge-state is-paused">paused</span>}
         <span className="cwd" title={s.cwd}>
           {shortPath(s.cwd)}
         </span>
         <span className="spacer" />
+        {beta && <LeashButtons target={leashOfBeta(s)} paused={s.paused} />}
         <button className="ghost" title="Close tile, keep the session (⌘W)" onClick={() => window.deck.command({ type: 'detach', slot: s.slot! })}>
           park
         </button>

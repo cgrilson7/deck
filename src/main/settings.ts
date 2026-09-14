@@ -54,7 +54,7 @@ export class SettingsStore {
   }
 }
 
-/** What a grid cell may be pinned to: a slot, a wolfpack (by its alpha's id), a plugin, the +. */
+/** What a grid cell may be pinned to: a plugin, the + (older keys — a slot, a pack — are read and never matched). */
 const LAYOUT_KEY = /^(slot:\d{1,2}|pack:[0-9a-f]{6}|wiki|music|git|vocab|translate|plus)$/
 
 const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {

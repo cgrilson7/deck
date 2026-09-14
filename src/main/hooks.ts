@@ -7,12 +7,25 @@
 // settings file also sets DECK_HOOK_PORT / DECK_PROFILE in every session's environment, so
 // plugin/scripts/wolfpack.mjs knows which deck it is in, and DECK_WOLFPACK — that script's
 // absolute path — so the skill runs it the same way from the repo tree or the packaged app.
+//
+// And it is the LEASH on the pack (main/agents.ts): every tool call of every session POSTs
+// /pretool (the PreToolUse hook; inside a subagent the payload carries `agent_id`) and the
+// hook's stdout is whatever this server answers. Normally nothing (204, at once). A paused
+// member's call is HELD — the response waits until it is resumed (its hook timeout is an hour) —
+// and a cancelled member's call is refused with a PreToolUse `deny` decision carrying the
+// user's reason, which is what the agent then reads as its tool result.
+
 
 import { createServer, type Server } from 'node:http'
 import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export type HookEvent = 'Notification' | 'Stop' | 'UserPromptSubmit' | 'SubagentStart' | 'SubagentStop'
+export type HookEvent = 'Notification' | 'Stop' | 'UserPromptSubmit' | 'SubagentStart' | 'SubagentStop' | 'PreToolUse'
+
+/** What a PreToolUse hook may answer (hooks-guide: `permissionDecision` deny cancels the call and hands Claude the reason). */
+export interface PreToolDecision {
+  hookSpecificOutput: { hookEventName: 'PreToolUse'; permissionDecision: 'deny'; permissionDecisionReason: string }
+}
 
 export interface HookPayload {
   session_id?: string
@@ -23,13 +36,17 @@ export interface HookPayload {
   transcript_path?: string
   /** UserPromptSubmit: what was submitted. A background agent's result comes back as one too, starting with `<task-notification>`. */
   prompt?: string
-  /** SubagentStart / SubagentStop (main/agents.ts). */
+  /** SubagentStart / SubagentStop, and every hook fired INSIDE a subagent (PreToolUse included): which one. */
   agent_id?: string
   agent_type?: string
-  agent_description?: string
-  task_description?: string
+  /** SubagentStop: the subagent's own transcript (`transcript_path` is always the session's). */
+  agent_transcript_path?: string
   last_assistant_message?: string
   stop_reason?: string
+  /** PreToolUse: the call. The parent's `Agent` call is where a subagent's description, prompt and model are seen. */
+  tool_name?: string
+  tool_input?: Record<string, unknown>
+  tool_use_id?: string
 }
 
 const EVENTS: Record<string, HookEvent> = {
@@ -37,8 +54,12 @@ const EVENTS: Record<string, HookEvent> = {
   stop: 'Stop',
   prompt: 'UserPromptSubmit',
   'subagent-start': 'SubagentStart',
-  'subagent-stop': 'SubagentStop'
+  'subagent-stop': 'SubagentStop',
+  pretool: 'PreToolUse'
 }
+
+/** How long a held tool call may wait (the pause), in seconds: the hook's timeout and curl's. */
+const HOLD_MAX_S = 3600
 
 /** hooks.log starts over past this size (at boot). */
 const LOG_MAX = 1 << 20
@@ -55,7 +76,12 @@ export class HooksServer {
     private readonly wolfpackScript: string,
     private readonly onEvent: (event: HookEvent, payload: HookPayload) => void,
     /** `POST /pack`: the body, parsed; the result goes back as JSON (an Error = 400 with its message). */
-    private readonly onPack: (body: unknown) => Promise<unknown>
+    private readonly onPack: (body: unknown) => Promise<unknown>,
+    /**
+     * `POST /pretool`: the decision on a tool call. Resolves to null = let it through (at once, as a
+     * rule; late, for a paused member), or a deny decision; `gone` fires if the caller hung up first.
+     */
+    private readonly onPreTool: (payload: HookPayload, gone: (cb: () => void) => void) => Promise<PreToolDecision | null>
   ) {
     this.settingsPath = join(userDataDir, 'claude-hooks.json')
     this.logPath = join(userDataDir, 'hooks.log')
@@ -89,15 +115,28 @@ export class HooksServer {
         }
       ]
     })
+    // The leash: the answer (nothing, or a deny decision) IS the hook's stdout, and a held call
+    // waits on the response. No deck listening = curl fails at once = the call goes through.
+    const ask = (path: string) => ({
+      hooks: [
+        {
+          type: 'command',
+          command: `curl -s -m ${HOLD_MAX_S} -X POST http://127.0.0.1:${this.port}/${path} -H 'content-type: application/json' --data-binary @- 2>/dev/null; exit 0`,
+          timeout: HOLD_MAX_S
+        }
+      ]
+    })
     const settings = {
       env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
         UserPromptSubmit: [post('prompt')],
-        // Subagents (the Agent tool, a Workflow) become tiles under their session: main/agents.ts.
+        // Subagents (the Agent tool, a Workflow) become tiles of their own: main/agents.ts.
         SubagentStart: [post('subagent-start')],
-        SubagentStop: [post('subagent-stop')]
+        SubagentStop: [post('subagent-stop')],
+        // Every tool call asks the deck first: a paused member waits here, a cancelled one is refused.
+        PreToolUse: [ask('pretool')]
       }
     }
     writeFileSync(this.settingsPath, JSON.stringify(settings, null, 2))
@@ -115,6 +154,30 @@ export class HooksServer {
             payload = JSON.parse(body || '{}')
           } catch {
             /* ignore malformed */
+          }
+          if (path === 'pretool') {
+            // The leash. Nothing to say = 204 at once; a hold = the response waits; a refusal = the decision as JSON.
+            const p = (payload ?? {}) as HookPayload
+            void this.onPreTool(p, (cb) => req.on('close', cb)).then(
+              (decision) => {
+                if (res.writableEnded) return
+                if (!decision) {
+                  res.statusCode = 204
+                  res.end()
+                  return
+                }
+                this.log('pretool:deny', p)
+                res.statusCode = 200
+                res.setHeader('content-type', 'application/json')
+                res.end(JSON.stringify(decision))
+              },
+              () => {
+                if (res.writableEnded) return
+                res.statusCode = 204
+                res.end()
+              }
+            )
+            return
           }
           this.log(path, payload)
           if (path === 'pack') {

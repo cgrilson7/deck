@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { pageSize, pluginCells, type DeckSettings, type DeckState, type PluginKey, type SessionView } from '@shared/types'
+import { pageSize, pluginCells, type AgentView, type DeckSettings, type DeckState, type PluginKey, type SessionView } from '@shared/types'
 import { GitTile } from './GitTile'
 import { PLUGINS, PlusTile } from './PlusTile'
 import { Tile } from './Tile'
@@ -8,8 +8,11 @@ import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
-import { PackTile, type Pack } from './PackTile'
+import { AgentTile } from './AgentTile'
 import { patchSettings } from '../lib/theme'
+
+/** A wolfpack's members, each a cell of its own: a subagent (no terminal; the agent pane on click) or a beta session (a real tile). */
+export type Member = { kind: 'agent'; agent: AgentView; parent: SessionView | null } | { kind: 'beta'; session: SessionView }
 
 /**
  * The grid: two columns of tiles either side of the focus pane, `gridColumns` wide and
@@ -17,7 +20,9 @@ import { patchSettings } from '../lib/theme'
  * make a page; the rest page on, and the arrows show on hover at the outer edges (an arrow
  * turns accent when a session needing you is on another page). SESSIONS ALWAYS COME FIRST, in
  * order (needing you first, then by slot), filling the left column top to bottom, then the
- * right, then the next page — they are never pinned. After them the wolfpacks and the plugins
+ * right, then the next page — they are never pinned. Right after them, the same way, come the
+ * WOLFPACK MEMBERS, one cell each: every subagent and every beta session (grouped by alpha, in
+ * the order they started; never nested, never pinned). Then the plugins
  * flow into the free cells, except where one is pinned (`gridLayout`, a setting: a mini app
  * picked from an empty cell's +, or a drag by the grip ⠿ that shows on hover; a pin inside the
  * session block is deferred until the sessions leave it; View ▸ Grid ▸ Reset Layout unpins).
@@ -25,7 +30,7 @@ import { patchSettings } from '../lib/theme'
  * a plugin tile's × puts it away. Plugin tiles wear a tinted frame so they never pass for a
  * session.
  */
-export function Grid({ sessions, packs, state, settings, onOpenPack }: { sessions: SessionView[]; packs: Pack[]; state: DeckState; settings: DeckSettings; onOpenPack: (alphaId: string) => void }) {
+export function Grid({ sessions, members, state, settings, onOpenAgent }: { sessions: SessionView[]; members: Member[]; state: DeckState; settings: DeckSettings; onOpenAgent: (id: string) => void }) {
   const per = pageSize(settings)
   const half = settings.gridColumns * settings.gridRows
   const focused = state.open.find((s) => s.slot === state.focusSlot) ?? null
@@ -38,13 +43,12 @@ export function Grid({ sessions, packs, state, settings, onOpenPack }: { session
       needy: s.attention || s.status === 'blocked',
       node: <Tile session={s} />
     }))
-    for (const p of packs)
-      out.push({
-        key: `pack:${p.alpha.id}`,
-        kind: 'pack',
-        needy: p.betas.some((b) => b.attention || b.status === 'blocked'),
-        node: <PackTile pack={p} onOpen={() => onOpenPack(p.alpha.id)} />
-      })
+    for (const m of members)
+      out.push(
+        m.kind === 'beta'
+          ? { key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> }
+          : { key: `agent:${m.agent.id}`, kind: 'member', needy: false, node: <AgentTile agent={m.agent} parent={m.parent} onOpen={() => onOpenAgent(m.agent.id)} /> }
+      )
     for (const k of pluginCells(settings))
       out.push({
         key: k,
@@ -53,7 +57,7 @@ export function Grid({ sessions, packs, state, settings, onOpenPack }: { session
         node: plugin(k, settings, focused)
       })
     return out
-  }, [sessions, packs, settings, focused, onOpenPack])
+  }, [sessions, members, settings, focused, onOpenAgent])
 
   const cells = useMemo(() => place(items, settings.gridLayout, per, canAdd), [items, settings.gridLayout, per, canAdd])
   const pages = Math.max(1, Math.ceil(cells.length / per))
@@ -69,7 +73,7 @@ export function Grid({ sessions, packs, state, settings, onOpenPack }: { session
 
   const onDrop = (to: number, key: string) => {
     const from = cells.findIndex((c) => c?.key === key)
-    if (from < 0 || from === to || key.startsWith('slot:') || cells[to]?.kind === 'session') return
+    if (from < 0 || from === to || cells[from]?.kind !== 'plugin' || (cells[to] && cells[to].kind !== 'plugin')) return
     const layout = [...settings.gridLayout]
     while (layout.length < cells.length) layout.push('')
     layout[to] = key
@@ -127,15 +131,17 @@ export function Grid({ sessions, packs, state, settings, onOpenPack }: { session
 
 interface Item {
   key: string
-  kind: 'session' | 'pack' | 'plugin'
+  /** `session` and `member` (a subagent, a beta) are the block at the front, never pinned; only a plugin can be. */
+  kind: 'session' | 'member' | 'plugin'
   needy: boolean
   node: ReactNode
 }
 type Cell = Item
 
 /**
- * Cells across every page: the sessions first, in order, from cell 0; then pinned keys (a pin
- * inside the session block waits; one past the end of what is here is honored, the pages grow
+ * Cells across every page: the sessions first, in order, from cell 0, and the pack members right
+ * behind them (the block); then pinned keys (a pin
+ * inside the block waits; one past the end of what is here is honored, the pages grow
  * to reach it); then the rest in order into the free cells. Trailing empty pages are dropped,
  * there is always at least one page, and while a session can still be added there is always
  * an empty cell (a full last page gets one more).
@@ -143,12 +149,12 @@ type Cell = Item
 function place(items: Item[], layout: string[], per: number, canAdd: boolean): (Cell | null)[] {
   const byKey = new Map(items.map((i) => [i.key, i]))
   const placed = new Set<string>()
-  const cells: (Cell | null)[] = items.filter((it) => it.kind === 'session')
+  const cells: (Cell | null)[] = items.filter((it) => it.kind !== 'plugin')
   for (const c of cells) placed.add(c!.key)
   const block = cells.length
   layout.forEach((k, i) => {
     const it = k && byKey.get(k)
-    if (!it || placed.has(k) || it.kind === 'session' || i < block) return
+    if (!it || placed.has(k) || it.kind !== 'plugin' || i < block) return
     while (cells.length <= i) cells.push(null)
     cells[i] = it
     placed.add(k)
@@ -221,7 +227,7 @@ function GridCell({ index, cell, state, canAdd, onDrop }: { index: number; cell:
           ×
         </button>
       )}
-      {cell && cell.kind !== 'session' && (
+      {cell && cell.kind === 'plugin' && (
         <span
           className="grip"
           draggable

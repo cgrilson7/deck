@@ -432,19 +432,14 @@ button {
   border-style: dashed;
   cursor: default;
 }
-/* A wolfpack's beta: gold, like its fox. */
+/* A wolfpack's beta: gold, like its fox. A subagent's tile is the same gold, no prompt bar. */
 .tile-beta,
 .focus-beta {
   border-color: color-mix(in srgb, #e5b843 55%, var(--line));
 }
-.slot-beta,
-.slot-pack {
+.slot-beta {
   background: #c9a227;
   color: #fff;
-}
-.slot-pack {
-  cursor: pointer;
-  font-size: 10px;
 }
 .badge-pack {
   cursor: pointer;
@@ -454,55 +449,131 @@ button {
 .badge-pack:hover {
   background: color-mix(in srgb, #e5b843 20%, transparent);
 }
-/* The pack tile: the betas as small tiles, nested. */
-.tile-pack {
-  cursor: default;
-  border-color: color-mix(in srgb, #c9a227 60%, var(--line));
+.tile-agent {
+  cursor: pointer;
 }
-.tile-pack .pack-open {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
+.tile-agent.is-done,
+.tile-agent.is-cancelled {
+  opacity: 0.8;
 }
-.pack-mini {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(var(--pc, 2), minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+.tile-agent.is-paused,
+.tile-agent.is-pausing,
+.tile.is-paused {
+  border-style: dashed;
+}
+/* One word of state on a member's head: paused, cancelling, done. */
+.badge-state {
+  color: var(--muted);
+}
+.badge-state.is-paused,
+.badge-state.is-pausing {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.badge-state.is-cancelled,
+.badge-state.is-cancelling {
+  border-color: var(--blocked);
+  color: var(--blocked);
+}
+/* Why it was cancelled, under the head. */
+.agent-reason {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--blocked);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The leash: ⏸ / ▶ and ✕ on a member's head; on a tile they show on hover (▶ always, while paused). */
+.leash-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  padding: 4px;
+  padding: 2px 5px;
 }
-.pack-mini .tile {
-  border-width: 1px;
+.leash-btn.is-on {
+  color: var(--accent);
 }
-.pack-mini .tile .pane-head {
-  padding: 2px 6px;
-  font-size: 10px;
-  gap: 5px;
+.tile .leash-btn {
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
-.pack-mini .tile .badge {
-  display: none;
+.tile:hover .leash-btn,
+.tile .leash-btn.is-on {
+  opacity: 1;
 }
-.pack-mini .tile-prompt {
-  display: none;
+/* The agent pane: a subagent full size over the right column. */
+.agent-pane .doc-problem.is-pause {
+  color: var(--accent);
 }
-.pack-mini .chat {
-  font-size: 10px;
-  padding: 4px 6px 6px;
+.agent-task {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* The pack pane: every beta full size over the right column (or the window). */
-.pack-grid {
+.agent-chat {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(var(--pc, 2), minmax(0, 1fr));
-  grid-auto-rows: minmax(160px, 1fr);
+  display: flex;
+  flex-direction: column;
+}
+.agent-chat .chat {
+  padding-bottom: 12px;
+  font-size: 13px;
+}
+/* The leash dialog: the reason for a cancel, a note for a pause (LeashDialog.tsx; the picker's frame). */
+.picker.leash {
+  width: min(520px, 92vw);
+  gap: 10px;
+}
+.leash-why {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.leash-text {
+  width: 100%;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.leash-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.leash-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 8px;
-  overflow-y: auto;
+}
+.leash-go {
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--panel);
+  font-weight: 600;
+  font-size: 12px;
+}
+.leash-go.danger {
+  background: var(--blocked);
+}
+.leash-go:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .doc-btn.danger:hover {
   color: var(--blocked);

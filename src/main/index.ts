@@ -157,6 +157,19 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
       case 'dismissPack':
         await manager.dismissPack(cmd.alpha, !!cmd.park)
         break
+      // The leash on a pack member (a subagent or a beta): main/agents.ts.
+      case 'leashPause':
+        agents!.pause(cmd.id, cmd.note)
+        break
+      case 'leashResume':
+        agents!.resume(cmd.id)
+        break
+      case 'leashCancel':
+        await agents!.cancel(cmd.id, cmd.reason)
+        break
+      case 'agentDismiss':
+        agents!.dismiss(cmd.id)
+        break
     }
     return { ok: true }
   } catch (err) {
@@ -228,7 +241,9 @@ app.whenReady().then(async () => {
       manager?.onHook(event, payload)
       agents?.onHook(event, payload)
     },
-    (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready')))
+    (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready'))),
+    // Every tool call asks the leash (a paused member waits, a cancelled one is refused): main/agents.ts.
+    (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
   await hooks.start()
 
@@ -243,7 +258,7 @@ app.whenReady().then(async () => {
       const s = settings!.get()
       return { cwd: s.defaultCwd, worktree: s.worktreeByDefault, model: s.defaultModel }
     },
-    // The grid pages, so plugin and wolfpack tiles never cost a slot: the cap is the hard one.
+    // The grid pages, so plugin and wolfpack member tiles never cost a slot: the cap is the hard one.
     cap: () => CAP,
     events: {
       state: (state) => {
@@ -265,9 +280,10 @@ app.whenReady().then(async () => {
   transcripts = new TranscriptWatcher(projectsDir, (t) => {
     send('transcript:update', t)
     foxtrot?.onTranscript(t)
+    agents?.onTranscript(t)
   })
   ipcMain.handle('transcript:get', (_e, id: string) => transcripts!.get(String(id ?? '')))
-  // Subagents (SubagentStart / SubagentStop hooks) become tiles under their session.
+  // Subagents (SubagentStart / SubagentStop hooks) become tiles of their own, after the sessions.
   agents = new AgentTracker(manager, projectsDir, () => transcripts, (list) => send('agents:update', list))
   ipcMain.handle('agents:list', () => agents!.list())
 

@@ -10,14 +10,14 @@ export const CAP = 10
 
 /**
  * A wolfpack's betas take slots from here up: never in the ⌘ range, never counted against the
- * cap, never a grid cell of their own (they nest in their alpha's pack tile). See `PackRef`.
+ * cap; each is a grid cell of its own after the sessions, like a subagent. See `PackRef`.
  */
 export const BETA_SLOT_BASE = 100
 
 /** The most betas one alpha may run at once (`POST /pack` refuses more). */
 export const PACK_MAX = 8
 
-/** The keys a grid cell can hold, besides `slot:<n>` (a session) and `pack:<alpha id>` (a wolfpack). */
+/** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
 export const PLUGIN_KEYS = ['wiki', 'music', 'git', 'vocab', 'translate'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
@@ -47,8 +47,10 @@ export interface PackRef {
 
 /**
  * A subagent a session spawned (the Agent tool, a Workflow), as the CLI's SubagentStart /
- * SubagentStop hooks report it. Its tile tails `<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl`
- * (the documented place; same JSONL as a session's transcript) under the id `agent:<id>`.
+ * SubagentStop hooks report it, with what the deck has done to it (main/agents.ts). Its tile
+ * tails `<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl` (the documented place; same
+ * JSONL as a session's transcript) under the id `agent:<id>`. Every one is a grid cell of its
+ * own, after the sessions.
  */
 export interface AgentView {
   id: string
@@ -56,15 +58,30 @@ export interface AgentView {
   parent: string
   /** The agent type (`Explore`, `general-purpose`, a custom one). */
   type: string
-  /** The Agent tool's short description, '' when none. */
+  /** The Agent tool's short description (the tile's name), '' when none was seen. */
   description: string
-  /** The task it was given (the prompt's first line as the hook reports it), '' when none. */
+  /** The task it was given: the prompt's first line, '' until the transcript shows it. */
   task: string
+  /** What the Agent call asked for as `model`, '' when unsaid. */
+  model: string
+  /** Started with `run_in_background` (the parent goes on working; a cancel can also TaskStop it). */
+  background: boolean
   startedAt: number
   /** Null while it runs. */
   endedAt: number | null
   /** What it said last, from the stop hook; null while it runs. */
   lastText: string | null
+  /** Paused from the deck: its next tool call is held in the hooks server until resumed (or cancelled). */
+  paused: boolean
+  /** True while a tool call of a paused agent is actually being held (it has bitten). */
+  held: boolean
+  /** Cancelled from the deck: the reason, which its tool calls are refused with and the alpha was told. Null otherwise. */
+  cancelled: { reason: string; at: number } | null
+}
+
+/** How an agent is named in a head or a sentence: the Agent call's description, else the task's first line, else its type. */
+export function agentName(a: Pick<AgentView, 'description' | 'task' | 'type'>): string {
+  return a.description || a.task || a.type || 'agent'
 }
 
 /** Session status as best we know it: fleet poll (`claude agents --json`) + hook events. */
@@ -101,6 +118,8 @@ export interface SessionView extends SessionRecord {
   attached: boolean
   /** The tmux session exists (a parked session may be resumable via tmux or via --resume). */
   tmuxAlive: boolean
+  /** A beta paused from the deck: its next tool call is held (see `leashPause`). */
+  paused: boolean
 }
 
 export interface DeckState {
@@ -129,6 +148,16 @@ export type DeckCommand =
   | { type: 'refreshUi' }
   /** End an alpha's wolfpack: kill every beta (or park them, keeping their conversations). */
   | { type: 'dismissPack'; alpha: string; park?: boolean }
+  /**
+   * The leash on one pack member (main/agents.ts): `id` is a subagent's id or a beta session's deck id.
+   * pause = its next tool call is held in the hooks server (a `note` is also typed into the alpha);
+   * resume = let go; cancel = its tool calls are refused with `reason` (a beta is killed) and the alpha
+   * is told the reason so it can tweak and relaunch; dismiss = a finished agent's tile goes.
+   */
+  | { type: 'leashPause'; id: string; note?: string }
+  | { type: 'leashResume'; id: string }
+  | { type: 'leashCancel'; id: string; reason: string }
+  | { type: 'agentDismiss'; id: string }
 
 /** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
 export interface WikiPicture {
@@ -335,10 +364,9 @@ export interface DeckSettings {
   gridColumns: number
   gridRows: number
   /**
-   * Where plugin and pack tiles were put: cell index (across pages, left column first) → key
-   * (a plugin key, `pack:<alpha id>`), '' for a cell nothing is pinned to. Sessions are never
-   * pinned: they always fill the first cells in order; then packs and plugins flow into what
-   * is free, pins honored.
+   * Where plugin tiles were put: cell index (across pages, left column first) → a plugin key,
+   * '' for a cell nothing is pinned to. Sessions and wolfpack members are never pinned: they
+   * always fill the first cells in order; then the plugins flow into what is free, pins honored.
    */
   gridLayout: string[]
   /** How wide the focus column is. */

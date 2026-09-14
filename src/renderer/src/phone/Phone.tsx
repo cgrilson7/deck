@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DeckState, SessionView } from '@shared/types'
-import { MODELS } from '@shared/models'
+import { agentName, type AgentView, type DeckState, type SessionView } from '@shared/types'
+import { MODELS, modelLabel } from '@shared/models'
 import { ChatView } from '../components/ChatView'
 import { DocPane } from '../components/DocPane'
 import { Fox } from '../components/Fox'
@@ -19,8 +19,12 @@ import { Keys, ScreenView } from './ScreenView'
  * the desktop's tiles show, a prompt bar along the bottom, and behind two buttons the
  * terminal's screen as tmux has it plus the keys a TUI needs, which is how a permission
  * prompt is answered from here. `+` starts or resumes a session; ⋯ focuses, parks or kills
- * the current one on the Mac. A tapped path opens the preview pane over everything.
+ * the current one on the Mac. A tapped path opens the preview pane over everything. A
+ * wolfpack's SUBAGENTS are pages too (a gold β chip after their parent): the conversation,
+ * nothing to type into, and under ⋯ the leash — pause, resume, cancel with a reason.
  */
+type Page = { kind: 'session'; id: string; s: SessionView } | { kind: 'agent'; id: string; a: AgentView; parent: SessionView | null }
+
 export function Phone() {
   const settings = useSettings()
   const [state, setState] = useState<DeckState | null>(null)
@@ -31,6 +35,7 @@ export function Phone() {
   const [keys, setKeys] = useState(false)
   const [doc, setDoc] = useState<DocRef | null>(null)
   const [sheet, setSheet] = useState<'new' | 'more' | null>(null)
+  const [agents, setAgents] = useState<AgentView[]>([])
   const pages = useRef<HTMLDivElement>(null)
 
   useEffect(() => applyAnsiPalette(settings), [settings])
@@ -46,11 +51,13 @@ export function Phone() {
       t = window.setTimeout(() => setError(null), 5000)
     })
     const offDoc = onOpenDoc(setDoc)
+    const offAgents = window.deck.onAgents(setAgents)
     return () => {
       offLink()
       offState()
       offErr()
       offDoc()
+      offAgents()
       window.clearTimeout(t)
     }
   }, [])
@@ -59,6 +66,7 @@ export function Phone() {
   useEffect(() => {
     if (link !== 'open') return
     void window.deck.getState().then(setState).catch(() => {})
+    void window.deck.agents().then(setAgents).catch(() => {})
   }, [link])
 
   // The keyboard shrinks the visual viewport, not the layout: size the page to what is actually visible.
@@ -78,33 +86,40 @@ export function Phone() {
     }
   }, [])
 
-  const open = state?.open ?? []
+  const sessions = state?.open ?? []
+  // The pages: every open session, each followed by its subagents (gold β chips).
+  const open: Page[] = []
+  for (const s of sessions) {
+    open.push({ kind: 'session', id: s.id, s })
+    for (const a of agents.filter((a) => a.parent === s.id)) open.push({ kind: 'agent', id: `agent:${a.id}`, a, parent: s })
+  }
   // Keep a page under the finger: the current one if still open, else whichever needs you, else the first.
   useEffect(() => {
     if (open.length === 0) {
       setCur(null)
       return
     }
-    if (cur && open.some((s) => s.id === cur)) return
-    setCur((open.find((s) => s.attention) ?? open[0]).id)
+    if (cur && open.some((p) => p.id === cur)) return
+    setCur((open.find((p) => p.kind === 'session' && p.s.attention) ?? open[0]).id)
   }, [open, cur])
 
-  const current = open.find((s) => s.id === cur) ?? null
-  const index = current ? open.indexOf(current) : -1
+  const page = open.find((p) => p.id === cur) ?? null
+  const current = page?.kind === 'session' ? page.s : null
+  const index = page ? open.indexOf(page) : -1
 
   // A chip tap scrolls the pages; a swipe sets the chip. Both go through `cur`.
   const goTo = (id: string) => {
     setCur(id)
     const el = pages.current
-    const i = open.findIndex((s) => s.id === id)
+    const i = open.findIndex((p) => p.id === id)
     if (el && i >= 0) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
   }
   const onScroll = () => {
     const el = pages.current
     if (!el || el.clientWidth === 0) return
     const i = Math.round(el.scrollLeft / el.clientWidth)
-    const s = open[i]
-    if (s && s.id !== cur) setCur(s.id)
+    const p = open[i]
+    if (p && p.id !== cur) setCur(p.id)
   }
   // Pages come and go with sessions; keep the scroller on the current one when they do.
   const indexRef = useRef(index)
@@ -123,14 +138,22 @@ export function Phone() {
       {link !== 'open' && <div className="ph-link">{link === 'connecting' ? 'connecting…' : 'reconnecting…'}</div>}
       {error && <div className="ph-link is-error">{error}</div>}
       <div className="ph-top">
-        {open.map((s) => (
-          <button key={s.id} type="button" className={`ph-chip ${s.id === cur ? 'on' : ''} ${s.attention ? 'attention' : ''} status-${s.status}`} onClick={() => goTo(s.id)}>
-            <span className={`slot ${s.pack ? 'slot-beta' : ''}`}>{s.pack ? 'β' : s.slot}</span>
-            <FoxStatus id={s.id} status={s.status} attention={s.attention} coat={s.pack ? 'gold' : undefined} />
-            <span className="name">{s.name}</span>
-          </button>
-        ))}
-        {state && open.length < state.cap && (
+        {open.map((p) =>
+          p.kind === 'session' ? (
+            <button key={p.id} type="button" className={`ph-chip ${p.id === cur ? 'on' : ''} ${p.s.attention ? 'attention' : ''} status-${p.s.status}`} onClick={() => goTo(p.id)}>
+              <span className={`slot ${p.s.pack ? 'slot-beta' : ''}`}>{p.s.pack ? 'β' : p.s.slot}</span>
+              <FoxStatus id={p.s.id} status={p.s.status} attention={p.s.attention} coat={p.s.pack ? 'gold' : undefined} />
+              <span className="name">{p.s.name}</span>
+            </button>
+          ) : (
+            <button key={p.id} type="button" className={`ph-chip ph-chip-agent ${p.id === cur ? 'on' : ''}`} onClick={() => goTo(p.id)}>
+              <span className="slot slot-beta">β</span>
+              <Fox anim={p.a.cancelled ? 'down' : p.a.endedAt !== null ? 'sleep' : p.a.paused ? 'alert' : 'run'} scale={1} coat="gold" />
+              <span className="name">{agentName(p.a)}</span>
+            </button>
+          )
+        )}
+        {state && sessions.filter((s) => !s.pack).length < state.cap && (
           <button type="button" className="ph-chip ph-plus" onClick={() => setSheet('new')} title="New session">
             +
           </button>
@@ -149,18 +172,38 @@ export function Phone() {
         </div>
       ) : (
         <div className="ph-pages" ref={pages} onScroll={onScroll}>
-          {open.map((s) => (
-            <div key={s.id} className={`ph-page status-${s.status} ${s.attention ? 'attention' : ''}`}>
-              {view === 'screen' && s.id === cur ? (
-                <ScreenView id={s.id} active={s.id === cur} />
-              ) : (
-                <ChatView id={s.id} cwd={s.cwd} status={s.status} attention={s.attention} onNeeds={() => setView('screen')} />
-              )}
-            </div>
-          ))}
+          {open.map((p) =>
+            p.kind === 'session' ? (
+              <div key={p.id} className={`ph-page status-${p.s.status} ${p.s.attention ? 'attention' : ''}`}>
+                {view === 'screen' && p.id === cur ? (
+                  <ScreenView id={p.s.id} active={p.id === cur} />
+                ) : (
+                  <ChatView id={p.s.id} cwd={p.s.cwd} status={p.s.status} attention={p.s.attention} onNeeds={() => setView('screen')} />
+                )}
+              </div>
+            ) : (
+              <div key={p.id} className={`ph-page ph-page-agent ${p.a.endedAt !== null ? 'status-idle' : 'status-busy'}`}>
+                {p.a.cancelled && <div className="ph-agent-note is-cancel">cancelled: {p.a.cancelled.reason}</div>}
+                {p.a.paused && !p.a.cancelled && <div className="ph-agent-note">{p.a.held ? 'paused: its tool call is waiting' : 'pausing: its next tool call will wait'}</div>}
+                <ChatView id={p.id} cwd={p.parent?.cwd ?? ''} status={p.a.endedAt !== null ? 'idle' : 'busy'} attention={false} />
+              </div>
+            )
+          )}
         </div>
       )}
 
+      {page?.kind === 'agent' && (
+        <div className="ph-bar ph-bar-agent">
+          <span className="ph-agent-who">
+            {page.a.type}
+            {page.a.model ? ` · ${modelLabel(page.a.model)}` : ''} · {page.a.cancelled ? 'cancelled' : page.a.endedAt !== null ? 'done' : page.a.paused ? 'paused' : 'working'}
+          </span>
+          <span className="spacer" />
+          <button type="button" className="ph-btn" onClick={() => setSheet('more')} title="This agent">
+            ⋯
+          </button>
+        </div>
+      )}
       {current && (
         <>
           {keys && <Keys id={current.id} />}
@@ -182,6 +225,7 @@ export function Phone() {
       {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
       {sheet === 'new' && state && <NewSheet state={state} worktree={settings.worktreeByDefault} model={settings.defaultModel} onClose={() => setSheet(null)} />}
       {sheet === 'more' && current && <MoreSheet s={current} onClose={() => setSheet(null)} />}
+      {sheet === 'more' && page?.kind === 'agent' && <AgentSheet a={page.a} parent={page.parent} onClose={() => setSheet(null)} />}
     </div>
   )
 }
@@ -260,6 +304,7 @@ function MoreSheet({ s, onClose }: { s: SessionView; onClose: () => void }) {
       <button type="button" className="ph-row" onClick={() => run({ type: 'focus', slot: s.slot! })}>
         Focus on the Mac
       </button>
+      {s.pack && <Leash id={s.id} name={s.pack.task} paused={s.paused} beta run={run} />}
       <button type="button" className="ph-row" onClick={() => run({ type: 'detach', slot: s.slot! })}>
         Park (the conversation keeps running)
       </button>
@@ -276,6 +321,70 @@ function MoreSheet({ s, onClose }: { s: SessionView; onClose: () => void }) {
         Reload this page
       </button>
     </Sheet>
+  )
+}
+
+/** ⋯ on a subagent's page: the leash (it has no terminal to park or kill), and its parent to focus. */
+function AgentSheet({ a, parent, onClose }: { a: AgentView; parent: SessionView | null; onClose: () => void }) {
+  const run = (cmd: Parameters<typeof window.deck.command>[0]) => {
+    void window.deck.command(cmd)
+    onClose()
+  }
+  const done = a.endedAt !== null
+  return (
+    <Sheet onClose={onClose}>
+      <h3>β · {agentName(a)}</h3>
+      <p className="ph-hint">
+        {a.type}
+        {a.model ? ` · ${modelLabel(a.model)}` : ''}
+        {a.task && a.description ? ` · ${a.task}` : ''}
+      </p>
+      {!done && !a.cancelled && <Leash id={a.id} name={agentName(a)} paused={a.paused} run={run} />}
+      {done && (
+        <button type="button" className="ph-row" onClick={() => run({ type: 'agentDismiss', id: a.id })}>
+          Dismiss (put the tile away)
+        </button>
+      )}
+      {parent && (
+        <button type="button" className="ph-row" onClick={() => run({ type: 'focus', slot: parent.slot! })}>
+          Focus its parent on the Mac ({parent.slot} · {parent.name})
+        </button>
+      )}
+    </Sheet>
+  )
+}
+
+/** Pause / resume / cancel rows: the reason (or note) is asked with a plain prompt, the phone has no dialog of its own. */
+function Leash({ id, name, paused, beta, run }: { id: string; name: string; paused: boolean; beta?: boolean; run: (cmd: Parameters<typeof window.deck.command>[0]) => void }) {
+  return (
+    <>
+      {paused ? (
+        <button type="button" className="ph-row" onClick={() => run({ type: 'leashResume', id })}>
+          Resume (let its next tool call through)
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="ph-row"
+          onClick={() => {
+            const note = window.prompt(`Pause “${name}”: its next tool call waits until you resume it.\nA note for the alpha (optional):`, '')
+            if (note !== null) run({ type: 'leashPause', id, note: note.trim() || undefined })
+          }}
+        >
+          Pause (its next tool call waits)
+        </button>
+      )}
+      <button
+        type="button"
+        className="ph-row danger"
+        onClick={() => {
+          const reason = window.prompt(`Cancel “${name}” — why? The alpha is told and adjusts${beta ? ' (the beta is killed)' : ''}.`, '')
+          if (reason?.trim()) run({ type: 'leashCancel', id, reason: reason.trim() })
+        }}
+      >
+        Cancel with a reason
+      </button>
+    </>
   )
 }
 
