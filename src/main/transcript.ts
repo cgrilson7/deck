@@ -106,10 +106,12 @@ export class TranscriptWatcher {
     if (!t.path) {
       t.path = t.sessionId ? this.locate(t.sessionId) : null
       if (!t.path) return
+    }
+    const size = statSync(t.path).size
+    if (!t.transcript.found) {
       t.transcript.found = true
       t.dirty = true
     }
-    const size = statSync(t.path).size
     if (size < t.offset) {
       // Rewritten (a resume rewrites nothing, but be safe): start over.
       t.offset = 0

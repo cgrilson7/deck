@@ -43,10 +43,11 @@ export function ChatView({ id, cwd, status, attention, onNeeds }: { id: string; 
   const busy = status === 'busy' || status === 'starting'
 
   if (blocks.length === 0) {
+    const isAgent = id.startsWith('agent:')
     return (
       <div className="chat chat-empty">
-        <Fox anim={busy ? 'look' : 'idle'} scale={3} />
-        <p>{t?.found ? 'Nothing to show yet.' : 'A fresh session. Ask it something below.'}</p>
+        <Fox anim={busy ? (isAgent ? 'run' : 'look') : 'idle'} scale={3} coat={isAgent ? 'gold' : undefined} />
+        <p>{isAgent ? (busy ? 'Working…' : 'Finished.') : t?.found ? 'Nothing to show yet.' : 'A fresh session. Ask it something below.'}</p>
       </div>
     )
   }

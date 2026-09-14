@@ -121,6 +121,12 @@ export class AgentTracker {
         this.release(`agent:${id}`, null)
         break
       }
+      case 'Stop': {
+        // The parent's turn ended: it has processed any agent results from this turn. Finished
+        // agents leave the grid — no need to wait for the next typed prompt or the 30-min timer.
+        for (const [id, a] of this.agents) if (a.parent === rec.id && a.endedAt !== null) this.agents.delete(id)
+        break
+      }
       case 'UserPromptSubmit': {
         // A new turn typed into the parent: last turn's finished agents leave the grid. A turn the
         // CLI made from a background agent's result (`<task-notification>…`) is not one.
