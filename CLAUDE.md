@@ -102,7 +102,29 @@ src/renderer/src/components/        FocusPane, Grid (two paged side columns + dr
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test
+docs/casa.md               where the deck is headed: the house (casa) as a deck plugin, Foxtrot as the Mac mini
+docs/foxtrot-portrait.md   Foxtrot as a voxel figure: image prompts for concept art
 ```
+
+## Where it is headed
+
+The deck is the head of a larger thing: Foxtrot as an always-on Mac mini with the house (~/casa:
+switches, cameras, threat recognition), a wearable mic (~/dictator) and the body (~/whoop) as his
+senses, and Claude sessions as his hands. Casa arrives as a deck plugin in both senses this repo
+has: grid tiles and a `plugin/` skill, plus a new sense for Foxtrot. `docs/casa.md` is the
+direction note; keep it current when that work moves.
+
+**The mini, and how to reach it.** From this laptop it is `ssh foxtrot` (an alias in
+`~/.ssh/config`: user `colin`, key auth, host `Colins-Mac-mini.local` until it is renamed
+`foxtrot`, then `foxtrot.local`; the `.local` name resolves over IPv6, the IPv4 address did not
+answer). Apple M2, 8 GB, macOS 15.5. On it: Homebrew, Node 22, tmux, ffmpeg, Xcode, Claude Code
+(npm global) and a clone of this repo at `~/deck` (`npm run smoke` passes there). A user launch
+agent (`~/Library/LaunchAgents/com.casa.awake.plist`, `caffeinate -s -i`) keeps it awake. Claude
+has NO sudo there: hostname, `pmset`, package installers and system services are Colin's, at its
+screen. Installs and clones over SSH are fine unasked; deleting his files waits for a yes. The
+one-tmux-client rule below holds there too: never attach to a `deck-*` session on the mini from
+a terminal, peek with `capture-pane`. The house side of casa lives at `~/casa` (this laptop and
+github.com/cgrilson7/casa, private) and will run on the mini.
 
 ## Rules the code enforces (keep them)
 
