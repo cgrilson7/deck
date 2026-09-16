@@ -280,11 +280,12 @@ export class AgentTracker {
     this.betas.delete(beta.id)
   }
 
-  /** A finished agent's tile goes now rather than at the parent's next prompt. */
-  dismiss(id: string): void {
+  /** Remove a tile: a finished or cancelled agent goes at once; a stuck one (SubagentStop never
+   *  arrived — e.g. a killed workflow) is force-dismissed and any held calls are refused. */
+  dismiss(id: string, force = false): void {
     const a = this.agents.get(id)
     if (!a) return
-    if (a.endedAt === null && !a.cancelled) throw new Error('that agent is still running: cancel it, with a reason, instead')
+    if (a.endedAt === null && !a.cancelled && !force) throw new Error('that agent is still running: cancel it, with a reason, instead')
     this.agents.delete(id)
     this.release(`agent:${id}`, deny(a.cancelled?.reason ?? 'dismissed from the deck'))
     this.changed()

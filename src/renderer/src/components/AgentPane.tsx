@@ -37,6 +37,7 @@ export function AgentPane({ agent: a, parent, onClose }: { agent: AgentView; par
   }
 
   const done = a.endedAt !== null
+  const gone = done || !!a.cancelled
   const state = agentState(a)
   const started = new Date(a.startedAt)
   const mins = Math.round(((a.endedAt ?? Date.now()) - a.startedAt) / 60_000)
@@ -63,7 +64,7 @@ export function AgentPane({ agent: a, parent, onClose }: { agent: AgentView; par
               α{parent.slot}
             </button>
           )}
-          <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={done} wide onDismiss={() => (void window.deck.command({ type: 'agentDismiss', id: a.id }), onClose())} />
+          <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={gone} wide onDismiss={() => (void window.deck.command({ type: 'agentDismiss', id: a.id, force: !done }), onClose())} />
           <button className={`doc-btn ${wide ? 'on' : ''}`} title={wide ? 'Back over the grid' : 'The whole window'} onClick={toggleWide}>
             {wide ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>

@@ -31,6 +31,7 @@ export function agentState(a: AgentView): string {
  */
 export function AgentTile({ agent: a, parent, onOpen }: { agent: AgentView; parent: SessionView | null; onOpen: () => void }) {
   const done = a.endedAt !== null
+  const gone = done || !!a.cancelled
   const name = agentName(a)
   const state = agentState(a)
   const onClick = () => {
@@ -61,7 +62,7 @@ export function AgentTile({ agent: a, parent, onOpen }: { agent: AgentView; pare
         )}
         {state !== 'working' && <span className={`badge badge-state is-${state}`}>{state}</span>}
         <span className="spacer" />
-        <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={done} onDismiss={() => void window.deck.command({ type: 'agentDismiss', id: a.id })} />
+        <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={gone} onDismiss={() => void window.deck.command({ type: 'agentDismiss', id: a.id, force: !done })} />
       </header>
       {a.cancelled && (
         <div className="agent-reason" title={a.cancelled.reason}>

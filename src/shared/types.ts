@@ -157,7 +157,7 @@ export type DeckCommand =
   | { type: 'leashPause'; id: string; note?: string }
   | { type: 'leashResume'; id: string }
   | { type: 'leashCancel'; id: string; reason: string }
-  | { type: 'agentDismiss'; id: string }
+  | { type: 'agentDismiss'; id: string; force?: boolean }
 
 /** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
 export interface WikiPicture {

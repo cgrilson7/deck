@@ -340,8 +340,8 @@ function AgentSheet({ a, parent, onClose }: { a: AgentView; parent: SessionView 
         {a.task && a.description ? ` · ${a.task}` : ''}
       </p>
       {!done && !a.cancelled && <Leash id={a.id} name={agentName(a)} paused={a.paused} run={run} />}
-      {done && (
-        <button type="button" className="ph-row" onClick={() => run({ type: 'agentDismiss', id: a.id })}>
+      {(done || a.cancelled) && (
+        <button type="button" className="ph-row" onClick={() => run({ type: 'agentDismiss', id: a.id, force: !done })}>
           Dismiss (put the tile away)
         </button>
       )}

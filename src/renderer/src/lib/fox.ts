@@ -4,6 +4,11 @@
 // `.fox` elements are sized to that ART box (22×18 units × --fox-scale), not the
 // frame — see styles.css. Rows: 0 idle tail-wag (5), 1 look-around (14),
 // 2 run (8), 3 leap (11), 4 alert tail-up (5), 5 sleep (6), 6 lie-down (7).
+// The 'demented' frame (Colin's word): row 4 frame 0, which is pixel-identical to
+// row 6 frame 0 (both rows open from it). Fine inside the animations, which keep
+// every frame; as a STILL the lifted muzzle reads wrong at size, and it went on a
+// printed sticker once by mistake. It differs from row 0 frame 0 (the plain
+// standing fox) by 12 head pixels — use THAT for a static Foxtrot.
 //
 // Used sparingly: the empty focus pane (components/Fox.tsx), and in place of
 // Claude Code's own mascot in its startup banner (watchClaudeBanner below).
