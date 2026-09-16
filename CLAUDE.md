@@ -115,8 +115,7 @@ has: grid tiles and a `plugin/` skill, plus a new sense for Foxtrot. `docs/casa.
 direction note; keep it current when that work moves.
 
 **The mini, and how to reach it.** From this laptop it is `ssh foxtrot` (an alias in
-`~/.ssh/config`: user `colin`, key auth, host `Colins-Mac-mini.local` until it is renamed
-`foxtrot`, then `foxtrot.local`; the `.local` name resolves over IPv6, the IPv4 address did not
+`~/.ssh/config`: user `colin`, key auth, host `foxtrot.local`; the `.local` name resolves over IPv6, the IPv4 address did not
 answer). Apple M2, 8 GB, macOS 15.5. On it: Homebrew, Node 22, tmux, ffmpeg, Xcode, Claude Code
 (npm global) and a clone of this repo at `~/deck` (`npm run smoke` passes there). A user launch
 agent (`~/Library/LaunchAgents/com.casa.awake.plist`, `caffeinate -s -i`) keeps it awake. Claude

@@ -60,19 +60,41 @@ client of it, the way the phone already is. Until then the deck runs on the lapt
 service runs on the mini, and the seam is the bus.
 
 State of the mini on 2026-09-15: Apple M2, 8 GB, macOS 15.5, reached from the laptop as
-`ssh foxtrot` (an alias in `~/.ssh/config` for `colin@Colins-Mac-mini.local` with a key; change its
-HostName to `foxtrot.local` once the mini is renamed). Homebrew, Node 22, Xcode, tmux 3.7c, ffmpeg 9 and Claude Code
+`ssh foxtrot` (an alias in `~/.ssh/config` for `colin@foxtrot.local` with a key). Homebrew, Node 22, Xcode, tmux 3.7c, ffmpeg 9 and Claude Code
 2.1.273 are on it. A clone of the deck is at `~/deck` there and its smoke test passes; a user launch agent runs
-`caffeinate` so it never sleeps. Not yet: Tailscale, a hostname of `foxtrot`, sleep turned off, and
-disk (12 GB free of 228 until the old iOS simulators, DerivedData and caches go). The Raspberry Pi
+`caffeinate` so it never sleeps. Done at its screen on 2026-09-16: renamed `foxtrot`, FileVault off, automatic login, never
+sleeps, restarts after power failure, Screen Sharing on, Tailscale (100.67.175.62 on the tailnet,
+the reliable path; its LAN IPv4 does not answer from the laptop), Claude logged in. 90 GB free.
+Claude's credentials live in the login keychain, which SSH sessions cannot read: anything that runs
+`claude` on the mini starts inside the GUI session (a `gui/<uid>` launch agent, or a tmux server
+started from Terminal there). Deck's main on the mini will be a gui-domain launch agent. The Raspberry Pi
 is a satellite at most: GPIO, a Zigbee stick, an edge camera.
+
+## The first deliverables, and what they ask of the deck
+
+Foxtrot is the home of everything: every device and person interacts with the house through the
+deck served from foxtrot, never through a vendor app. In order:
+
+1. Casa's event stream and local API (house side only).
+2. **A camera tile that works on the phone page.** Live view, snapshot, record, the event
+   timeline; photos and clips land on foxtrot and the tile lets a phone save one. Deck side: a
+   `casa` plugin tile of the same shape as the others, and the phone relay carrying a live stream,
+   which the relay does not do today.
+3. **A household pairing.** A second kind of `remote.json` token that shows only the house tiles
+   (cameras, lights) and never sessions or terminals. Colin's pairing shows the whole deck; his
+   wife's shows the house. Deck side: roles on the phone socket, and the phone page hiding what a
+   role may not see.
+
+Memory on the mini is the constraint on all of it: 8 GB, no Docker, no Electron main there. The
+deck's presence on foxtrot is a small plain-Node agent reusing the session, tmux, transcript and
+hooks modules and speaking the phone's socket protocol; the Electron deck on the laptop connects
+to it and shows its sessions and the house tiles as remote.
 
 ## Open questions
 
-- Cameras: RTSP cameras on the LAN, or a consumer system (Ring, Nest)? Decides the house side.
-- Detection: Scrypted (native macOS, CoreML) vs Frigate (Docker, CPU on a Mac) vs our own
-  pipeline (ffmpeg + a CoreML model). Own pipeline fits Foxtrot best; Scrypted is fastest to a
-  first result.
+- Cameras: decided. Wired RTSP/ONVIF with PoE (Reolink doorbell, RLC-810A, Amcrest turrets). The
+  Ring goes back; the battery MUBVIEW is an event source at most.
+- Detection: decided. Our own ffmpeg + CoreML pipeline; Scrypted and Frigate are out on memory.
 - Lights: Home Assistant as the switch layer (in Docker on the mini, or on the Pi) vs talking to
   the switches' APIs directly. Home Assistant unless the house is all one brand.
 - Whether Foxtrot's phase two (a model in the loop) starts with house events or session events.
