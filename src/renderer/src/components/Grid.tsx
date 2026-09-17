@@ -8,6 +8,7 @@ import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
+import { StudioTile } from './StudioTile'
 import { packTiles } from './PackTile'
 import { patchSettings } from '../lib/theme'
 
@@ -181,6 +182,8 @@ function plugin(k: PluginKey, settings: DeckSettings, focused: SessionView | nul
       return <WikiTile />
     case 'music':
       return <MusicTile source={settings.music} />
+    case 'studio':
+      return <StudioTile />
     case 'git':
       return <GitTile session={focused} />
     case 'vocab':

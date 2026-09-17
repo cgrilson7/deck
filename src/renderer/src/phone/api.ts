@@ -281,7 +281,14 @@ export const api: DeckApi = {
   remoteInfo: notHere,
   screen: (id) => remote.call('screen', [id]),
   gitChanges: notHere,
-  gitDiff: notHere
+  gitDiff: notHere,
+  // The Studio is the desktop's (its images live in userData); the phone shows no tile for it.
+  studioJobs: () => Promise.resolve([]),
+  onStudio: nothing,
+  studioGenerate: notHere,
+  studioDelete: notHere,
+  studioModels: notHere,
+  studioInfo: notHere
 }
 
 /** Stand in for the preload: the components read window.deck and window.deckErrors. */

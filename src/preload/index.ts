@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AgentView, DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { AgentView, DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -108,7 +108,17 @@ const api: DeckApi = {
   remoteInfo: () => ipcRenderer.invoke('remote:info') as Promise<RemoteInfo>,
   screen: (id) => ipcRenderer.invoke('tmux:screen', id) as Promise<Screen>,
   gitChanges: (id) => ipcRenderer.invoke('git:changes', id) as Promise<GitChanges>,
-  gitDiff: (repo, path, untracked) => ipcRenderer.invoke('git:diff', repo, path, untracked) as Promise<GitDiff>
+  gitDiff: (repo, path, untracked) => ipcRenderer.invoke('git:diff', repo, path, untracked) as Promise<GitDiff>,
+  studioJobs: () => ipcRenderer.invoke('studio:jobs') as Promise<StudioJob[]>,
+  onStudio: (cb) => {
+    const h = (_e: unknown, jobs: StudioJob[]) => cb(jobs)
+    ipcRenderer.on('studio:update', h)
+    return () => ipcRenderer.removeListener('studio:update', h)
+  },
+  studioGenerate: (req: StudioRequest) => ipcRenderer.invoke('studio:generate', req) as Promise<StudioJob>,
+  studioDelete: (id: string) => ipcRenderer.invoke('studio:delete', id) as Promise<void>,
+  studioModels: () => ipcRenderer.invoke('studio:models') as Promise<StudioModel[]>,
+  studioInfo: () => ipcRenderer.invoke('studio:info') as Promise<StudioInfo>
 }
 
 contextBridge.exposeInMainWorld('deck', api)

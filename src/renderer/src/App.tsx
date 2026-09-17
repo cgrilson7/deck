@@ -14,6 +14,8 @@ import { dispose, liveIds } from './lib/terminals'
 import { onOpenDoc, type DocRef } from './lib/paths'
 import { onLeash, type LeashAsk } from './lib/leash'
 import { useFoxLog } from './lib/foxlog'
+import { onStudio } from './lib/studio'
+import { StudioPane } from './components/StudioPane'
 import { useSettings } from './lib/theme'
 
 /** Three columns: tiles, the focus pane, tiles. The setting is how much of the width the center takes. */
@@ -36,6 +38,8 @@ export default function App() {
   const [agentOpen, setAgentOpen] = useState<string | null>(null)
   // The leash dialog: a cancel asking for its reason, a pause for a note.
   const [leash, setLeash] = useState<LeashAsk | null>(null)
+  // The Studio open in the CENTER: the focus pane steps aside (the focused session shows in the grid meanwhile).
+  const [studioOpen, setStudioOpen] = useState(false)
   const fox = useFoxLog()
   const settings = useSettings()
   // Subagents of every open session (SubagentStart / SubagentStop hooks), each a tile of its own.
@@ -64,7 +68,9 @@ export default function App() {
         setAgentOpen(null)
         setFoxOpen((v) => !v)
       }
+      if (ev.type === 'toggleStudio') setStudioOpen((v) => !v)
     })
+    const offStudio = onStudio((want) => setStudioOpen((v) => (want === 'toggle' ? !v : want)))
     void window.deck.agents().then(setAgents).catch(() => {})
     const offAgents = window.deck.onAgents(setAgents)
     const offDoc = onOpenDoc((r) => {
@@ -80,9 +86,16 @@ export default function App() {
       offDoc()
       offAgents()
       offLeash()
+      offStudio()
       window.clearTimeout(t)
     }
   }, [])
+
+  // A focus change from anywhere (⌘1–9, the menu, the phone) takes the center back from the Studio.
+  const focusSlot = state?.focusSlot ?? null
+  useEffect(() => {
+    setStudioOpen(false)
+  }, [focusSlot])
 
   // A session that left the open set (parked / killed) drops its terminal.
   useEffect(() => {
@@ -98,7 +111,7 @@ export default function App() {
   const top = state.open.filter((s) => !s.pack)
   const betas = state.open.filter((s) => s.pack)
   const others = top
-    .filter((s) => s.slot !== state.focusSlot)
+    .filter((s) => studioOpen || s.slot !== state.focusSlot)
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
   // Members grouped by alpha (in slot order), each group's betas needing you first, then subagents as they started.
   const members: Member[] = []
@@ -151,7 +164,7 @@ export default function App() {
         </div>
       </header>
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
-        <FocusPane session={focused} recent={state.recent} alpha={alphaOf} />
+        {studioOpen ? <StudioPane session={focused} onClose={() => setStudioOpen(false)} /> : <FocusPane session={focused} recent={state.recent} alpha={alphaOf} />}
         <Grid
           sessions={others}
           members={members}

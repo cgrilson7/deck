@@ -55,7 +55,7 @@ export class SettingsStore {
 }
 
 /** What a grid cell may be pinned to: a plugin, the + (older keys — a slot, a pack — are read and never matched). */
-const LAYOUT_KEY = /^(slot:\d{1,2}|pack:[0-9a-f]{6}|wiki|music|git|vocab|translate|plus)$/
+const LAYOUT_KEY = /^(slot:\d{1,2}|pack:[0-9a-f]{6}|wiki|music|studio|git|vocab|translate|plus)$/
 
 const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : dflt
@@ -102,6 +102,9 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
       : d.spotifyPlaylists,
     spotifyClientId: typeof raw.spotifyClientId === 'string' && /^[a-f0-9]{32}$/i.test(raw.spotifyClientId.trim()) ? raw.spotifyClientId.trim() : d.spotifyClientId,
     showTranslate: bool(raw.showTranslate, d.showTranslate),
+    showStudio: bool(raw.showStudio, d.showStudio),
+    geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,
+    studioModel: typeof raw.studioModel === 'string' && /^[\w.-]*$/.test(raw.studioModel.trim()) ? raw.studioModel.trim() : d.studioModel,
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),
     vocabCycleSeconds: clampInt(raw.vocabCycleSeconds, 5, 600, d.vocabCycleSeconds),

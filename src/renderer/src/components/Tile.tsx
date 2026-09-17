@@ -6,13 +6,17 @@ import { TilePrompt } from './TilePrompt'
 import { LeashButtons } from './LeashButtons'
 import { useDropTarget } from './useDropTarget'
 import { leashOfBeta } from '../lib/leash'
+import { closeStudio } from '../lib/studio'
 
 /**
  * A session's tile: its conversation and a prompt bar. A wolfpack's beta wears the gold coat and
  * a β instead of a slot number, and the leash on its head: pause / resume, cancel with a reason.
  */
 export function Tile({ session: s }: { session: SessionView }) {
-  const focus = () => void window.deck.command({ type: 'focus', slot: s.slot! })
+  const focus = () => {
+    closeStudio()
+    void window.deck.command({ type: 'focus', slot: s.slot! })
+  }
   const beta = !!s.pack
   const drop = useDropTarget(s.id, focus) // a drop also brings the tile into focus
   // Selecting text in the conversation should not swap the tile into focus on mouse-up.

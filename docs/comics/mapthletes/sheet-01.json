@@ -1,0 +1,60 @@
+{
+  "title": "Mapthletes",
+  "tag": "mapthletes-01",
+  "model": "gemini-3-pro-image",
+  "ratio": "1:1",
+  "size": "1K",
+  "style": "square 1:1 comic panel, painterly comic-book illustration, inked outlines, warm cinematic light, a caption box top-left in bold sans serif, speech in hand-lettered bubbles. Recurring cast, keep them identical every panel. All lettering must be spelled exactly as given, legible, no extra text.",
+  "cast": "JACK: a Nazgûl, the Witch-King of Angmar. Tall black hooded robe, empty black void for a face, spiked iron crown under the hood, iron gauntlets. On the hood, a royal-blue New York Mets baseball cap with an orange brim and orange logo, slightly askew.\nCOLIN: athletic white man, early 30s, stubble, navy Boston Red Sox cap with a red letter, grey t-shirt, sleeves pushed up, defined muscular forearms, fit but not bulky. A bright orange fanny pack worn diagonally across his chest like a satchel.\nROLAND: a tall man in a rumpled bathrobe over a hoodie, reading glasses pushed up into messy hair, always carrying a fat dog-eared paperback titled \"THE PRIZE: THE EPIC QUEST FOR OIL\".\nTHE EYE: the flaming Eye of Sauron, ember-orange, always somewhere in Jack's scenes: a window, a screen reflection, a lamp. Sauron himself never appears as a figure and there is no Mouth of Sauron; when he acts, it is SAURON'S HAND: one enormous shadowy hand wreathed in orange flame, reaching in from the Eye's direction.\nTHE GAME: a laptop or phone showing a 3D globe with five pins, and a score card of five numbers each with a small badge icon (flame, bullseye, medal, trophy) and \"Final score\" underneath.\nCOLIN'S CELSIUS: the exact can in the reference photo, reproduced faithfully whenever it appears: a slim white 12 fl oz CELSIUS can, black CELSIUS wordmark with \"LIVE FIT\" in teal beneath it, \"RETRO Vibe\" in big 80s chrome letters with a teal-to-orange-to-red gradient, \"SPARKLING SHERBET SLUSH EDITION\" in orange script, diagonal rainbow stripes (blue, teal, yellow, orange, red) sweeping across the middle, black palm-tree silhouettes on both sides, a dripping rainbow sherbet swirl near the bottom. Colin is never without one; his rule is MapTap on at least one Celsius, ideally three. He calls the other players \"Mapthletes.\" The can belongs to COLIN'S scenes only: it never appears in Jack's room unless the panel says so.",
+  "refs": [
+    "refs/retro-vibe-can.jpeg"
+  ],
+  "chain": 1,
+  "panels": [
+    {
+      "name": "01-roland",
+      "prompt": "Dark kitchen before dawn, one lamp. ROLAND at the table in his bathrobe, phone glowing in one hand, a fat dog-eared paperback titled \"THE PRIZE: THE EPIC QUEST FOR OIL\" open face-down beside a mug. On the phone: a globe with five pins and a score card reading 98 · 99 · 98 · 100 · 94, \"Final score: 975\". Caption: \"4:40 AM. Roland is up first.\" Speech bubble: \"My current read about the oil industry helped today.\"",
+      "refs": []
+    },
+    {
+      "name": "02-jack",
+      "prompt": "A bedroom that is half teenager's lair, half Barad-dûr. JACK the Nazgûl in his Mets cap sits at a desk, laptop open, a gauntlet on the trackpad. Every wall is papered with newspaper clippings and one is pinned dead center, headline legible: \"METS ELIMINATED: FALL TO 69-83\". Others readable around it: \"ORIOLES 2, METS 1\", \"12 STRAIGHT LOSSES IN APRIL\", \"TWO YEARS, NO OCTOBER\". A Mets pennant droops. Behind him the window glows ember-orange with the edge of a great flaming eye. On the laptop: score card 97 · 99 · 100 · 100 · 97, \"Final score: 987\". Caption: \"8:25 AM. Jack checks in.\"",
+      "refs": []
+    },
+    {
+      "name": "03-trackpad",
+      "prompt": "Extreme close-up: the laptop trackpad. JACK's iron gauntlet rests on it, but a second hand, enormous, shadowy, wreathed in orange flame, reaches in from off-panel and guides the gauntlet's finger to the exact spot on the globe. The screen reflects a slit-pupiled fire. Speech bubble from above, Jack's: \"That was probably the best chance for a 100. Shame.\"",
+      "refs": []
+    },
+    {
+      "name": "04-roland-leaves",
+      "prompt": "ROLAND stands in his doorway in the bathrobe, the oil book under one arm and under the other a full-size classroom globe, tucked like a basketball. Dramatic sulking posture, chin up. The kitchen behind him is empty, mug still steaming. Speech bubble: \"That's it. I'm taking my ball and going home.\" Caption: \"8:26 AM.\"",
+      "refs": []
+    },
+    {
+      "name": "05-ad-break",
+      "prompt": "A full-panel fake 1990s television commercial, shot on a soundstage with a painted beach-at-sunset backdrop in raspberry pink, orange and lime, roller-rink carpet squiggles, VHS scanlines and a slight tracking wobble at the bottom edge. COLIN center frame in his Red Sox cap and orange fanny pack, grinning at camera, holding a CELSIUS RETRO VIBE can up beside his face, label to lens, condensation beading on it. Behind him on a pedestal, a glowing 3D globe with five pins. A chunky 90s lower-third title: \"COLIN WILSON · MAPTHLETE.\" Speech bubble: \"Other Mapthletes play on coffee. I play on three Retro Vibes, and I FEEL the coastlines.\" A second small bubble, aside, deadpan: \"Not a paid spokesperson. Yet.\" Corner burst: \"WHAT'S YOUR VIBE?\" Bottom caption in tiny legal type: \"Results not typical. Jack does not count as a Mapthlete pending investigation.\"",
+      "refs": []
+    },
+    {
+      "name": "06-colin-question",
+      "prompt": "Sunlit apartment kitchen counter. COLIN in his Red Sox cap and orange fanny pack, one forearm on the counter, a slim CELSIUS RETRO VIBE can in one hand (pastel raspberry-orange-lime swirl, label readable), phone in the other, one eyebrow raised, deadpan. Two more unopened Retro Vibe cans lined up on the counter beside him like ammunition. In the glossy side of the can, a tiny reflection of the flaming Eye. Speech bubble, typed-message style: \"Are we convinced that Jack is actually the one playing and not Sauron?\" Caption: \"8:28 AM. Celsius one of three. A Mapthlete has a question.\"",
+      "refs": []
+    },
+    {
+      "name": "07-forced-reply",
+      "prompt": "Jack's room, the clippings wall behind; one more clipping half hidden among them: \"CELSIUS HOLDINGS Q2 RESULTS\". JACK the Nazgûl sits at the desk in his Mets cap, his phone in one gauntlet, the chat open. The flaming Eye of Sauron fills the window behind him, its gaze on the phone. Out of the window's fire, SAURON'S HAND, enormous, shadowy, wreathed in orange flame (the same hand that guided the trackpad), reaches over Jack's shoulder and closes around his other gauntlet, pressing the iron finger down onto the phone's keyboard, key by key. Jack's hood is turned away in protest, but the hand types. No other figure is in the room. The speech bubble comes from Jack, its edges licked with small flames: \"Colin, I honestly think you can do better. It's a gettable one.\" Caption: \"8:28 AM. Jack replies. Sort of.\"",
+      "refs": []
+    },
+    {
+      "name": "08-gettable",
+      "prompt": "COLIN close-up over his shoulder, squinting at his phone, cracking the tab on a second CELSIUS RETRO VIBE, the first can now empty and crushed beside it. The chat shows the last message bubble: \"I will explain why at the conclusion of the day.\" Below it the globe, zoomed on the eastern United States, one pin hovering, unplaced, over Maryland, and a date banner reading \"September 17\". Small thought bubble: \"Gettable. On one Celsius? No. On three. Mapthletes know.\" Caption: \"8:29 AM. Celsius two of three. Colin has not played yet.\"",
+      "refs": []
+    },
+    {
+      "name": "09-cliffhanger",
+      "prompt": "Jack's room at night, no one in it. The desk lamp is off. The Mets cap sits alone on the closed laptop. The clippings wall is lit only by the window, which is now entirely filled by the flaming Eye of Sauron, looking in. On the floor, one more clipping has fallen: \"ELIMINATED.\" Caption, large: \"THE CONCLUSION OF THE DAY.\" Sub-caption, small: \"to be continued.\"",
+      "refs": []
+    }
+  ]
+}

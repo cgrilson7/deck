@@ -121,6 +121,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         { label: "Foxtrot's Log", accelerator: 'CmdOrCtrl+J', click: () => ui({ type: 'toggleFoxLog' }) },
+        {
+          label: 'Studio',
+          submenu: [
+            { label: 'Open Studio', accelerator: 'CmdOrCtrl+Shift+I', click: () => ui({ type: 'toggleStudio' }) },
+            { label: 'Show Studio Tile', type: 'checkbox', checked: s.showStudio, click: () => patch({ showStudio: !settings().showStudio }) }
+          ]
+        },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },
         {

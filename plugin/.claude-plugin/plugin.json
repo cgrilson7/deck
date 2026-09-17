@@ -1,6 +1,6 @@
 {
   "name": "deck",
-  "description": "What every deck session gets: the wolfpack skill (a Fable alpha cutting decided work into tracks for Opus betas, each a tile under its pack tile) and the CLI the alpha drives it with.",
+  "description": "What every deck session gets: the wolfpack skill (a Fable alpha cutting decided work into tracks for Opus betas, each a tile under its pack tile) and the CLI the alpha drives it with, plus the studio skill (drafting and running a Gemini image generation into the deck's Studio gallery) and the CLI behind it.",
   "version": "0.1.0",
   "author": {
     "name": "Colin G. Wilson"

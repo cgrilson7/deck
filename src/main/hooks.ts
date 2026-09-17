@@ -2,7 +2,9 @@
 // Notification / Stop / UserPromptSubmit hooks POST their stdin JSON to this local server.
 // `--settings` MERGES with the user's own settings (lists combine), so their hooks still run.
 //
-// The same server is how a session inside the deck talks back to it: `POST /pack` is the
+// The same server is how a session inside the deck talks back to it: `POST /studio` is the
+// Studio (main/studio.ts: a session drafting and running a Gemini image generation, the
+// result landing in the tile's gallery), and `POST /pack` is the
 // wolfpack (main/pack.ts) — an alpha spawning betas, asking after them, dismissing them. The
 // settings file also sets DECK_HOOK_PORT / DECK_PROFILE in every session's environment, so
 // plugin/scripts/wolfpack.mjs knows which deck it is in, and DECK_WOLFPACK — that script's
@@ -74,9 +76,13 @@ export class HooksServer {
     private readonly profile: string,
     /** Absolute path of plugin/scripts/wolfpack.mjs, handed to every session as DECK_WOLFPACK. */
     private readonly wolfpackScript: string,
+    /** Absolute path of plugin/scripts/studio.mjs, handed to every session as DECK_STUDIO. */
+    private readonly studioScript: string,
     private readonly onEvent: (event: HookEvent, payload: HookPayload) => void,
     /** `POST /pack`: the body, parsed; the result goes back as JSON (an Error = 400 with its message). */
     private readonly onPack: (body: unknown) => Promise<unknown>,
+    /** `POST /studio`: the Studio's door (main/studio.ts), the same shape as /pack. A `gen` waits for the image. */
+    private readonly onStudio: (body: unknown) => Promise<unknown>,
     /**
      * `POST /pretool`: the decision on a tool call. Resolves to null = let it through (at once, as a
      * rule; late, for a paused member), or a deny decision; `gone` fires if the caller hung up first.
@@ -127,7 +133,7 @@ export class HooksServer {
       ]
     })
     const settings = {
-      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript },
+      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
@@ -180,9 +186,9 @@ export class HooksServer {
             return
           }
           this.log(path, payload)
-          if (path === 'pack') {
-            // The wolfpack answers: JSON either way, and never hangs the caller.
-            void this.onPack(payload).then(
+          if (path === 'pack' || path === 'studio') {
+            // The wolfpack (or the Studio) answers: JSON either way, and never hangs the caller.
+            void (path === 'pack' ? this.onPack(payload) : this.onStudio(payload)).then(
               (result) => {
                 res.statusCode = 200
                 res.setHeader('content-type', 'application/json')

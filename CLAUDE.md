@@ -49,18 +49,22 @@ src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resum
 src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door,
+                             and POST /studio, the Studio's,
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
 src/main/agents.ts         subagents as tiles + THE LEASH: SubagentStart/Stop hooks → the list, names off the parent's Agent call, transcripts
                              handed to the tailer; pause / resume / cancel of any member (subagent or beta), the alpha told in its terminal
 src/main/pack.ts           beta SESSIONS: an alpha (a session inside the deck) spawns / asks after / talks to / dismisses Opus sessions of its own
 plugin/                    the deck's Claude Code plugin, `--plugin-dir` on every session it starts (extraResources when packaged):
                              .claude-plugin/plugin.json (name `deck`), skills/wolfpack/SKILL.md (the skill, `/deck:wolfpack`),
-                             scripts/wolfpack.mjs (the alpha's CLI: spawn, status, wait, say, dismiss; its path is DECK_WOLFPACK in every session's env)
+                             scripts/wolfpack.mjs (the alpha's CLI: spawn, status, wait, say, dismiss; its path is DECK_WOLFPACK in every session's env),
+                             skills/studio/SKILL.md (`/deck:studio`: how to draft a Gemini image prompt and run it),
+                             scripts/studio.mjs (the session's CLI: gen, list, models, info, comic; its path is DECK_STUDIO in every session's env)
 src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
+src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
@@ -84,6 +88,7 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
                                     ScreenView.tsx (tmux's screen + the key strip), ansi.tsx (SGR → spans), palette.ts (--ansi-N from the theme)
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
+src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
@@ -97,6 +102,7 @@ src/renderer/src/components/        FocusPane, Grid (two paged side columns + dr
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
@@ -104,6 +110,7 @@ build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): 
 scripts/smoke.mjs          the smoke test
 docs/casa.md               where the deck is headed: the house (casa) as a deck plugin, Foxtrot as the Mac mini
 docs/foxtrot-portrait.md   Foxtrot as a voxel figure: image prompts for concept art
+docs/comics/mapthletes/    a comic manifest for the Studio's `comic` command (sheet-01.json, nine panels) + what it is built on
 ```
 
 ## Where it is headed
@@ -141,7 +148,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`), and the wolfpack
   MEMBERS (each beta session and each subagent, a cell apiece) right behind them; that block
   is never pinned and has no grip. After it come the plugins
-  (`pluginCells()`: wiki, music, git, vocab, translate; compact mode drops the first two), into
+  (`pluginCells()`: wiki, music, studio, git, vocab, translate; compact mode drops the first two), into
   the free cells, except where one is pinned (`gridLayout` in config.json: cell index across
   pages → a plugin key; a pin inside the block waits until the
   block shrinks past it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
@@ -278,6 +285,35 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Spotify unmounts the webview. Play/pause and mute call the embed's player object
   (`#movie_player`) through `executeJavaScript`, never the `<video>` element (the player
   re-applies its own mute state to it). Not on the phone.
+- **Studio** (`main/studio.ts`, `StudioTile`, `StudioPane`, `lib/studio.ts`, `plugin/skills/studio/`,
+  `plugin/scripts/studio.mjs`): Gemini image generation inside the deck, ONE service with THREE
+  DOORS and one gallery. The TILE (a plugin cell, `showStudio`) is the newest image full bleed
+  with a prompt bar under it and the last few thumbnails over its bottom edge; the PANE (⌘⇧I,
+  View ▸ Studio ▸ Open Studio, or the tile's ⤢) takes the CENTER column — it REPLACES the focus
+  pane, the focused session showing as a grid tile meanwhile, and a click on any session tile,
+  ⌘1–9 or a focus change closes it — and holds the composer (prompt, model / ratio / size / tag,
+  reference chips), the viewer of the selected job and the gallery; and a SESSION asks over
+  `POST 127.0.0.1:<hook port>/studio` (`{ op: 'gen' | 'list' | 'models' | 'info', … }`, the hooks
+  server, like `/pack`), which is `plugin/scripts/studio.mjs` — `DECK_STUDIO` in every session's
+  env, `gen` / `list` / `models` / `info` / `comic <manifest.json>` — driven by the `/deck:studio`
+  skill, so the model that is good at language writes the request for the model that is good at
+  pictures. The pane's "Ask Claude for help" pastes the composer's notes into the focused
+  session as a message starting `[deck studio]`, which OPENS A CONVERSATION the skill answers:
+  it asks what is wanted, drafts the prompt in a code block, refines it with the user (a file
+  path dropped into the chat is a reference), and generates only when told to go.
+  Every door lands in the SAME gallery: `userData/studio/`, a JPEG (the mime's extension) per job and `jobs.json` beside
+  it (the last 400, newest first), broadcast whole as `studio:update` on every change, so the
+  tile and the pane only draw the list; a job is `running` in the list before the call goes out
+  and `done` (with `image`, the absolute path) or `error` when it comes back, and `generate()`
+  never throws on a refusal — the reason is on the job. A delete takes the PNG with it.
+  The call is the Generative Language API's `generateContent` (v1beta, `x-goog-api-key`,
+  references inline as base64, `responseModalities` TEXT + IMAGE); the KEY is `geminiApiKey` in
+  config.json, else the login shell's `$GEMINI_API_KEY`, and without one every job fails saying
+  so (`studioInfo()` reports which). The MODEL is the request's, else the `studioModel` setting
+  (`STUDIO_MODEL_DEFAULT`, `gemini-3.1-flash-image`); `STUDIO_RATIOS` and `STUDIO_SIZES` are what
+  the API takes and `STUDIO_REFS_MAX` (10) the references one request may carry. A generation
+  takes 10–120s, so nothing that calls it may have a short timeout. Not on the phone
+  (`phone/api.ts` answers empty / rejects).
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -560,12 +596,14 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
+- `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridLayout, focusWidth, fonts, plugins, defaultCwd, defaultModel,
-  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId, foxBark, remote…);
+  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
+  showStudio, geminiApiKey, studioModel, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

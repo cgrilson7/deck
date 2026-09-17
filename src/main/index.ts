@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, SpotifyCommand, DeckSettings, Lang, Screen, TranslateResult, UiEvent, VocabResult } from '@shared/types'
+import type { DeckCommand, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
 import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
@@ -28,6 +28,7 @@ import { gitChanges, gitDiff } from './git'
 import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
 import { Wolfpack } from './pack'
+import { Studio } from './studio'
 import { AgentTracker } from './agents'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -57,6 +58,7 @@ let transcripts: TranscriptWatcher | null = null
 let foxtrot: Foxtrot | null = null
 let remote: RemoteServer | null = null
 let wolfpack: Wolfpack | null = null
+let studio: Studio | null = null
 let agents: AgentTracker | null = null
 
 /** A broadcast reaches the window and, relayed by channel name, every phone (main/remote.ts). */
@@ -231,17 +233,35 @@ app.whenReady().then(async () => {
   foxtrot = new Foxtrot(userData, (e) => send('fox:entry', e))
   ipcMain.handle('fox:log', (_e, limit?: number) => foxtrot!.log(limit))
 
+  // The Studio: Gemini image generation, a gallery under userData/studio, three doors (tile, pane, /studio).
+  studio = new Studio(
+    userData,
+    () => {
+      const k = settings!.get().geminiApiKey
+      return k ? { key: k, source: 'settings' } : { key: env.GEMINI_API_KEY ?? '', source: 'env' }
+    },
+    () => settings!.get().studioModel,
+    (jobs) => send('studio:update', jobs)
+  )
+  ipcMain.handle('studio:jobs', () => studio!.list())
+  ipcMain.handle('studio:generate', (_e, req: StudioRequest) => studio!.generate(req ?? { prompt: '' }))
+  ipcMain.handle('studio:delete', (_e, id: string) => studio!.delete(String(id ?? '')))
+  ipcMain.handle('studio:models', () => studio!.listModels())
+  ipcMain.handle('studio:info', () => studio!.info())
+
   // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
   const hooks = new HooksServer(
     HOOK_PORT,
     userData,
     profile,
     join(pluginDir, 'scripts', 'wolfpack.mjs'),
+    join(pluginDir, 'scripts', 'studio.mjs'),
     (event, payload) => {
       manager?.onHook(event, payload)
       agents?.onHook(event, payload)
     },
     (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready'))),
+    (body) => (studio ? studio.handle(body) : Promise.reject(new Error('not ready'))),
     // Every tool call asks the leash (a paused member waits, a cancelled one is refused): main/agents.ts.
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )

@@ -18,14 +18,15 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'git', 'vocab', 'translate'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'git', 'vocab', 'translate'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
+  if (s.showStudio) out.push('studio')
   if (s.showGit) out.push('git')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
@@ -403,6 +404,12 @@ export interface DeckSettings {
   spotifyClientId: string
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
+  /** The Studio tile (Gemini image generation: a prompt, references, a gallery; click = the center pane). */
+  showStudio: boolean
+  /** A Gemini API key (aistudio.google.com) for the Studio. Falls back to $GEMINI_API_KEY. */
+  geminiApiKey: string
+  /** The Gemini image model the Studio generates with unless a request names one (`STUDIO_MODEL_DEFAULT`). */
+  studioModel: string
   /** Google Cloud API key with the Cloud Translation API enabled. Falls back to $GOOGLE_CLOUD_API_KEY. */
   translateApiKey: string
   /** The vocabulary tile (Wiktionary: definitions, synonyms, etymology) takes the grid cell left of the translator. */
@@ -450,6 +457,9 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   ],
   spotifyClientId: '',
   showTranslate: true,
+  showStudio: true,
+  geminiApiKey: '',
+  studioModel: 'gemini-3.1-flash-image',
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
@@ -597,7 +607,79 @@ export interface GitDiff {
 }
 
 /** One-shot UI requests from the main process (menu items) to the renderer. */
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' }
+/* ────────────────────────────── Studio ────────────────────────────── */
+
+/** What the Studio generates with when a request names no model (the `studioModel` setting starts here). */
+export const STUDIO_MODEL_DEFAULT = 'gemini-3.1-flash-image'
+/** The aspect ratios Gemini's image models take (`imageConfig.aspectRatio`). */
+export const STUDIO_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
+export type StudioRatio = (typeof STUDIO_RATIOS)[number]
+/** Output sizes (`imageConfig.imageSize`); 512 is Flash-only, 4K is slow and costs the most. */
+export const STUDIO_SIZES = ['512', '1K', '2K', '4K'] as const
+export type StudioSize = (typeof STUDIO_SIZES)[number]
+/** The most reference images one request may carry. */
+export const STUDIO_REFS_MAX = 10
+
+/** One generation asked of the Studio (the tile, the pane, or a session through `POST /studio`). */
+export interface StudioRequest {
+  prompt: string
+  /** A Gemini model id; absent = the `studioModel` setting. */
+  model?: string
+  ratio?: StudioRatio
+  size?: StudioSize
+  /** Absolute paths of images to send along (a photo, an earlier result, a sprite sheet); `~/` is allowed. */
+  refs?: string[]
+  /** Groups jobs in the gallery (a comic's name, say). */
+  tag?: string
+  /** A word or two for the file's name (slugged); absent = the prompt's first words. */
+  name?: string
+  /** Where the request came from. */
+  from?: 'tile' | 'pane' | 'cli'
+  /** Deck id of the session that asked (a `cli` request), so the gallery can say whose it was. */
+  session?: string
+}
+
+/** A generation, as kept in `userData/studio/jobs.json` and shown in the gallery (newest first). */
+export interface StudioJob {
+  id: string
+  /** When it was asked, ms since the epoch. */
+  at: number
+  /** How long the model took, once done. */
+  ms?: number
+  status: 'running' | 'done' | 'error'
+  prompt: string
+  model: string
+  ratio: StudioRatio
+  size: StudioSize
+  refs: string[]
+  tag?: string
+  name?: string
+  from: 'tile' | 'pane' | 'cli'
+  session?: string
+  /** Absolute path of the image written (`userData/studio/<stamp>-<slug>.png`). */
+  image?: string
+  mime?: string
+  /** Whatever prose the model returned beside the image (a refusal, a note). */
+  text?: string
+  error?: string
+}
+
+/** A Gemini model that can return images, from the API's model list. */
+export interface StudioModel {
+  id: string
+  name: string
+  description: string
+}
+
+/** The Studio's standing: whether a key is set (and where from), where images go, the default model. */
+export interface StudioInfo {
+  ready: boolean
+  keySource: 'settings' | 'env' | 'none'
+  dir: string
+  model: string
+}
+
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -707,4 +789,15 @@ export interface DeckApi {
   gitChanges(id: string): Promise<GitChanges>
   /** One file's diff against HEAD, within `repo` (untracked = the whole file as additions). */
   gitDiff(repo: string, path: string, untracked: boolean): Promise<GitDiff>
+  /** The Studio (main/studio.ts): every job, newest first. */
+  studioJobs(): Promise<StudioJob[]>
+  /** The whole list again whenever a job starts, finishes or is deleted. */
+  onStudio(cb: (jobs: StudioJob[]) => void): () => void
+  /** Generate; resolves with the finished (or failed) job. The running one is already in `onStudio` lists. */
+  studioGenerate(req: StudioRequest): Promise<StudioJob>
+  /** Forget a job and delete its image. */
+  studioDelete(id: string): Promise<void>
+  /** The image-capable Gemini models the key can see (cached in main). */
+  studioModels(): Promise<StudioModel[]>
+  studioInfo(): Promise<StudioInfo>
 }

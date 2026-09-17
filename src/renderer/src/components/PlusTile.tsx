@@ -26,6 +26,12 @@ export const PLUGINS: {
     setting: 'showMusic'
   },
   {
+    key: 'studio',
+    label: 'Studio',
+    hint: 'Gemini image generation: a prompt, references, a gallery; click for the full Studio',
+    setting: 'showStudio'
+  },
+  {
     key: 'git',
     label: 'Changes',
     hint: "The focused session's working tree and diffs",
