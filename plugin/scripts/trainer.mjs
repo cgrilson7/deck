@@ -23,7 +23,9 @@
 //   trainer.mjs where [target]                             the landmarks, or one of them
 //   trainer.mjs map                                        the whole current map
 //   trainer.mjs cut                                        use Cut on the tree you face (needs HM01 taught)
-//   trainer.mjs party "<spec>" [--dv N] [--ev N]            FORGE a party: "Alakazam 65: Psychic, Recover; Snorlax 65"
+//   trainer.mjs party "<spec>" [--add] [--ot NAME] [--dv N] [--ev N]
+//                                                          FORGE a party: "Alakazam 65: Psychic, Recover; Snorlax 65"
+//                                                          --add appends instead of replacing; --ot names another original trainer
 //                                                          (moves default to the level-up set at that level)
 //   trainer.mjs elite [--level N]                          the preset Elite Four team, all badges, money
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
@@ -46,7 +48,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a.startsWith('--')) {
     const k = a.slice(2)
-    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'headless-keep') flags[k] = true
+    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'add') flags[k] = true
     else flags[k] = argv[++i]
   } else args.push(a)
 }
@@ -261,8 +263,8 @@ try {
       const spec = rest.join(' ')
       if (!spec) die('party "Alakazam 65: Psychic, Recover, Thunder Wave, Reflect; Snorlax 65; …" (up to six; moves optional)')
       const team = F.parseTeam(spec)
-      const mons = await F.writeParty(door, team, { dv: flags.dv != null ? +flags.dv : 15, statExp: flags.ev != null ? +flags.ev : 65535 })
-      await finish(`forged a party of ${mons.length}:\n` + mons.map((m) => `  ${m.name} L${m.level} HP ${m.maxHp} — ${m.moves.join(', ')}`).join('\n'))
+      const mons = await F.writeParty(door, team, { add: !!flags.add, ot: flags.ot, dv: flags.dv != null ? +flags.dv : 15, statExp: flags.ev != null ? +flags.ev : 65535 })
+      await finish(`${flags.add ? 'added to the party' : 'forged a party'}:\n` + mons.map((m) => `  ${m.name} L${m.level} HP ${m.maxHp} — ${m.moves.join(', ')}`).join('\n'))
       break
     }
     case 'elite': {

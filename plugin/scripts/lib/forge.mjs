@@ -133,19 +133,35 @@ export function parseTeam(spec) {
 
 const b64 = (u8) => Buffer.from(u8).toString('base64')
 
-/** Write a whole party (1–6). Replaces what is there. The Pokédex learns each one as seen and owned. */
+/**
+ * Write a party (1–6). Replaces what is there, or with `add` appends to it (up to six). The
+ * Pokédex learns each one as seen and owned. `ot` names another trainer as the original one
+ * (a traded Pokémon: it obeys by badges, like the game's own trades).
+ */
 export async function writeParty(door, team, opts = {}) {
-  const [nameBytes, idBytes, dexOwned, dexSeen] = (await door.call({ op: 'ram', ranges: [[A.wPlayerName, 11], [A.wPlayerID, 2], [A.wPokedexOwned, 19], [A.wPokedexSeen, 19]] })).data.map((d) => new Uint8Array(Buffer.from(d, 'base64')))
-  const otName = Y.decodeName(nameBytes) || 'RED'
-  const otId = (idBytes[0] << 8) | idBytes[1]
+  const [nameBytes, idBytes, dexOwned, dexSeen, had] = (
+    await door.call({ op: 'ram', ranges: [[A.wPlayerName, 11], [A.wPlayerID, 2], [A.wPokedexOwned, 19], [A.wPokedexSeen, 19], [A.wPartyCount, A.wPartyMonNicks + 66 - A.wPartyCount]] })
+  ).data.map((d) => new Uint8Array(Buffer.from(d, 'base64')))
+  const otName = opts.ot ?? (Y.decodeName(nameBytes) || 'RED')
+  const otId = opts.ot ? ((idBytes[0] << 8) | idBytes[1]) ^ 0x5a5a : (idBytes[0] << 8) | idBytes[1]
+  const keep = opts.add ? Math.min(had[0], 6) : 0
+  if (keep + team.length > 6) throw new Error(`the party holds six: ${keep} there already, ${team.length} more asked for`)
   const mons = team.map((t) => buildMon({ ...t, dv: opts.dv ?? 15, statExp: opts.statExp ?? 65535, otId, otName }))
-  const n = mons.length
+  const n = keep + mons.length
+  const P = (sym) => A[sym] - A.wPartyCount
   const speciesList = new Uint8Array(7).fill(0xff)
-  mons.forEach((m, i) => (speciesList[i] = m.id))
   const structs = new Uint8Array(6 * 44)
   const nicks = new Uint8Array(6 * 11).fill(0x50)
   const ots = new Uint8Array(6 * 11).fill(0x50)
-  mons.forEach((m, i) => {
+  if (keep) {
+    speciesList.set(had.subarray(P('wPartySpecies'), P('wPartySpecies') + keep))
+    structs.set(had.subarray(P('wPartyMon1'), P('wPartyMon1') + keep * 44))
+    ots.set(had.subarray(P('wPartyMonOT'), P('wPartyMonOT') + keep * 11))
+    nicks.set(had.subarray(P('wPartyMonNicks'), P('wPartyMonNicks') + keep * 11))
+  }
+  mons.forEach((m, j) => {
+    const i = keep + j
+    speciesList[i] = m.id
     structs.set(m.struct, i * 44)
     nicks.set(m.nick, i * 11)
     ots.set(m.ot, i * 11)
