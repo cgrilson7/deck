@@ -2564,33 +2564,343 @@ button {
   animation-fill-mode: forwards;
 }
 
-/* ---- recent folders (empty focus pane; the + menu reuses .menu-section buttons) ---- */
-.focus-empty .recent {
+/* ---- the launcher: the empty focus pane, built out (Launcher.tsx) ---- */
+.focus-empty.launcher {
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  color: var(--ink);
+}
+.launcher-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 18px 24px;
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  scrollbar-width: thin;
+}
+.launcher-hero {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 8px;
-  max-width: 100%;
+  gap: 18px;
+  padding: 2px 4px;
 }
-.focus-empty .recent-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.launcher-hero-text {
+  min-width: 0;
+}
+.launcher-hero h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.launcher-hero p {
+  margin: 2px 0 8px;
+  font-size: 12px;
   color: var(--muted);
-  margin-bottom: 4px;
 }
-.focus-empty .recent-dir {
-  padding: 6px 12px;
-  border-radius: 6px;
+.launcher-hero p .badge {
+  margin-left: 8px;
+}
+.launcher-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.launcher-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.lcard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.lcard-wide {
+  grid-column: 1 / -1;
+}
+.lcard h3 {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lcard h3 small {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lform {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.lfield > label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.lgrow {
+  flex: 1 1 140px;
+}
+.llist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lin {
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
   color: var(--ink);
-  max-width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  outline: none;
+}
+.lin:focus {
+  border-color: var(--accent);
+}
+.lin-mono {
+  font-family: var(--mono, monospace);
+}
+.lin[type='number'] {
+  width: 72px;
+}
+.ltext {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+  resize: vertical;
+  line-height: 1.4;
+}
+.lbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.lbtn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.lbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lbtn kbd,
+.lkeys kbd {
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.lgo {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.lgo:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 26%, var(--panel));
+}
+.lactions {
+  margin-top: 2px;
+}
+.lerr {
+  font-size: 11px;
+  color: var(--blocked);
+}
+.lmuted {
+  font-size: 11px;
+  color: var(--muted);
+}
+.lpath {
+  flex: 1 1 60px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.focus-empty .recent-dir:hover {
+.lsep {
+  color: var(--muted);
+}
+.lname {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+}
+.lpills {
+  flex-wrap: wrap;
+  overflow: visible;
+  padding: 0;
+}
+.launcher .pill {
+  background: var(--panel);
+}
+.launcher .pill.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.launcher .pill-toggle.off {
+  opacity: 0.5;
+}
+.launcher .menu-model {
+  padding: 0;
+}
+.launcher .segmented {
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.launcher .seg.on {
   background: var(--bg);
+}
+.lseg {
+  max-width: 340px;
+}
+.lseg .seg {
+  height: 28px;
+}
+.lparked {
+  padding: 6px 8px;
+  border-radius: 6px;
+  flex-wrap: nowrap;
+}
+.lparked:hover {
+  background: var(--panel);
+}
+.lcheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.lcheck:hover {
+  background: var(--panel);
+}
+.lcheck input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.lcheck b {
+  font-weight: 500;
+}
+.lcheck small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.lset {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+}
+.lset-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.lset .segmented {
+  max-width: 280px;
+}
+.lstudio {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.lstudio-shot {
+  flex: 0 0 132px;
+  height: 132px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.lstudio-shot:hover {
+  border-color: var(--accent);
+}
+.lstudio-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lstudio-form {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lkeys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px 14px;
+  font-size: 12px;
+}
+.lkeys div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+/* a permission mode that switches asking off: the select and the head's badge wear the warning tint */
+.menu-model.is-risky .menu-select {
+  border-color: var(--blocked);
+  color: var(--blocked);
+}
+.badge-risky {
+  border-color: var(--blocked);
+  color: var(--blocked);
 }
 /* "Start in" rows of the + chooser: the folder is the label, a muted hint says why it is there */
 .menu-section > button .cwd {
@@ -3543,9 +3853,31 @@ button.foxlog-chip:hover {
   margin: 6px;
 }
 
-/* the pane: composer always visible, the viewer and the gallery scrolling under it */
+/* the pane: composer always visible, the chat (when one is open) and then the viewer and the gallery under it */
 .studio-pane {
   min-height: 0;
+}
+/* the Studio's chat: a session's conversation and prompt bar, the way a tile shows them, sharing the height with the gallery */
+.studio-chat {
+  flex: 1.2 1 0;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--line);
+}
+.studio-chat.drop-over {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.studio-chat .pane-head .ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.studio-chat .tile-body {
+  --tile-prompt-gap: 8px;
+}
+.studio-chat .tile-prompt {
+  border-color: var(--muted);
 }
 .studio-nokey {
   border-color: var(--blocked);

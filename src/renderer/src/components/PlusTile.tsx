@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { PLUGIN_KEYS, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
-import { MODELS, cleanModel } from '@shared/models'
+import { MODELS, PERMISSION_MODES, cleanModel } from '@shared/models'
 import { shortPath } from '../lib/format'
 import { patchSettings, useSettings } from '../lib/theme'
 
@@ -116,8 +116,8 @@ export function useModelPick(dflt: string) {
 
 type ModelPickState = ReturnType<typeof useModelPick>
 
-/** The "Model" row of the + chooser: a select over the catalog, and a text field when "other…" is picked. */
-function ModelPick({ pick }: { pick: ModelPickState }) {
+/** The "Model" row of the + chooser (and the launcher): a select over the catalog, and a text field when "other…" is picked. */
+export function ModelPick({ pick }: { pick: ModelPickState }) {
   const hint = MODELS.find((m) => m.id === pick.pick)?.hint ?? 'An alias or a full model id, as `claude --model` takes it'
   return (
     <div className="menu-model" title={hint} onClick={(e) => e.stopPropagation()}>
@@ -145,6 +145,23 @@ function ModelPick({ pick }: { pick: ModelPickState }) {
   )
 }
 
+/** The "Permissions" row: `--permission-mode` from the catalog; the modes that switch asking off wear a warning tint. */
+export function PermissionPick({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const cur = PERMISSION_MODES.find((m) => m.id === value)
+  return (
+    <div className={`menu-model ${cur?.risky ? 'is-risky' : ''}`} title={cur?.hint ?? "The CLI's --permission-mode"} onClick={(e) => e.stopPropagation()}>
+      <span className="menu-model-label">Permissions</span>
+      <select className="menu-select" value={value} onChange={(e) => onChange(e.target.value)}>
+        {PERMISSION_MODES.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: number; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
@@ -155,8 +172,9 @@ function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: numb
     void window.deck.command(cmd)
   }
   const model = useModelPick(settings.defaultModel)
+  const [perm, setPerm] = useState('')
   /** ⌥-click flips the worktree toggle for that one pick. */
-  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree, model: model.value })
+  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree, model: model.value, permissionMode: perm || undefined })
   const shown = new Set(pluginCells(settings))
   /** A mini app here: turned on if it was off, and pinned to this cell either way. */
   const place = (p: (typeof PLUGINS)[number]) => {
@@ -213,7 +231,7 @@ function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: numb
                   Default folder
                 </button>
               )}
-              <button className="pill" onClick={() => run({ type: 'chooseFolder', worktree, model: model.value })}>
+              <button className="pill" onClick={() => run({ type: 'chooseFolder', worktree, model: model.value, permissionMode: perm || undefined })}>
                 Choose folder…
               </button>
             </div>
@@ -223,6 +241,7 @@ function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: numb
                 in a new git worktree
               </label>
               <ModelPick pick={model} />
+              <PermissionPick value={perm} onChange={setPerm} />
             </div>
           </section>
         )}

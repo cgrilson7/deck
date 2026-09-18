@@ -14,7 +14,7 @@ import { dispose, liveIds } from './lib/terminals'
 import { onOpenDoc, type DocRef } from './lib/paths'
 import { onLeash, type LeashAsk } from './lib/leash'
 import { useFoxLog } from './lib/foxlog'
-import { onStudio } from './lib/studio'
+import { onStudio, readStudioChat, writeStudioChat } from './lib/studio'
 import { StudioPane } from './components/StudioPane'
 import { useSettings } from './lib/theme'
 
@@ -40,6 +40,13 @@ export default function App() {
   const [leash, setLeash] = useState<LeashAsk | null>(null)
   // The Studio open in the CENTER: the focus pane steps aside (the focused session shows in the grid meanwhile).
   const [studioOpen, setStudioOpen] = useState(false)
+  // The session the Studio is talking to ("Ask Claude for help" starts one): shown INSIDE the Studio
+  // pane while it is open, so it leaves the grid then, the way the focused session does.
+  const [studioChat, setStudioChatState] = useState<string | null>(readStudioChat)
+  const setStudioChat = (id: string | null) => {
+    writeStudioChat(id)
+    setStudioChatState(id)
+  }
   const fox = useFoxLog()
   const settings = useSettings()
   // Subagents of every open session (SubagentStart / SubagentStop hooks), each a tile of its own.
@@ -111,7 +118,7 @@ export default function App() {
   const top = state.open.filter((s) => !s.pack)
   const betas = state.open.filter((s) => s.pack)
   const others = top
-    .filter((s) => studioOpen || s.slot !== state.focusSlot)
+    .filter((s) => (studioOpen ? s.id !== studioChat : s.slot !== state.focusSlot))
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
   // Members grouped by alpha (in slot order), each group's betas needing you first, then subagents as they started.
   const members: Member[] = []
@@ -164,7 +171,11 @@ export default function App() {
         </div>
       </header>
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
-        {studioOpen ? <StudioPane session={focused} onClose={() => setStudioOpen(false)} /> : <FocusPane session={focused} recent={state.recent} alpha={alphaOf} />}
+        {studioOpen ? (
+          <StudioPane session={focused} chat={state.open.find((s) => s.id === studioChat) ?? null} onChat={setStudioChat} onClose={() => setStudioOpen(false)} />
+        ) : (
+          <FocusPane session={focused} state={state} settings={settings} alpha={alphaOf} />
+        )}
         <Grid
           sessions={others}
           members={members}

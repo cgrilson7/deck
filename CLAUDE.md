@@ -96,7 +96,7 @@ src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + liv
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
-src/renderer/src/components/        FocusPane, Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     AgentTile (a subagent as a cell of its own), AgentPane (a subagent full size over the right column), LeashButtons (⏸ ▶ ✕ on a member's head),
                                     LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
@@ -297,10 +297,20 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   server, like `/pack`), which is `plugin/scripts/studio.mjs` — `DECK_STUDIO` in every session's
   env, `gen` / `list` / `models` / `info` / `comic <manifest.json>` — driven by the `/deck:studio`
   skill, so the model that is good at language writes the request for the model that is good at
-  pictures. The pane's "Ask Claude for help" pastes the composer's notes into the focused
-  session as a message starting `[deck studio]`, which OPENS A CONVERSATION the skill answers:
-  it asks what is wanted, drafts the prompt in a code block, refines it with the user (a file
-  path dropped into the chat is a reference), and generates only when told to go.
+  pictures. The pane's "Ask Claude for help" STARTS A NEW SESSION for it (`DeckApi.newSession`:
+  the `new` command with the record back, plus `name`, a positional first `prompt` and
+  `focus: false`, so the Studio keeps the center; named "studio", the focused session's folder,
+  the default model, no worktree) whose first prompt is the composer's notes as a message
+  starting `[deck studio]`, and shows that session's conversation INSIDE THE PANE, under the
+  composer (`.studio-chat`: a tile's `ChatView` + `TilePrompt`, a file dropped on it pasted into
+  that session; "send notes" pastes the composer's current state as a new turn, "terminal"
+  focuses it, which closes the Studio, × sends it back to the grid, "New chat" starts another).
+  It is an ordinary session otherwise (a ⌘ slot, a grid tile while the Studio is closed or it is
+  not the Studio's chat; App keeps its id in localStorage as `studioChat` and hides it from the
+  grid while the pane shows it). It never pastes into the focused session. The message OPENS A
+  CONVERSATION the skill answers: it asks what is wanted, drafts the prompt in a code block,
+  refines it with the user (a file path dropped into the chat is a reference), and generates
+  only when told to go.
   Every door lands in the SAME gallery: `userData/studio/`, a JPEG (the mime's extension) per job and `jobs.json` beside
   it (the last 400, newest first), broadcast whole as `studio:update` on every change, so the
   tile and the pane only draw the list; a job is `running` in the list before the call goes out
@@ -494,12 +504,38 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   While a drag hovers, the pane claims a drop effect the SOURCE allows (`dropEffectFor`): Finder
   allows all of them, the screenshot thumbnail offers copy only, and claiming 'link' against it
   turns the effect to 'none', so no drop event fires and the thumbnail springs back.
+- **The launcher** (`Launcher.tsx`; `FocusPane` renders it when no session is focused): the
+  empty focus pane is the deck's welcome page, VS Code style — the center column has the room,
+  so everything the `+` picker, the Session menu and the View menu offer is on it as a form,
+  in cards that reflow to the column's width (`.launcher-cards`, auto-fit; the wide ones span).
+  START A SESSION: "in a folder" (recents + the default as pills, a folder dialog, or a typed
+  path; `~` expands in main) or a NEW PROJECT (a parent — `~`, the folders the recents sit in,
+  the default, or a picked one — plus a name; main `mkdir -p`s it and `git init`s unless the
+  toggle is off or it is already inside a repo; `create` / `gitInit` on `NewSessionRequest`, so
+  the worktree toggle is off there: a fresh repo has nothing to branch from), then the
+  worktree toggle, the model row and the PERMISSION MODE row (`PermissionPick`, `--permission-mode`
+  from `PERMISSION_MODES` in `shared/models.ts`: ask / acceptEdits / plan / auto / dontAsk /
+  bypassPermissions, the last three tinted as a warning; the record keeps `permissionMode`, the
+  head shows it as a badge, and a dead resume repeats it, like the model; the `+` picker has the
+  same row), an optional `--name` and an optional FIRST PROMPT (the CLI's positional argument);
+  ⌘⏎ (or ⏎ in a one-line field) starts through `DeckApi.newSession`, so a refusal (the cap, a
+  missing folder) shows on the form. Then: the PARKED sessions as rows (resume / forget); the
+  STUDIO's composer in short (prompt, model, ratio, size — the pane's own localStorage draft, so
+  it carries over; Generate opens the Studio, which follows the cooking job; the newest image as
+  its thumbnail; a no-key note); the MINI APPS as checkboxes (+ the music face, reset layout);
+  DECK settings (theme, appearance, center width, grid shape, default folder + picker, default
+  model, and the toggles: worktree by default, attention first, confirm kill, compact, fox barks,
+  phone); TERMINAL settings (font, sizes, cursor, scrollback); KEYS & SERVICES (Gemini, Studio
+  model, Translation, Spotify client id, languagelog db, the vocabulary cycle; text fields commit
+  on blur / ⏎, keys as password fields); and the SHORTCUTS. Settings patch straight through
+  `patchSettings`. The folder dialogs that only answer are `DeckApi.chooseDir(title)` (the phone
+  resolves ''). It has no state worth keeping: a focused session replaces it.
 - **Recent folders**: `sessions.json` keeps `recentCwds`, the last 10 folders sessions were started
   or resumed in, most recent first (`touchRecent` in `sessions.ts`); it outlives the sessions, and a
-  file without it is seeded from the records. `DeckState.recent` = the first 3 that still exist. They
-  are offered in the `+` chooser ("Start in": the focused folder, then recents, then the picker; a
-  worktree checkbox applies to whichever is picked, ⌥-click flips it once), in the empty focus pane,
-  and under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
+  file without it is seeded from the records. `DeckState.recent` = the first 6 (`RECENT_SHOW`) that
+  still exist. They are offered in the `+` chooser ("Start in": the focused folder, then recents,
+  then the picker; a worktree checkbox applies to whichever is picked, ⌥-click flips it once), on
+  the launcher, and under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
 - **Model** (`shared/models.ts`, `SessionRecord.model`): a new session can pick what goes after
   `--model`: the CLI's aliases (fable, opus, sonnet, haiku, opusplan, opus[1m], sonnet[1m]) or a
   pinned id (Opus 4.6 = `claude-opus-4-6`), or anything typed by hand ("other…" in the chooser;
@@ -515,7 +551,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - **One tmux client per session, ever.** tmux sizes to the smallest attached client. Never
   attach a second client to a `deck-*` session from a terminal while the app has it open.
 - **Spawn command** (`SessionManager.claudeCommand`): `exec claude --settings <hooks.json>
-  --session-id <uuid> [--worktree] [--model <alias|id>]`. `exec` so the pane's process IS claude. The UUID is
+  --session-id <uuid> [--worktree] [--model <alias|id>] [--permission-mode <mode>] [--name <n>] [<first prompt>]`. `exec` so the pane's process IS claude. The UUID is
   ours (`randomUUID()`), which is how fleet rows and hook payloads are matched back to a tile.
   `--worktree` lets Claude create/clean the worktree itself under `<repo>/.claude/worktrees/`.
 - **`--settings` merges** with the user's own settings (list keys combine), so any global
@@ -592,7 +628,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 ## State on disk
 
 `~/Library/Application Support/<profile>/`
-- `sessions.json` — records (`slot` sticky, null = parked, 101+ = a beta; `pack: { alpha, task }` on a beta) + `focusSlot` + `recentCwds` (last 10 start folders)
+- `sessions.json` — records (`slot` sticky, null = parked, 101+ = a beta; `pack: { alpha, task }` on a beta; `model` / `permissionMode` as handed to the CLI) + `focusSlot` + `recentCwds` (last 10 start folders)
 - `claude-hooks.json` — the `--settings` file handed to every spawned session
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)

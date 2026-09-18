@@ -1,6 +1,6 @@
 ---
 name: studio
-description: Draft and run a Gemini image generation from inside the deck — you write the hyper-specific prompt, the deck's Studio makes the image and keeps it in the gallery (the Studio tile, the Studio pane, userData/studio). Use for "generate an image", "make me a picture of…", "/deck:studio", "another take, but…", "a comic panel", "a whole sheet of panels", concept art for this repo, an icon or a mock-up, and ALWAYS when a message arrives starting `[deck studio]` (the Studio pane's "Ask Claude for help" button: the user wants to work the image out WITH you — questions, drafts, images dropped into the chat — and you generate only when they say go). The CLI is `node "$DECK_STUDIO" gen …` and, for a series, `comic <manifest.json>`. Only meaningful from a session running inside the deck app (it sets DECK_STUDIO and DECK_HOOK_PORT in every session's env); outside it there is nothing listening and nowhere for the image to land.
+description: Draft and run a Gemini image generation from inside the deck — you write the hyper-specific prompt, the deck's Studio makes the image and keeps it in the gallery (the Studio tile, the Studio pane, userData/studio). Use for "generate an image", "make me a picture of…", "/deck:studio", "another take, but…", "a comic panel", "a whole sheet of panels", concept art for this repo, an icon or a mock-up, and ALWAYS when a message arrives starting `[deck studio]` (the Studio pane's "Ask Claude for help" button, which starts a session for it and shows the chat inside the Studio: the user wants to work the image out WITH you — questions, drafts, images dropped into the chat — and you generate only when they say go). The CLI is `node "$DECK_STUDIO" gen …` and, for a series, `comic <manifest.json>`. Only meaningful from a session running inside the deck app (it sets DECK_STUDIO and DECK_HOOK_PORT in every session's env); outside it there is nothing listening and nowhere for the image to land.
 ---
 
 # Studio — you write the prompt, the deck makes the picture
@@ -124,7 +124,10 @@ scene and the beat in the panel, and the dialogue in quotes. `chain: 1` is usual
 
 ## When a `[deck studio]` message arrives
 
-The Studio pane's **Ask Claude for help** button pastes you a message like:
+The Studio pane's **Ask Claude for help** button starts a NEW session for the purpose (you are
+it: named "studio", in the folder of the session that was focused) and shows your conversation
+inside the Studio pane, under the composer, with a prompt bar of its own — the user talks to you
+there, not in a terminal. Its first prompt is a message like:
 
 ```
 [deck studio] Help me make an image. Read /deck:studio first.

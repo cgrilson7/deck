@@ -43,3 +43,23 @@ export function useStudioJobs(): StudioJob[] {
   }, [])
   return jobs
 }
+
+/** The session the Studio pane is talking to (its "Ask Claude for help" chat), kept across closes and reloads. */
+const CHAT_KEY = 'deck.studio.chat'
+
+export function readStudioChat(): string | null {
+  try {
+    return localStorage.getItem(CHAT_KEY) || null
+  } catch {
+    return null
+  }
+}
+
+export function writeStudioChat(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(CHAT_KEY, id)
+    else localStorage.removeItem(CHAT_KEY)
+  } catch {
+    /* no storage: the chat is only forgotten on reload */
+  }
+}

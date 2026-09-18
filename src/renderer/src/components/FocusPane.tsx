@@ -1,36 +1,16 @@
-import type { SessionView } from '@shared/types'
-import { modelLabel } from '@shared/models'
+import type { DeckSettings, DeckState, SessionView } from '@shared/types'
+import { modelLabel, permissionLabel, PERMISSION_MODES } from '@shared/models'
 import { FoxStatus } from './FoxStatus'
 import { TermHost } from './TermHost'
-import { Fox } from './Fox'
+import { Launcher } from './Launcher'
 import { shortPath } from '../lib/format'
 import { useDropTarget } from './useDropTarget'
 import { LeashButtons } from './LeashButtons'
 import { leashOfBeta } from '../lib/leash'
 
-export function FocusPane({ session, recent, alpha }: { session: SessionView | null; recent: string[]; /** For a beta: its alpha, so the head can say whose it is. */ alpha?: SessionView | null }) {
-  if (!session) {
-    return (
-      <section className="focus focus-empty">
-        <Fox anim="idle" scale={3} />
-        <button className="plus plus-big" onClick={(e) => window.deck.command({ type: 'new', worktree: e.altKey })} title="New session (⌘N) · ⌥-click for a worktree">
-          +
-        </button>
-        <p>No session in focus. Click + or press ⌘N.</p>
-        <div className="recent">
-          {recent.length > 0 && <div className="recent-title">Or pick up where you left off</div>}
-          {recent.map((dir) => (
-            <button key={dir} className="recent-dir" title={`${dir} · ⌥-click for a worktree`} onClick={(e) => window.deck.command({ type: 'new', cwd: dir, worktree: e.altKey })}>
-              {shortPath(dir)}
-            </button>
-          ))}
-          <button className="recent-dir" onClick={(e) => window.deck.command({ type: 'chooseFolder', worktree: e.altKey })} title="Pick any folder (⌘O) · ⌥-click for a worktree">
-            Choose folder…
-          </button>
-        </div>
-      </section>
-    )
-  }
+export function FocusPane({ session, state, settings, alpha }: { session: SessionView | null; state: DeckState; settings: DeckSettings; /** For a beta: its alpha, so the head can say whose it is. */ alpha?: SessionView | null }) {
+  // Nothing in focus: the launcher takes the column (Launcher.tsx), a form for everything the + picker and the menus offer.
+  if (!session) return <Launcher state={state} settings={settings} />
 
   const s = session
   const beta = !!s.pack
@@ -52,6 +32,11 @@ export function FocusPane({ session, recent, alpha }: { session: SessionView | n
         {s.model && (
           <span className="badge" title={`--model ${s.model}`}>
             {modelLabel(s.model)}
+          </span>
+        )}
+        {s.permissionMode && (
+          <span className={`badge ${PERMISSION_MODES.find((m) => m.id === s.permissionMode)?.risky ? 'badge-risky' : ''}`} title={`--permission-mode ${s.permissionMode}`}>
+            {permissionLabel(s.permissionMode)}
           </span>
         )}
         {s.paused && <span className="badge badge-state is-paused">paused</span>}

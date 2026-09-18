@@ -4,10 +4,12 @@
 
 import * as pty from 'node-pty'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { BETA_SLOT_BASE, type DeckState, type PackRef, type SessionRecord, type SessionStatus, type SessionView } from '@shared/types'
-import { cleanModel } from '@shared/models'
+import { cleanModel, cleanPermissionMode } from '@shared/models'
 import type { FleetEntry } from './fleet'
 import type { HookEvent, HookPayload } from './hooks'
 import { Tmux, shq } from './tmux'
@@ -63,12 +65,26 @@ export interface NewSessionOpts {
   name?: string
   /** The first prompt, handed to the CLI as its positional argument so nothing races the TUI. */
   prompt?: string
-  /** `--permission-mode`, as the CLI takes it (acceptEdits, plan, …). */
+  /** `--permission-mode`, as the CLI takes it (acceptEdits, plan, …); anything not in PERMISSION_MODES is dropped. */
   permissionMode?: string
+  /** A NEW PROJECT: make `cwd` (and its parents) when it does not exist yet, instead of refusing. */
+  create?: boolean
+  /** With `create`: `git init` the folder unless it is already inside a repository. */
+  gitInit?: boolean
+  /** False = the focus stays where it is (a beta never takes it either). Default true. */
+  focus?: boolean
+}
+
+/** `~` and `~/x` as the shell would read them; anything else as given, resolved. */
+export function expandHome(p: string): string {
+  const t = p.trim()
+  if (t === '~') return homedir()
+  if (t.startsWith('~/')) return join(homedir(), t.slice(2))
+  return resolve(t)
 }
 /** How many start folders we remember (sessions.json) and how many of those the UI offers. */
 const RECENT_KEEP = 10
-export const RECENT_SHOW = 3
+export const RECENT_SHOW = 6
 
 export class SessionManager {
   private records: SessionRecord[] = []
@@ -137,10 +153,17 @@ export class SessionManager {
     const slot = opts.pack ? this.freeBetaSlot() : this.freeSlot()
     if (slot === null) throw new Error(`All ${this.cap()} slots are open. Close one first.`)
     const defaults = this.o.defaults()
-    const cwd = opts.cwd ?? this.focusedCwd() ?? defaults.cwd
+    const cwd = expandHome(opts.cwd ?? this.focusedCwd() ?? defaults.cwd)
+    if (opts.create) {
+      // A fresh project folder (the launcher's "new project"): made here, so the CLI starts inside it.
+      if (existsSync(cwd) && !statSync(cwd).isDirectory()) throw new Error(`Not a folder: ${cwd}`)
+      mkdirSync(cwd, { recursive: true })
+      if (opts.gitInit) await this.gitInit(cwd)
+    }
     if (!existsSync(cwd)) throw new Error(`Folder does not exist: ${cwd}`)
     const worktree = opts.worktree ?? defaults.worktree
     const model = cleanModel(opts.model ?? defaults.model)
+    const permissionMode = cleanPermissionMode(opts.permissionMode)
     const id = randomBytes(3).toString('hex')
     const rec: SessionRecord = {
       id,
@@ -149,6 +172,7 @@ export class SessionManager {
       cwd,
       worktree,
       model,
+      ...(permissionMode ? { permissionMode } : {}),
       createdAt: Date.now(),
       slot,
       name: opts.name || opts.pack?.task || (worktree ? 'new worktree' : 'new session'),
@@ -158,18 +182,29 @@ export class SessionManager {
     if (worktree) args.push('--worktree')
     if (model) args.push('--model', model)
     if (opts.name) args.push('--name', opts.name)
-    if (opts.permissionMode) args.push('--permission-mode', opts.permissionMode)
+    if (permissionMode) args.push('--permission-mode', permissionMode)
     if (opts.prompt) args.push(opts.prompt)
     await this.o.tmux.newSession({ name: rec.tmuxName, cwd, command: this.claudeCommand(args), cols: SPAWN_COLS, rows: SPAWN_ROWS })
     this.records.push(rec)
     if (!opts.pack) this.touchRecent(cwd)
     this.rt.set(id, { status: 'starting', attention: false, tmuxAlive: true, title: '', userDetached: false })
     this.attach(id)
-    // A beta joins quietly: the alpha (usually the one you are talking to) keeps the focus.
-    if (!opts.pack) this.focusSlot = slot
+    // A beta joins quietly: the alpha (usually the one you are talking to) keeps the focus. So does
+    // a session asked for without it (the Studio's chat, which shows inside the Studio pane).
+    if (!opts.pack && opts.focus !== false) this.focusSlot = slot
     this.save()
     this.broadcast()
     return rec
+  }
+
+  /** `git init` a fresh project folder, unless it already sits inside a repository. The login shell's env finds git. */
+  private gitInit(cwd: string): Promise<void> {
+    return new Promise((done, fail) => {
+      execFile('git', ['rev-parse', '--is-inside-work-tree'], { cwd, env: this.o.env }, (err) => {
+        if (!err) return done()
+        execFile('git', ['init', '-q'], { cwd, env: this.o.env }, (e2, _out, stderr) => (e2 ? fail(new Error(`git init failed: ${String(stderr || e2.message).trim()}`)) : done()))
+      })
+    })
   }
 
   async resume(id: string): Promise<void> {
@@ -191,6 +226,7 @@ export class SessionManager {
       // ours to repeat: --resume alone would fall back to the CLI's default.
       const args = ['--resume', rec.claudeSessionId]
       if (rec.model) args.push('--model', rec.model)
+      if (rec.permissionMode) args.push('--permission-mode', rec.permissionMode)
       await this.o.tmux.newSession({
         name: rec.tmuxName,
         cwd: rec.cwd,

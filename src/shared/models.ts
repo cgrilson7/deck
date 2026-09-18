@@ -36,3 +36,36 @@ export function modelLabel(id: string): string {
   const hit = MODELS.find((m) => m.id === id)
   return hit ? hit.label : id.replace(/^claude-/, '')
 }
+
+// ---- permission modes: what `claude --permission-mode` takes, as the chooser offers them ----
+
+export interface PermissionChoice {
+  /** What goes after `--permission-mode`; '' for none (the CLI's default: ask about everything). */
+  id: string
+  label: string
+  hint: string
+  /** Turns the permission system off in part or in whole: shown with a warning tint. */
+  risky?: boolean
+}
+
+export const PERMISSION_MODES: readonly PermissionChoice[] = [
+  { id: '', label: 'Ask', hint: "The CLI's default: every edit and command asks first" },
+  { id: 'acceptEdits', label: 'Accept edits', hint: 'File edits go through without asking; commands still ask' },
+  { id: 'plan', label: 'Plan', hint: 'Read-only until you approve a plan' },
+  { id: 'auto', label: 'Auto', hint: 'The CLI decides what to allow, as a careful colleague would', risky: true },
+  { id: 'dontAsk', label: "Don't ask", hint: 'Anything that would ask is refused instead (for unattended runs)', risky: true },
+  { id: 'bypassPermissions', label: 'Bypass', hint: 'Nothing asks. Only in a folder you can afford to lose', risky: true }
+]
+
+/**
+ * A permission mode by name: the catalog's, or any word the CLI might take (a wolfpack manifest
+ * may name one we do not list, `manual` say), else '' (no flag).
+ */
+export function cleanPermissionMode(v: unknown): string {
+  return typeof v === 'string' && /^[A-Za-z]{1,32}$/.test(v) ? v : ''
+}
+
+/** The badge text for a permission mode: the catalog's label, else the id. */
+export function permissionLabel(id: string): string {
+  return PERMISSION_MODES.find((m) => m.id === id)?.label ?? id
+}

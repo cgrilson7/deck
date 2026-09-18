@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AgentView, DeckApi, DeckCommand, DeckSettings, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -9,6 +9,7 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('deck:state', h)
   },
   command: (cmd: DeckCommand) => ipcRenderer.invoke('deck:command', cmd),
+  newSession: (req: NewSessionRequest) => ipcRenderer.invoke('session:new', req) as Promise<{ id: string; slot: number }>,
   ptyInput: (id, data) => ipcRenderer.send('pty:input', id, data),
   ptyResize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
   onPtyData: (cb) => {
@@ -88,6 +89,7 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('settings:changed', h)
   },
   chooseDefaultCwd: () => ipcRenderer.invoke('settings:chooseDefaultCwd') as Promise<string>,
+  chooseDir: (title?: string) => ipcRenderer.invoke('deck:chooseDir', title) as Promise<string>,
   agents: () => ipcRenderer.invoke('agents:list') as Promise<AgentView[]>,
   onAgents: (cb) => {
     const h = (_e: unknown, list: AgentView[]) => cb(list)

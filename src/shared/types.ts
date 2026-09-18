@@ -101,6 +101,8 @@ export interface SessionRecord {
   worktree: boolean
   /** What was handed to `--model` (an alias or a full id; see shared/models.ts). Absent / '' = the CLI's default. */
   model?: string
+  /** What was handed to `--permission-mode` (see PERMISSION_MODES in shared/models.ts). Absent / '' = the CLI's default. Repeated on a dead resume, like the model. */
+  permissionMode?: string
   createdAt: number
   /** 1..CAP while open (BETA_SLOT_BASE+ for a beta), null while parked (detached or exited). Sticky while open. */
   slot: number | null
@@ -123,6 +125,26 @@ export interface SessionView extends SessionRecord {
   paused: boolean
 }
 
+/** What `DeckApi.newSession` takes: the `new` command's options plus a first prompt, a name, and whether to focus it. */
+export interface NewSessionRequest {
+  cwd?: string
+  worktree?: boolean
+  /** An alias or full id for `--model`; '' = none; absent = the `defaultModel` setting. */
+  model?: string
+  /** The CLI's `--name` (what the fleet listing, and so the tile, calls it). */
+  name?: string
+  /** The first prompt, handed to the CLI as its positional argument so nothing races the TUI. */
+  prompt?: string
+  /** `--permission-mode`, one of PERMISSION_MODES (shared/models.ts); '' / absent = the CLI's default. */
+  permissionMode?: string
+  /** A NEW PROJECT (the launcher): make `cwd` (and its parents) if it does not exist yet. `~/` is expanded. */
+  create?: boolean
+  /** With `create`: `git init` the fresh folder (skipped when it is already inside a repository). */
+  gitInit?: boolean
+  /** False = spawn it without taking the focus (the Studio's chat: the pane stays where it is). Default true. */
+  focus?: boolean
+}
+
 export interface DeckState {
   cap: number
   focusSlot: number | null
@@ -136,8 +158,8 @@ export interface DeckState {
 
 export type DeckCommand =
   /** `model`: an alias or full id for `--model`; '' = none; absent = the `defaultModel` setting. */
-  | { type: 'new'; worktree?: boolean; cwd?: string; model?: string }
-  | { type: 'chooseFolder'; worktree?: boolean; model?: string }
+  | { type: 'new'; worktree?: boolean; cwd?: string; model?: string; permissionMode?: string }
+  | { type: 'chooseFolder'; worktree?: boolean; model?: string; permissionMode?: string }
   | { type: 'resume'; id: string }
   | { type: 'focus'; slot: number }
   | { type: 'cycle'; dir: 1 | -1 }
@@ -685,6 +707,8 @@ export interface DeckApi {
   getState(): Promise<DeckState>
   onState(cb: (state: DeckState) => void): () => void
   command(cmd: DeckCommand): Promise<{ ok: true } | { ok: false; error: string }>
+  /** The `new` command with the record back: its deck id and slot. Rejects with the reason (the cap, a missing folder). Not on the phone. */
+  newSession(req: NewSessionRequest): Promise<{ id: string; slot: number }>
   ptyInput(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
   onPtyData(cb: (id: string, data: string) => void): () => void
@@ -769,6 +793,8 @@ export interface DeckApi {
   onSettings(cb: (s: DeckSettings) => void): () => void
   /** Folder picker for the default cwd setting. Resolves '' when cancelled. */
   chooseDefaultCwd(): Promise<string>
+  /** A folder picker that only answers (the launcher keeps the pick in its form). `title` heads the dialog. Resolves '' when cancelled. Not on the phone. */
+  chooseDir(title?: string): Promise<string>
   /** Every subagent of every open session, running or lately finished (main/agents.ts). */
   agents(): Promise<AgentView[]>
   onAgents(cb: (agents: AgentView[]) => void): () => void

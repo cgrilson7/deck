@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, ExternalLink, FolderOpen, ImagePlus, MessageSquarePlus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react'
+import { Copy, ExternalLink, FolderOpen, ImagePlus, MessageSquarePlus, RotateCcw, Send, Sparkles, SquareTerminal, Trash2, X } from 'lucide-react'
 import type { SessionView, StudioInfo, StudioJob, StudioModel, StudioRatio, StudioSize } from '@shared/types'
 import { STUDIO_RATIOS, STUDIO_REFS_MAX, STUDIO_SIZES } from '@shared/types'
 import { plain } from '../lib/errors'
@@ -7,8 +7,12 @@ import { dropEffectFor, droppedPaths, hasFiles } from '../lib/drop'
 import { openDoc } from '../lib/paths'
 import { pasteText } from '../lib/paste'
 import { useStudioJobs } from '../lib/studio'
+import { ChatView } from './ChatView'
 import { Fox } from './Fox'
+import { FoxStatus } from './FoxStatus'
 import { LS, lsRead, lsWrite, StudioImage } from './StudioTile'
+import { TilePrompt } from './TilePrompt'
+import { useDropTarget } from './useDropTarget'
 
 /** How many gallery cells are read at once; the rest wait behind "show more" (each is a file read). */
 const PAGE = 40
@@ -29,13 +33,31 @@ function refsFromStorage(): string[] {
  * the whole gallery below. It takes the focus pane's place rather than covering the grid, so the
  * sessions stay where they were and any of them is one click from coming back.
  *
- * Two ways to fill the composer: type the prompt yourself and Generate, or hand the notes to the
- * focused session with "Ask Claude for help" — the session reads the `/deck:studio` skill, works
- * the prompt out with you in its own conversation (questions, drafts, images dropped in as
- * references) and runs it through the CLI when you say go; the result lands in this same gallery.
- * Everything typed here is kept in localStorage, so closing the pane loses nothing.
+ * Two ways to fill the composer: type the prompt yourself and Generate, or "Ask Claude for help",
+ * which STARTS A NEW SESSION (in the focused session's folder, the default model, no worktree,
+ * named "studio") with the notes as its first prompt and shows its conversation RIGHT HERE, under
+ * the composer, with a prompt bar of its own — never the focused session, never a jump out of the
+ * pane. The session reads the `/deck:studio` skill, works the prompt out with you (questions,
+ * drafts, images dropped onto the chat as references) and runs it through the CLI when you say
+ * go; the result lands in this same gallery. It is an ordinary session otherwise: a ⌘ slot, a
+ * grid tile while the Studio is closed, its terminal one click away ("terminal" focuses it, which
+ * closes the Studio). App keeps which session that is (`chat`, in localStorage), so closing the
+ * pane and coming back finds the chat where it was; "new chat" starts another and the old one
+ * goes back to the grid. Everything typed here is kept in localStorage, so closing loses nothing.
  */
-export function StudioPane({ session, onClose }: { session: SessionView | null; onClose: () => void }) {
+export function StudioPane({
+  session,
+  chat,
+  onChat,
+  onClose
+}: {
+  /** The focused session: where a new chat starts (its folder) and the fallback "ask it instead". */
+  session: SessionView | null
+  /** The session this pane is talking to, if it is open. */
+  chat: SessionView | null
+  onChat: (id: string | null) => void
+  onClose: () => void
+}) {
   const jobs = useStudioJobs()
   const [prompt, setPrompt] = useState(() => lsRead(LS.prompt))
   const [tag, setTag] = useState(() => lsRead(LS.tag))
@@ -121,26 +143,68 @@ export function StudioPane({ session, onClose }: { session: SessionView | null; 
     }
   }
 
-  /**
-   * Hand the composer to the focused session and START A CONVERSATION about the image, not an
-   * order to run one: the session (the `/deck:studio` skill) asks what is wanted, drafts, refines
-   * with the user, takes images dropped into the chat as references, and generates only when told
-   * to go. Half-typed notes and references ride along as the opening; an empty composer is fine.
-   */
-  const ask = () => {
-    if (!session) return
+  /** What the composer holds, as the opening of a conversation: notes, references and settings so far. */
+  const notesSoFar = (): string => {
     const notes = prompt.trim()
-    const lines = [
-      '[deck studio] Help me make an image. Read /deck:studio first.',
+    return [
       notes ? `What I have so far: ${notes}` : 'I have nothing written yet: ask me what I want to make.',
       refs.length ? `References so far: ${refs.join(', ')}` : '',
-      `Settings so far: model ${model || 'default'}, ratio ${ratio}, size ${size}${tag.trim() ? `, tag ${tag.trim()}` : ''}`,
+      `Settings so far: model ${model || 'default'}, ratio ${ratio}, size ${size}${tag.trim() ? `, tag ${tag.trim()}` : ''}`
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  /**
+   * START A NEW SESSION about the image and show it here (App keeps its id). Its first prompt is
+   * the CLI's positional argument, so nothing races the TUI: a `[deck studio]` message the skill
+   * answers with questions and a draft, never with a generation until told to go. The focus stays
+   * where it was (`focus: false`), so the Studio stays in the center; the chat takes an ordinary
+   * slot and is a grid tile whenever the Studio is closed. An earlier chat simply goes back to the grid.
+   */
+  const ask = async () => {
+    setErr('')
+    const lines = [
+      '[deck studio] Help me make an image. Read /deck:studio first.',
+      notesSoFar(),
       'Work it out with me here: ask what you need to know, draft the hyper-specific prompt, refine it with me, take any image path I drop into this chat as a reference. Generate with `node "$DECK_STUDIO" gen …` only when I say go; it lands in the Studio gallery.'
-    ].filter(Boolean)
-    pasteText(session.id, lines.join('\n'))
+    ]
+    try {
+      const r = await window.deck.newSession({ cwd: session?.cwd, worktree: false, name: 'studio', prompt: lines.join('\n'), focus: false })
+      onChat(r.id)
+    } catch (e) {
+      setErr(plain(e))
+    }
+  }
+
+  /** Paste the composer's current notes into the open chat, as a turn of its own (edits since the opening). */
+  const sendNotes = () => {
+    if (!chat) return
+    pasteText(chat.id, `[deck studio] The composer now says:\n${notesSoFar()}`)
     // Bracketed paste lands first; a beat later ⏎ submits it (the beat TilePrompt waits too).
-    setTimeout(() => window.deck.ptyInput(session.id, '\r'), 40)
-    onClose()
+    setTimeout(() => window.deck.ptyInput(chat.id, '\r'), 40)
+  }
+
+  /** The chat's terminal in the focus pane: a focus change closes the Studio, which is the point. */
+  const focusChat = () => {
+    if (chat) void window.deck.command({ type: 'focus', slot: chat.slot! })
+  }
+
+  // A file dropped onto the chat is pasted into THAT session (a reference for the skill), not added
+  // to the composer: the chat's own drop target, and its events do not reach the pane's.
+  const chatDrop = useDropTarget(chat?.id ?? '')
+  const chatHandlers = {
+    onDragEnter: chatDrop.handlers.onDragEnter,
+    onDragOver: (e: React.DragEvent) => {
+      chatDrop.handlers.onDragOver(e)
+      if (hasFiles(e.dataTransfer)) e.stopPropagation()
+    },
+    onDragLeave: chatDrop.handlers.onDragLeave,
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e.dataTransfer)) return
+      e.stopPropagation()
+      chatDrop.handlers.onDrop(e)
+    }
   }
 
   const reuse = (j: StudioJob) => {
@@ -279,8 +343,12 @@ export function StudioPane({ session, onClose }: { session: SessionView | null; 
           <button className="studio-go" disabled={!prompt.trim() || !info?.ready} title={info?.ready ? 'Generate (⌘⏎)' : 'No Gemini API key — see the “no key” badge'} onClick={() => void generate()}>
             Generate
           </button>
-          <button className="ghost" disabled={!session} title={session ? `Work the prompt out with “${session.name}”: it asks, drafts, refines, takes dropped images as references, and generates when you say go` : 'focus a session first'} onClick={ask}>
-            <MessageSquarePlus size={13} /> Ask Claude for help
+          <button
+            className="ghost"
+            title={`Start a new chat here${session ? ` (in ${session.cwd})` : ''}: it asks, drafts, refines, takes dropped images as references, and generates when you say go`}
+            onClick={() => void ask()}
+          >
+            <MessageSquarePlus size={13} /> {chat ? 'New chat' : 'Ask Claude for help'}
           </button>
           <button className="ghost" title="Empty the composer" onClick={() => setPrompt('')}>
             Clear
@@ -288,6 +356,32 @@ export function StudioPane({ session, onClose }: { session: SessionView | null; 
           {err && <span className="studio-err-line">{err}</span>}
         </div>
       </div>
+
+      {chat && (
+        <div className={`studio-chat status-${chat.status} ${chat.attention ? 'attention' : ''} ${chatDrop.over ? 'drop-over' : ''}`} {...chatHandlers}>
+          <header className="pane-head">
+            <span className="slot">{chat.slot}</span>
+            <FoxStatus id={chat.id} status={chat.status} attention={chat.attention} />
+            <span className="name" title={chat.name}>
+              {chat.name}
+            </span>
+            <span className="spacer" />
+            <button className="ghost" title="Paste what the composer says now into this chat" onClick={sendNotes}>
+              <Send size={12} /> send notes
+            </button>
+            <button className="ghost" title={`Open its terminal in the focus pane (⌘${chat.slot! % 10}; the Studio closes)`} onClick={focusChat}>
+              <SquareTerminal size={12} /> terminal
+            </button>
+            <button className="ghost" title="Take this chat out of the Studio; it stays open as a grid tile" onClick={() => onChat(null)}>
+              <X size={12} />
+            </button>
+          </header>
+          <div className="tile-body">
+            <ChatView id={chat.id} cwd={chat.cwd} status={chat.status} attention={chat.attention} onNeeds={focusChat} />
+            <TilePrompt id={chat.id} />
+          </div>
+        </div>
+      )}
 
       <div className="studio-scroll">
         {!sel ? (

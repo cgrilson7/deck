@@ -232,6 +232,7 @@ export const api: DeckApi = {
   getState: () => remote.call('getState'),
   onState: (cb) => remote.on('state', cb),
   command: (cmd) => remote.call('command', [cmd]),
+  newSession: notHere,
   ptyInput: (id, data) => remote.input(id, data),
   // The desktop owns the size; the phone reads tmux's screen instead of attaching.
   ptyResize: noop,
@@ -273,6 +274,7 @@ export const api: DeckApi = {
   setSettings: (patch) => remote.call('setSettings', [patch]),
   onSettings: (cb) => remote.on('settings', cb),
   chooseDefaultCwd: () => Promise.resolve(''),
+  chooseDir: () => Promise.resolve(''),
   foxLog: (limit) => remote.call('foxLog', [limit]),
   onFoxEntry: (cb) => remote.on('fox', cb),
   agents: () => remote.call('agents', []),

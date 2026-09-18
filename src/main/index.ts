@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
+import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
 import { CAP } from '@shared/types'
 import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
@@ -122,12 +122,12 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
   try {
     switch (cmd.type) {
       case 'new':
-        await manager.newSession({ cwd: cmd.cwd, worktree: cmd.worktree, model: cmd.model })
+        await manager.newSession({ cwd: cmd.cwd, worktree: cmd.worktree, model: cmd.model, permissionMode: cmd.permissionMode })
         break
       case 'chooseFolder': {
-        const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'], title: 'New session in folder' })
+        const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'], title: 'New session in folder' })
         if (r.canceled || r.filePaths.length === 0) break
-        await manager.newSession({ cwd: r.filePaths[0], worktree: cmd.worktree, model: cmd.model })
+        await manager.newSession({ cwd: r.filePaths[0], worktree: cmd.worktree, model: cmd.model, permissionMode: cmd.permissionMode })
         break
       }
       case 'resume':
@@ -311,6 +311,28 @@ app.whenReady().then(async () => {
   // A dropped file that lives in a temp dir (a screenshot thumbnail, a promised file) is copied somewhere that lasts.
   ipcMain.handle('drop:keep', (_e, file: DroppedFile) => keepDrop(userData, file))
   ipcMain.handle('deck:command', (_e, cmd: DeckCommand) => runCommand(cmd))
+  ipcMain.handle('session:new', async (_e, req: NewSessionRequest) => {
+    if (!manager) throw new Error('not ready')
+    const r = req ?? {}
+    const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined)
+    const rec = await manager.newSession({
+      cwd: str(r.cwd),
+      worktree: typeof r.worktree === 'boolean' ? r.worktree : undefined,
+      model: typeof r.model === 'string' ? r.model : undefined,
+      name: str(r.name),
+      prompt: str(r.prompt),
+      permissionMode: str(r.permissionMode),
+      create: r.create === true,
+      gitInit: r.gitInit === true,
+      focus: r.focus !== false
+    })
+    return { id: rec.id, slot: rec.slot }
+  })
+  // The launcher's folder pickers: they only answer, the form keeps the pick.
+  ipcMain.handle('deck:chooseDir', async (_e, title: unknown) => {
+    const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'], title: typeof title === 'string' && title ? title : 'Choose a folder' })
+    return r.canceled || r.filePaths.length === 0 ? '' : r.filePaths[0]
+  })
   ipcMain.on('pty:input', (_e, id: string, data: string) => manager?.input(id, data))
   ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => manager?.resize(id, cols, rows))
   ipcMain.on('deck:setTitle', (_e, id: string, title: string) => manager?.setTitle(id, title))
