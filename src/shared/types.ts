@@ -18,7 +18,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'git', 'vocab', 'translate'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */

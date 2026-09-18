@@ -96,7 +96,7 @@ src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + liv
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
-src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     AgentTile (a subagent as a cell of its own), AgentPane (a subagent full size over the right column), LeashButtons (⏸ ▶ ✕ on a member's head),
                                     LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
@@ -153,10 +153,11 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   pages → a plugin key; a pin inside the block waits until the
   block shrinks past it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
   unpins). Every EMPTY cell is a `+` (`PlusTile` with its cell index) that opens the PICKER, a
-  modal over the window of pill rows that scroll sideways: the mini apps (turned on if off,
-  pinned to that cell either way; one already showing says "move here"), and below the cap a
-  session (the focused folder, recents, a folder picker; a worktree toggle and the model row)
-  and the parked ones to resume — a session takes its place in the block, not the cell. A full
+  modal over the window: a pill row of the mini apps (turned on if off, pinned to that cell
+  either way; one already showing says "move here"), and below the cap THE LAUNCHER'S OWN
+  SESSION FORM and parked list (`StartCard` / `ParkedCard` from `SessionForm.tsx`, the one
+  module both draw them from: the focused folder leads the pills there, and starting or
+  resuming closes the picker) — a session takes its place in the block, not the cell. A full
   last page grows one more while a session can still be added. A plugin tile's grip (⠿,
   top right on hover) drags it onto another plugin or empty cell and both are pinned; its
   × (beside the grip) turns its setting off. Hover a column and its outer-edge arrow
@@ -516,8 +517,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   worktree toggle, the model row and the PERMISSION MODE row (`PermissionPick`, `--permission-mode`
   from `PERMISSION_MODES` in `shared/models.ts`: ask / acceptEdits / plan / auto / dontAsk /
   bypassPermissions, the last three tinted as a warning; the record keeps `permissionMode`, the
-  head shows it as a badge, and a dead resume repeats it, like the model; the `+` picker has the
-  same row), an optional `--name` and an optional FIRST PROMPT (the CLI's positional argument);
+  head shows it as a badge, and a dead resume repeats it, like the model), an optional `--name`
+  and an optional FIRST PROMPT (the CLI's positional argument);
   ⌘⏎ (or ⏎ in a one-line field) starts through `DeckApi.newSession`, so a refusal (the cap, a
   missing folder) shows on the form. Then: the PARKED sessions as rows (resume / forget); the
   STUDIO's composer in short (prompt, model, ratio, size — the pane's own localStorage draft, so
@@ -529,13 +530,15 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   model, Translation, Spotify client id, languagelog db, the vocabulary cycle; text fields commit
   on blur / ⏎, keys as password fields); and the SHORTCUTS. Settings patch straight through
   `patchSettings`. The folder dialogs that only answer are `DeckApi.chooseDir(title)` (the phone
-  resolves ''). It has no state worth keeping: a focused session replaces it.
+  resolves ''). It has no state worth keeping: a focused session replaces it. The session and
+  parked cards live in `SessionForm.tsx` (with the model and permission rows) because the `+`
+  picker shows the same two under its mini-app row.
 - **Recent folders**: `sessions.json` keeps `recentCwds`, the last 10 folders sessions were started
   or resumed in, most recent first (`touchRecent` in `sessions.ts`); it outlives the sessions, and a
   file without it is seeded from the records. `DeckState.recent` = the first 6 (`RECENT_SHOW`) that
-  still exist. They are offered in the `+` chooser ("Start in": the focused folder, then recents,
-  then the picker; a worktree checkbox applies to whichever is picked, ⌥-click flips it once), on
-  the launcher, and under Session ▸ New Session in Recent Folder (the menu is rebuilt when the list changes).
+  still exist. They are offered as the "Where" pills of the session form (the launcher, and the
+  `+` picker, where the focused folder leads) and under Session ▸ New Session in Recent Folder
+  (the menu is rebuilt when the list changes).
 - **Model** (`shared/models.ts`, `SessionRecord.model`): a new session can pick what goes after
   `--model`: the CLI's aliases (fable, opus, sonnet, haiku, opusplan, opus[1m], sonnet[1m]) or a
   pinned id (Opus 4.6 = `claude-opus-4-6`), or anything typed by hand ("other…" in the chooser;

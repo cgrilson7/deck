@@ -1066,8 +1066,8 @@ button {
   backdrop-filter: blur(3px);
 }
 .picker {
-  width: min(760px, 92vw);
-  max-height: 80vh;
+  width: min(820px, 92vw);
+  max-height: 86vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1166,6 +1166,10 @@ button {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+/* The launcher's session form and parked list inside the picker (SessionForm.tsx) */
+.picker-cards {
+  color: var(--ink);
 }
 
 /* ---- the + ---- */

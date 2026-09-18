@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { PLUGIN_KEYS, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
-import { MODELS, PERMISSION_MODES, cleanModel } from '@shared/models'
-import { shortPath } from '../lib/format'
 import { patchSettings, useSettings } from '../lib/theme'
+import { ParkedCard, StartCard } from './SessionForm'
 
 /** The mini apps an empty cell can hold, with the setting that shows each. */
 export const PLUGINS: {
@@ -61,10 +60,11 @@ export function pinned(layout: string[], cell: number, key: string): string[] {
 
 /**
  * The + in every empty cell: click opens the PICKER, a modal over the window — a row of pills
- * per choice: the mini apps (pinned to this cell), and below the cap a session (where to start:
- * the focused session's folder, recent folders, a folder picker; a worktree toggle; a model)
- * or a parked one to resume. Sessions are never pinned: they fill the grid in order, top left
- * down then top right down. ⌘N in the menu bar is the no-questions path.
+ * for the mini apps (pinned to this cell), and below the cap THE LAUNCHER'S SESSION FORM
+ * (`StartCard`: the focused session's folder first, recents, a folder dialog or a new project,
+ * worktree / model / permission mode, a name, a first prompt) and its parked sessions
+ * (`ParkedCard`). Sessions are never pinned: they fill the grid in order, top left down then
+ * top right down. ⌘N in the menu bar is the no-questions path.
  */
 export function PlusTile({ state, cell, canAdd }: { state: DeckState; /** The grid cell this + sits in. */ cell: number; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
   const [open, setOpen] = useState(false)
@@ -79,102 +79,9 @@ export function PlusTile({ state, cell, canAdd }: { state: DeckState; /** The gr
   )
 }
 
-export const OTHER_MODEL = '\u0000other'
-
-/**
- * The model row's state: the catalog pick, or "other…" with an id typed by hand. The last
- * pick is kept in localStorage; a fresh deck starts on the `defaultModel` setting.
- */
-export function useModelPick(dflt: string) {
-  const [pick, setPick] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('deck:newModel')
-      if (saved !== null) return saved
-    } catch {
-      /* private mode / blocked storage: fall through */
-    }
-    return MODELS.some((m) => m.id === dflt) ? dflt : dflt ? OTHER_MODEL : ''
-  })
-  const [other, setOther] = useState<string>(() => {
-    try {
-      return localStorage.getItem('deck:newModelOther') ?? (MODELS.some((m) => m.id === dflt) ? '' : dflt)
-    } catch {
-      return ''
-    }
-  })
-  useEffect(() => {
-    try {
-      localStorage.setItem('deck:newModel', pick)
-      localStorage.setItem('deck:newModelOther', other)
-    } catch {
-      /* not worth a word */
-    }
-  }, [pick, other])
-  const value = pick === OTHER_MODEL ? cleanModel(other) : pick
-  return { pick, setPick, other, setOther, value }
-}
-
-type ModelPickState = ReturnType<typeof useModelPick>
-
-/** The "Model" row of the + chooser (and the launcher): a select over the catalog, and a text field when "other…" is picked. */
-export function ModelPick({ pick }: { pick: ModelPickState }) {
-  const hint = MODELS.find((m) => m.id === pick.pick)?.hint ?? 'An alias or a full model id, as `claude --model` takes it'
-  return (
-    <div className="menu-model" title={hint} onClick={(e) => e.stopPropagation()}>
-      <span className="menu-model-label">Model</span>
-      <select className="menu-select" value={pick.pick} onChange={(e) => pick.setPick(e.target.value)}>
-        {MODELS.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-        <option value={OTHER_MODEL}>other…</option>
-      </select>
-      {pick.pick === OTHER_MODEL && (
-        <input
-          className="menu-input"
-          value={pick.other}
-          placeholder="claude-opus-4-6"
-          spellCheck={false}
-          autoFocus
-          onChange={(e) => pick.setOther(e.target.value)}
-          onKeyDown={(e) => e.key !== 'Escape' && e.stopPropagation()}
-        />
-      )}
-    </div>
-  )
-}
-
-/** The "Permissions" row: `--permission-mode` from the catalog; the modes that switch asking off wear a warning tint. */
-export function PermissionPick({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const cur = PERMISSION_MODES.find((m) => m.id === value)
-  return (
-    <div className={`menu-model ${cur?.risky ? 'is-risky' : ''}`} title={cur?.hint ?? "The CLI's --permission-mode"} onClick={(e) => e.stopPropagation()}>
-      <span className="menu-model-label">Permissions</span>
-      <select className="menu-select" value={value} onChange={(e) => onChange(e.target.value)}>
-        {PERMISSION_MODES.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: number; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
-  const [worktree, setWorktree] = useState(false)
-  const recent = state.recent.filter((d) => d !== cwd)
-  const run = (cmd: Parameters<typeof window.deck.command>[0]) => {
-    onClose()
-    void window.deck.command(cmd)
-  }
-  const model = useModelPick(settings.defaultModel)
-  const [perm, setPerm] = useState('')
-  /** ⌥-click flips the worktree toggle for that one pick. */
-  const start = (e: React.MouseEvent, dir?: string) => run({ type: 'new', cwd: dir, worktree: e.altKey ? !worktree : worktree, model: model.value, permissionMode: perm || undefined })
   const shown = new Set(pluginCells(settings))
   /** A mini app here: turned on if it was off, and pinned to this cell either way. */
   const place = (p: (typeof PLUGINS)[number]) => {
@@ -211,58 +118,10 @@ function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: numb
           </div>
         </section>
         {canAdd && (
-          <section className="picker-row">
-            <h4>New session in</h4>
-            <div className="pills">
-              {cwd && (
-                <button className="pill" onClick={(e) => start(e, cwd)} title={`${cwd} · ⌥-click flips the worktree toggle once`}>
-                  {shortPath(cwd)}
-                  <small>focused</small>
-                </button>
-              )}
-              {recent.map((dir) => (
-                <button key={dir} className="pill" onClick={(e) => start(e, dir)} title={`${dir} · ⌥-click flips the worktree toggle once`}>
-                  {shortPath(dir)}
-                  <small>recent</small>
-                </button>
-              ))}
-              {!cwd && recent.length === 0 && (
-                <button className="pill" onClick={(e) => start(e)} title="The default folder from Settings, else your home">
-                  Default folder
-                </button>
-              )}
-              <button className="pill" onClick={() => run({ type: 'chooseFolder', worktree, model: model.value, permissionMode: perm || undefined })}>
-                Choose folder…
-              </button>
-            </div>
-            <div className="picker-opts">
-              <label className={`pill pill-toggle ${worktree ? 'on' : ''}`} title="Claude creates a git worktree under .claude/worktrees/ and works there">
-                <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
-                in a new git worktree
-              </label>
-              <ModelPick pick={model} />
-              <PermissionPick value={perm} onChange={setPerm} />
-            </div>
-          </section>
-        )}
-        {canAdd && state.parked.length > 0 && (
-          <section className="picker-row">
-            <h4>Parked ({state.parked.length})</h4>
-            <div className="pills">
-              {state.parked.map((p) => (
-                <span key={p.id} className="pill pill-parked">
-                  <button className="pill-main" onClick={() => run({ type: 'resume', id: p.id })} title={`${p.cwd} · ${p.tmuxAlive ? 'still running in tmux; reattach' : 'resume with claude --resume'}`}>
-                    <span className={`dot ${p.tmuxAlive ? 'dot-idle' : 'dot-unknown'}`} />
-                    {p.name}
-                    <small>{shortPath(p.cwd)}</small>
-                  </button>
-                  <button className="pill-x" title="Forget (leaves tmux alone)" onClick={() => run({ type: 'forget', id: p.id })}>
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </section>
+          <div className="launcher launcher-cards picker-cards">
+            <StartCard state={state} settings={settings} canAdd={canAdd} focused={cwd} onStarted={onClose} />
+            {state.parked.length > 0 && <ParkedCard state={state} canAdd={canAdd} onDone={onClose} />}
+          </div>
         )}
       </div>
     </div>
