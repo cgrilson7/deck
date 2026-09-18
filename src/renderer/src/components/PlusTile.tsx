@@ -31,6 +31,12 @@ export const PLUGINS: {
     setting: 'showStudio'
   },
   {
+    key: 'pokemon',
+    label: 'Pokemon',
+    hint: 'A Game Boy Color in a tile; click it to play in the center column',
+    setting: 'showPokemon'
+  },
+  {
     key: 'git',
     label: 'Changes',
     hint: "The focused session's working tree and diffs",

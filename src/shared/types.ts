@@ -22,11 +22,12 @@ export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab'
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
   if (s.showStudio) out.push('studio')
+  if (s.showPokemon) out.push('pokemon')
   if (s.showGit) out.push('git')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
@@ -438,6 +439,10 @@ export interface DeckSettings {
   showVocab: boolean
   /** Seconds each vocabulary word stays before the next one. */
   vocabCycleSeconds: number
+  /** The Pokemon tile (Game Boy Color emulator: serverboy). */
+  showPokemon: boolean
+  /** Where to look for .gbc/.gb ROMs. */
+  pokemonRomDir: string
   /** The changes tile (the focused session's working tree as `git status` + diffs) takes the grid cell before the vocabulary tile. */
   showGit: boolean
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
@@ -485,6 +490,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
+  showPokemon: false,
+  pokemonRomDir: '~/Downloads',
   showGit: true,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true,
@@ -701,7 +708,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -826,4 +833,27 @@ export interface DeckApi {
   /** The image-capable Gemini models the key can see (cached in main). */
   studioModels(): Promise<StudioModel[]>
   studioInfo(): Promise<StudioInfo>
+  /** List .gbc/.gb ROM files in the configured ROM directory. */
+  pokemonListRoms(): Promise<{ name: string; path: string }[]>
+  /** Read a ROM file and return its bytes + sanitized name. */
+  pokemonLoadRom(path: string): Promise<{ bytes: Uint8Array; name: string }>
+  /** Persist battery save (SRAM) data for a ROM. */
+  pokemonSaveSram(name: string, data: Uint8Array): Promise<void>
+  /** Load battery save data for a ROM (null if none). */
+  pokemonLoadSram(name: string): Promise<Uint8Array | null>
+  /** Save a full emulator state to a numbered slot (0–2) or under a name (the trainer's checkpoints). */
+  pokemonSaveState(name: string, slot: number | string, data: Uint8Array): Promise<void>
+  /** Load a save state from a slot or a name (null if none). */
+  pokemonLoadState(name: string, slot: number | string): Promise<Uint8Array | null>
+  /** Write a screenshot's PNG bytes under userData/pokemon/trainer and return its path (a small rotation of files). */
+  pokemonShot(bytes: Uint8Array): Promise<string>
+  /** The trainer's door: main relays `POST /gameboy` here; the renderer answers with `gameboyReply`. */
+  onGameboy(cb: (req: GameboyRequest) => void): () => void
+  gameboyReply(id: string, result: unknown): void
+}
+
+/** One request through the trainer's door (main/hooks.ts `/gameboy` → the renderer's emulator). */
+export interface GameboyRequest {
+  id: string
+  body: Record<string, unknown>
 }

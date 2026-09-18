@@ -16,6 +16,9 @@ import { onLeash, type LeashAsk } from './lib/leash'
 import { useFoxLog } from './lib/foxlog'
 import { onStudio, readStudioChat, writeStudioChat } from './lib/studio'
 import { StudioPane } from './components/StudioPane'
+import { onPokemon } from './lib/pokemon'
+import { PokemonPane } from './components/PokemonPane'
+import { installGameboy } from './lib/gameboy'
 import { useSettings } from './lib/theme'
 
 /** Three columns: tiles, the focus pane, tiles. The setting is how much of the width the center takes. */
@@ -40,6 +43,8 @@ export default function App() {
   const [leash, setLeash] = useState<LeashAsk | null>(null)
   // The Studio open in the CENTER: the focus pane steps aside (the focused session shows in the grid meanwhile).
   const [studioOpen, setStudioOpen] = useState(false)
+  // The Game Boy in the center, the same way; it and the Studio take turns.
+  const [pokemonOpen, setPokemonOpen] = useState(false)
   // The session the Studio is talking to ("Ask Claude for help" starts one): shown INSIDE the Studio
   // pane while it is open, so it leaves the grid then, the way the focused session does.
   const [studioChat, setStudioChatState] = useState<string | null>(readStudioChat)
@@ -75,9 +80,23 @@ export default function App() {
         setAgentOpen(null)
         setFoxOpen((v) => !v)
       }
-      if (ev.type === 'toggleStudio') setStudioOpen((v) => !v)
+      if (ev.type === 'toggleStudio') {
+        setPokemonOpen(false)
+        setStudioOpen((v) => !v)
+      }
+      if (ev.type === 'togglePokemon') {
+        setStudioOpen(false)
+        setPokemonOpen((v) => !v)
+      }
     })
-    const offStudio = onStudio((want) => setStudioOpen((v) => (want === 'toggle' ? !v : want)))
+    const offStudio = onStudio((want) => {
+      setPokemonOpen(false)
+      setStudioOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offPokemon = onPokemon((want) => {
+      setStudioOpen(false)
+      setPokemonOpen((v) => (want === 'toggle' ? !v : want))
+    })
     void window.deck.agents().then(setAgents).catch(() => {})
     const offAgents = window.deck.onAgents(setAgents)
     const offDoc = onOpenDoc((r) => {
@@ -94,15 +113,22 @@ export default function App() {
       offAgents()
       offLeash()
       offStudio()
+      offPokemon()
       window.clearTimeout(t)
     }
   }, [])
 
-  // A focus change from anywhere (⌘1–9, the menu, the phone) takes the center back from the Studio.
+  // A focus change from anywhere (⌘1–9, the menu, the phone) takes the center back from the Studio or the Game Boy.
   const focusSlot = state?.focusSlot ?? null
   useEffect(() => {
     setStudioOpen(false)
+    setPokemonOpen(false)
   }, [focusSlot])
+
+  // The Game Boy answers the trainer's door from boot when its tile is on, whichever cell it is in.
+  useEffect(() => {
+    if (settings.showPokemon) installGameboy()
+  }, [settings.showPokemon])
 
   // A session that left the open set (parked / killed) drops its terminal.
   useEffect(() => {
@@ -118,7 +144,7 @@ export default function App() {
   const top = state.open.filter((s) => !s.pack)
   const betas = state.open.filter((s) => s.pack)
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen ? true : s.slot !== state.focusSlot))
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
   // Members grouped by alpha (in slot order), each group's betas needing you first, then subagents as they started.
   const members: Member[] = []
@@ -171,7 +197,9 @@ export default function App() {
         </div>
       </header>
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
-        {studioOpen ? (
+        {pokemonOpen ? (
+          <PokemonPane onClose={() => setPokemonOpen(false)} />
+        ) : studioOpen ? (
           <StudioPane session={focused} chat={state.open.find((s) => s.id === studioChat) ?? null} onChat={setStudioChat} onClose={() => setStudioOpen(false)} />
         ) : (
           <FocusPane session={focused} state={state} settings={settings} alpha={alphaOf} />

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -120,7 +120,20 @@ const api: DeckApi = {
   studioGenerate: (req: StudioRequest) => ipcRenderer.invoke('studio:generate', req) as Promise<StudioJob>,
   studioDelete: (id: string) => ipcRenderer.invoke('studio:delete', id) as Promise<void>,
   studioModels: () => ipcRenderer.invoke('studio:models') as Promise<StudioModel[]>,
-  studioInfo: () => ipcRenderer.invoke('studio:info') as Promise<StudioInfo>
+  studioInfo: () => ipcRenderer.invoke('studio:info') as Promise<StudioInfo>,
+  pokemonListRoms: () => ipcRenderer.invoke('pokemon:listRoms') as Promise<{ name: string; path: string }[]>,
+  pokemonLoadRom: (path: string) => ipcRenderer.invoke('pokemon:loadRom', path) as Promise<{ bytes: Uint8Array; name: string }>,
+  pokemonSaveSram: (name: string, data: Uint8Array) => ipcRenderer.invoke('pokemon:saveSram', name, data) as Promise<void>,
+  pokemonLoadSram: (name: string) => ipcRenderer.invoke('pokemon:loadSram', name) as Promise<Uint8Array | null>,
+  pokemonSaveState: (name: string, slot: number | string, data: Uint8Array) => ipcRenderer.invoke('pokemon:saveState', name, slot, data) as Promise<void>,
+  pokemonLoadState: (name: string, slot: number | string) => ipcRenderer.invoke('pokemon:loadState', name, slot) as Promise<Uint8Array | null>,
+  pokemonShot: (bytes: Uint8Array) => ipcRenderer.invoke('pokemon:shot', bytes) as Promise<string>,
+  onGameboy: (cb) => {
+    const h = (_e: unknown, req: GameboyRequest) => cb(req)
+    ipcRenderer.on('gameboy:req', h)
+    return () => ipcRenderer.removeListener('gameboy:req', h)
+  },
+  gameboyReply: (id: string, result: unknown) => ipcRenderer.send('gameboy:reply', id, result)
 }
 
 contextBridge.exposeInMainWorld('deck', api)

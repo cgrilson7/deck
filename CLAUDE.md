@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four a
 side, paged (hover an outer edge for the arrows): the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, changes, vocabulary, translator),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator),
 and any WOLFPACK member — a Fable alpha's Opus subagents and beta sessions, one tile EACH, gold
 foxes, a pause and a cancel-with-reason on every head. Click a tile to
 swap it into focus (a subagent's opens full size over the grid); drag one by its grip to keep it somewhere.
@@ -65,6 +65,7 @@ src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claude
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
+src/main/pokemon.ts        Pokemon's disk side: the ROM list of `pokemonRomDir`, a ROM's bytes, battery saves + save states under userData/pokemon
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
@@ -89,6 +90,9 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
+src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
+src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
+src/renderer/src/serverboy.d.ts     serverboy ships no types
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
@@ -103,6 +107,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
+                                    PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
@@ -148,7 +153,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`), and the wolfpack
   MEMBERS (each beta session and each subagent, a cell apiece) right behind them; that block
   is never pinned and has no grip. After it come the plugins
-  (`pluginCells()`: wiki, music, studio, git, vocab, translate; compact mode drops the first two), into
+  (`pluginCells()`: wiki, music, studio, pokemon, git, vocab, translate; compact mode drops the first two), into
   the free cells, except where one is pinned (`gridLayout` in config.json: cell index across
   pages → a plugin key; a pin inside the block waits until the
   block shrinks past it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
@@ -325,6 +330,34 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   the API takes and `STUDIO_REFS_MAX` (10) the references one request may carry. A generation
   takes 10–120s, so nothing that calls it may have a short timeout. Not on the phone
   (`phone/api.ts` answers empty / rejects).
+- **Pokemon** (`lib/gameboy.ts`, `PokemonTile`, `PokemonPane`, `lib/pokemon.ts`, `main/pokemon.ts`; the
+  `showPokemon` setting, off by default; `pokemonRomDir`, `~/Downloads`): a Game Boy Color inside
+  the deck. The emulator is **serverboy** (npm, GPL-2: pure JS, no DOM, the gameboy-online core)
+  running IN THE RENDERER as ONE MACHINE for the whole window (`gameboy()`, made on first use):
+  a rAF loop steps the core (`doFrame()` is ONE ITERATION, 8ms of Game Boy time — settings[6] —
+  not a video frame, so real time is 125 a second; a tick runs however many 8ms fell due, at
+  most 6, times the speed), reads the screen straight off the core's `canvasBuffer` (its
+  `graphicsBlit`, which rebuilds a 92160-entry JS array per step for `doFrame`'s return value,
+  is stubbed out) into every canvas attached (`attach(canvas)`, 160×144, CSS-scaled with
+  `image-rendering: pixelated`), and taps the core's `outputAudio` for the sound (353 stereo
+  pairs per iteration = 44150 Hz, the rate the AudioContext is opened at; each tick's samples are
+  one AudioBuffer queued a little ahead of now). serverboy names its private slot off
+  `process.hrtime()` at module load: `lib/gameboy.ts` stands up a `process` for the dynamic
+  import and takes it away again. The TILE is the screen, silent, click = the PANE; the pane
+  (⌘⇧G, View ▸ Pokemon ▸ Play Pokemon, the tile, the launcher's button) takes the CENTER column
+  the way the Studio does (it and the Studio take turns; a focus change closes it), and is the
+  only place sound plays and keys work: ← ↑ ↓ → pad, Z = A, X = B, ⏎ Start, ⇧ Select (not while
+  typing in a field; Esc closes), pressed per iteration from a `held` set since the core lets go
+  of every key at the end of each. The bar: the battery save now, three SAVE-STATE slots (the
+  core's `saveState()` as JSON, ~4MB, via `saving()`), 1× / 2× / 4× (faster is silent), pause,
+  reset (a reload with the battery save), sound / mute (kept in localStorage). ROMs are the
+  `.gb` / `.gbc` files of `pokemonRomDir` (pills in the empty pane, a select in the bar); the
+  last one played is kept in localStorage and `autoload()`ed by whichever view mounts first, so
+  the tile boots straight into the game. Bytes cross IPC as typed arrays (a Buffer arrives as a
+  Uint8Array). BATTERY RAM (`getSaveData()`) goes to `userData/pokemon/<name>.sav` every 30s
+  while running, on pause, on a cartridge swap, when the last view unmounts (the tile turned off
+  with the pane closed stops the loop: the game waits) and on `pagehide` (⌘R reloads the
+  renderer, so the game restarts from that save); states are `<name>.state0..2`. Not on the phone.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -636,13 +669,14 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
+- `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridLayout, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showPokemon, pokemonRomDir, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

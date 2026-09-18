@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, Image as ImageIcon, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
+import { FolderOpen, Gamepad2, Image as ImageIcon, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
 import type { DeckSettings, DeckState, StudioInfo, StudioModel, StudioRatio, StudioSize } from '@shared/types'
 import { STUDIO_RATIOS, STUDIO_SIZES } from '@shared/types'
 import { MODELS } from '@shared/models'
@@ -7,6 +7,7 @@ import { THEMES, type Appearance } from '@shared/themes'
 import { plain } from '../lib/errors'
 import { shortPath } from '../lib/format'
 import { openStudio, useStudioJobs } from '../lib/studio'
+import { openPokemon } from '../lib/pokemon'
 import { patchSettings, systemDark } from '../lib/theme'
 import { Fox } from './Fox'
 import { PLUGINS } from './PlusTile'
@@ -47,6 +48,9 @@ export function Launcher({ state, settings }: { state: DeckState; settings: Deck
               </button>
               <button className="lbtn" onClick={openStudio} title="The Studio, full size in this column">
                 <Sparkles size={13} /> Studio <kbd>⌘⇧I</kbd>
+              </button>
+              <button className="lbtn" onClick={openPokemon} title="The Game Boy, full size in this column">
+                <Gamepad2 size={13} /> Pokemon <kbd>⌘⇧G</kbd>
               </button>
             </div>
           </div>
@@ -432,6 +436,10 @@ function KeysCard({ settings: s }: { settings: DeckSettings }) {
         <div className="lrow">
           <TextSetting value={s.languagelogDb} mono placeholder="~/languagelog/….db" title="languagelog's SQLite file; its short translations join the vocabulary supply" onCommit={(v) => patchSettings({ languagelogDb: v })} />
         </div>
+        <span className="lset-label">ROM folder</span>
+        <div className="lrow">
+          <TextSetting value={s.pokemonRomDir} mono placeholder="~/Downloads" title="Where the Pokemon tile looks for .gb / .gbc files" onCommit={(v) => patchSettings({ pokemonRomDir: v })} />
+        </div>
         <span className="lset-label">Word every</span>
         <div className="lrow">
           <NumberSetting value={s.vocabCycleSeconds} min={5} max={600} title="Seconds each vocabulary word stays" onChange={(v) => patchSettings({ vocabCycleSeconds: v })} />
@@ -453,6 +461,7 @@ const KEYS: [string, string][] = [
   ['⌘] · ⌘[', 'next · previous session'],
   ['⌘W', 'park the focused session'],
   ['⌘⇧I', 'the Studio'],
+  ['⌘⇧G', 'Pokemon'],
   ['⌘J', "Foxtrot's log"],
   ['⌘,', 'theme'],
   ['⌘⇧L', 'light / dark'],

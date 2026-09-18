@@ -290,7 +290,17 @@ export const api: DeckApi = {
   studioGenerate: notHere,
   studioDelete: notHere,
   studioModels: notHere,
-  studioInfo: notHere
+  studioInfo: notHere,
+  // The Game Boy runs in the desktop's renderer; the phone has no tile for it.
+  pokemonListRoms: () => Promise.resolve([]),
+  pokemonLoadRom: notHere,
+  pokemonSaveSram: notHere,
+  pokemonLoadSram: notHere,
+  pokemonSaveState: notHere,
+  pokemonLoadState: notHere,
+  pokemonShot: notHere,
+  onGameboy: nothing,
+  gameboyReply: noop
 }
 
 /** Stand in for the preload: the components read window.deck and window.deckErrors. */

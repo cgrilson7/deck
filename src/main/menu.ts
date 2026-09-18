@@ -128,6 +128,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
             { label: 'Show Studio Tile', type: 'checkbox', checked: s.showStudio, click: () => patch({ showStudio: !settings().showStudio }) }
           ]
         },
+        {
+          label: 'Pokemon',
+          submenu: [
+            { label: 'Play Pokemon', accelerator: 'CmdOrCtrl+Shift+G', click: () => ui({ type: 'togglePokemon' }) },
+            { label: 'Show Pokemon Tile', type: 'checkbox', checked: s.showPokemon, click: () => patch({ showPokemon: !settings().showPokemon }) }
+          ]
+        },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },
         {

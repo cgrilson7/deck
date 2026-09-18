@@ -29,6 +29,8 @@ import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
 import { Wolfpack } from './pack'
 import { Studio } from './studio'
+import { Pokemon } from './pokemon'
+import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -249,6 +251,40 @@ app.whenReady().then(async () => {
   ipcMain.handle('studio:models', () => studio!.listModels())
   ipcMain.handle('studio:info', () => studio!.info())
 
+  // Pokemon: Game Boy Color emulator, ROMs + saves under userData/pokemon.
+  const pokemon = new Pokemon(userData)
+  ipcMain.handle('pokemon:listRoms', () => pokemon.listRoms(settings!.get().pokemonRomDir))
+  ipcMain.handle('pokemon:loadRom', (_e, path: string) => pokemon.loadRom(String(path ?? '')))
+  ipcMain.handle('pokemon:saveSram', (_e, name: string, data: Uint8Array) => pokemon.saveSram(String(name ?? ''), data ?? new Uint8Array()))
+  ipcMain.handle('pokemon:loadSram', (_e, name: string) => pokemon.loadSram(String(name ?? '')))
+  ipcMain.handle('pokemon:saveState', (_e, name: string, slot: number | string, data: Uint8Array) => pokemon.saveState(String(name ?? ''), slot ?? 0, data ?? new Uint8Array()))
+  ipcMain.handle('pokemon:loadState', (_e, name: string, slot: number | string) => pokemon.loadState(String(name ?? ''), slot ?? 0))
+  ipcMain.handle('pokemon:shot', (_e, bytes: Uint8Array) => pokemon.shot(bytes ?? new Uint8Array()))
+  // The trainer's door: a POST /gameboy on the hooks server becomes a request to the renderer's
+  // emulator (the one on the Pokemon tile) and its answer comes back on gameboy:reply.
+  const gbPending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
+  const gameboyCall = (body: unknown): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      if (!win || win.isDestroyed()) return reject(new Error('no window'))
+      const id = randomUUID()
+      const b = (body ?? {}) as Record<string, unknown>
+      const long = b.op === 'hold' || b.op === 'settle'
+      const budget = long ? 30_000 + Number(b.iterations ?? b.max ?? 0) * 12 : 15_000
+      const timer = setTimeout(() => {
+        gbPending.delete(id)
+        reject(new Error(long ? 'the Game Boy did not answer in time' : 'no Game Boy listening: turn on the Pokemon tile (a mini app in the + picker) and pick a ROM'))
+      }, budget)
+      gbPending.set(id, { resolve, timer })
+      send('gameboy:req', { id, body: b })
+    })
+  ipcMain.on('gameboy:reply', (_e, id: string, result: unknown) => {
+    const p = gbPending.get(id)
+    if (!p) return
+    clearTimeout(p.timer)
+    gbPending.delete(id)
+    p.resolve(result)
+  })
+
   // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
   const hooks = new HooksServer(
     HOOK_PORT,
@@ -256,12 +292,14 @@ app.whenReady().then(async () => {
     profile,
     join(pluginDir, 'scripts', 'wolfpack.mjs'),
     join(pluginDir, 'scripts', 'studio.mjs'),
+    join(pluginDir, 'scripts', 'trainer.mjs'),
     (event, payload) => {
       manager?.onHook(event, payload)
       agents?.onHook(event, payload)
     },
     (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready'))),
     (body) => (studio ? studio.handle(body) : Promise.reject(new Error('not ready'))),
+    (body) => gameboyCall(body),
     // Every tool call asks the leash (a paused member waits, a cancelled one is refused): main/agents.ts.
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
