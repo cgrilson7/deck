@@ -1,0 +1,230 @@
+/* The film's own chrome: the frame, the window the deck sits in, the captions, Foxtrot as the cursor. */
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: #111;
+}
+.ad-frame {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 540px;
+  height: 960px;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(90% 60% at 50% 100%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    color-mix(in srgb, var(--bg) 88%, var(--ink));
+  transition: background 400ms;
+}
+.ad-wide .ad-frame {
+  width: 960px;
+  height: 540px;
+}
+.ad-capture .ad-frame {
+  left: 0;
+  top: 0;
+  transform: none;
+}
+.ad-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent),
+    0 30px 80px -10px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.ad-world .app {
+  height: 100%;
+}
+.ad-lights {
+  position: absolute;
+  left: 20px;
+  top: 38px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+}
+.ad-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+.ad-lights i:nth-child(2) {
+  background: #febc2e;
+}
+.ad-lights i:nth-child(3) {
+  background: #28c840;
+}
+
+/* The caption's ground: the top of the frame fades to the backdrop, whatever the camera has under it. */
+.ad-scrim {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 300px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 88%, var(--ink)) 0%, color-mix(in srgb, var(--bg) 88%, var(--ink)) 62%, transparent 100%);
+  transition: background 400ms;
+}
+.ad-wide .ad-scrim {
+  height: 130px;
+}
+
+/* Captions: a band under the platform's top UI (TikTok / Reels keep ~12% there), over the bottom one's reach. */
+.ad-caption {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  top: 118px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.ad-wide .ad-caption {
+  top: 26px;
+}
+.ad-caption.in {
+  animation: ad-cap-in 380ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+.ad-caption.out {
+  animation: ad-cap-out 260ms ease-in both;
+}
+@keyframes ad-cap-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ad-cap-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+.ad-cap-title {
+  display: inline;
+  font: 17px/1.75 'Press Start 2P', monospace;
+  color: var(--panel);
+  background: var(--ink);
+  padding: 7px 10px 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  box-shadow: 4px 4px 0 var(--accent);
+}
+.ad-wide .ad-cap-title {
+  font-size: 15px;
+}
+.ad-cap-sub {
+  margin-top: 16px;
+  font: 600 17px/1.3 -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  color: var(--ink);
+  text-shadow: 0 0 12px var(--bg), 0 0 4px var(--bg);
+}
+.ad-wide .ad-cap-sub {
+  margin-top: 10px;
+  font-size: 15px;
+}
+
+/* Foxtrot, the cursor: frame space, above everything. */
+#ad-fox {
+  position: absolute;
+  left: 0;
+  top: 0;
+  --fox-scale: 4;
+  z-index: 60;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--ink) 30%, transparent));
+  pointer-events: none;
+}
+.ad-fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 59;
+  pointer-events: none;
+}
+.ad-ring {
+  position: absolute;
+  left: -30px;
+  top: -30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 4px solid var(--accent);
+  animation: ad-ring 600ms ease-out both;
+}
+@keyframes ad-ring {
+  from {
+    transform: scale(0.15);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* The end card. */
+.ad-end {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  opacity: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(6px);
+  transition: opacity 500ms;
+}
+.ad-end.on {
+  opacity: 1;
+}
+.ad-end-word {
+  font: 64px/1 'Press Start 2P', monospace;
+  color: var(--ink);
+  text-shadow: 6px 6px 0 var(--accent);
+}
+.ad-end-line {
+  font: 15px/1.9 'Press Start 2P', monospace;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* What the deck shows on :hover, for Foxtrot's benefit (Director.hover). */
+.pack-row.ad-hover .pack-row-leash {
+  display: inline-flex;
+}
+.ad-world .grid-scroll {
+  scroll-snap-type: none !important;
+}
+
+.ad-bark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font: 15px/1 'Press Start 2P', monospace;
+  color: var(--ink);
+  text-shadow: 3px 3px 0 var(--panel), -3px 3px 0 var(--panel), 3px -3px 0 var(--panel), -3px -3px 0 var(--panel);
+  white-space: nowrap;
+  animation: fox-bark 620ms ease-out both;
+}

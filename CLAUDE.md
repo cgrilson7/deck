@@ -32,6 +32,7 @@ npm run build        # electron-vite build → out/
 npm run smoke        # tmux + login-shell env + `claude agents --json` checks, no Electron
 npm run rebuild      # electron-rebuild node-pty (postinstall does this already)
 npm run tmux -- ls   # talk to the dev profile's tmux server (tmux -L deck-dev ...)
+npm run ad           # renders the ad (ad/) to ad/out/: deck-ad-9x16.mp4 (1080×1920) + deck-ad-16x9.mp4, 60fps; `npm run ad:dev` previews it live (add ?wide)
 npm run dist         # electron-vite build + electron-builder --mac → dist/ (needs `npm i -D electron-builder`;
                      #   the `build` block in package.json: productName Deck, build/icon.icns, tmux.conf as an extraResource)
 ```
@@ -110,6 +111,13 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
+ad/                        THE AD, a film of the deck made FROM the deck: its own Vite root that mounts the real `App` against a scripted fake
+                             `window.deck` (src/world.ts, the phone's trick; src/tui.ts fakes Claude Code's TUI as bytes into the real xterm),
+                             src/script.ts = the storyboard in seconds (sessions' beats, camera, Foxtrot-the-cursor, captions),
+                             src/director.ts = the camera (one transform on a fixed-size window) + the fox cursor, which really clicks and types,
+                             public/clock.js = a virtual clock under ?capture (timers, rAF, Date, CSS animations scrubbed), so
+                             capture.mjs (offscreen Electron → capturePage → ffmpeg) is frame-exact; `--shots 3,9.5` writes stills,
+                             `--eval` / `--dump` inspect the page. The app's build never sees any of it. assets/ are Studio-made images + 1UBQ.cif
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test

@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.web.json",
+  "compilerOptions": { "paths": { "@shared/*": ["../src/shared/*"], "@r/*": ["../src/renderer/src/*"], "@main/*": ["../src/main/*"] } },
+  "include": ["src/**/*", "../src/renderer/src/**/*.d.ts", "../src/preload/index.d.ts"]
+}

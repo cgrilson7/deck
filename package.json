@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty",
+    "ad:dev": "vite --config ad/vite.config.ts",
+    "ad": "electron ad/capture.mjs --fps 60 && electron ad/capture.mjs --fps 60 --wide",
+    "ad:typecheck": "tsc -p ad/tsconfig.json",
     "smoke": "node scripts/smoke.mjs",
     "tmux": "tmux -L deck-dev",
     "dist": "electron-vite build && electron-builder --mac"
