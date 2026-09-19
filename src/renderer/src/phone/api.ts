@@ -311,7 +311,16 @@ export const api: DeckApi = {
   molLibrary: () => Promise.resolve([]),
   molShot: notHere,
   onMol: nothing,
-  molReply: noop
+  molReply: noop,
+  // Lessons are read off the Mac's disk into the desktop's tiles.
+  lessonRead: notHere,
+  lessonFigure: notHere,
+  lessonCurriculum: () => Promise.resolve({ dir: '', data: null }),
+  lessonWatch: noop,
+  onLessonChanged: nothing,
+  lessonMol: notHere,
+  onLesson: nothing,
+  lessonReply: noop
 }
 
 /** Stand in for the preload: the components read window.deck and window.deckErrors. */

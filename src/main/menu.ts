@@ -136,6 +136,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'Lesson',
+          submenu: [
+            { label: 'Open Lesson', accelerator: 'CmdOrCtrl+Shift+E', click: () => ui({ type: 'toggleLesson' }) },
+            { label: 'Show Lesson Tile', type: 'checkbox', checked: s.showLesson, click: () => patch({ showLesson: !settings().showLesson }) }
+          ]
+        },
+        {
           label: 'Pokemon',
           submenu: [
             { label: 'Play Pokemon', accelerator: 'CmdOrCtrl+Shift+G', click: () => ui({ type: 'togglePokemon' }) },

@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DEFAULT_SETTINGS, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type WeatherPlace, type WebApp } from '@shared/types'
+import { DEFAULT_SETTINGS, LESSON_TILES_MAX, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type WeatherPlace, type WebApp } from '@shared/types'
 import { THEMES } from '@shared/themes'
 import { cleanModel } from '@shared/models'
 import { GRID_ORDER_MAX, isGridKey } from '@shared/gridorder'
@@ -60,9 +60,9 @@ function orderSide(raw: unknown): string[] {
   return Array.isArray(raw) ? [...new Set(raw.filter(isGridKey))].slice(0, GRID_ORDER_MAX) : []
 }
 
-/** The Molecule tiles: distinct numbers 1–99, at most MOL_TILES_MAX, never none. */
-function molTiles(raw: unknown): number[] {
-  const ns = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 99))].slice(0, MOL_TILES_MAX) : []
+/** The Molecule tiles (and the Lesson tiles): distinct numbers 1–99, at most `max`, never none. */
+function molTiles(raw: unknown, max = MOL_TILES_MAX): number[] {
+  const ns = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 99))].slice(0, max) : []
   return ns.length ? ns : [1]
 }
 
@@ -141,6 +141,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     showStudio: bool(raw.showStudio, d.showStudio),
     showMol: bool(raw.showMol, d.showMol),
     molTiles: molTiles(raw.molTiles),
+    showLesson: bool(raw.showLesson, d.showLesson),
+    lessonTiles: molTiles(raw.lessonTiles, LESSON_TILES_MAX),
     webApps: webApps(raw.webApps, d.webApps),
     showPokemon: bool(raw.showPokemon, d.showPokemon),
     pokemonRomDir: typeof raw.pokemonRomDir === 'string' && raw.pokemonRomDir.trim() ? raw.pokemonRomDir.trim() : d.pokemonRomDir,

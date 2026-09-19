@@ -405,7 +405,15 @@ class World {
       molLibrary: async () => MOL_LIBRARY.map((e) => ({ key: e.key, name: e.name, formula: e.formula, atoms: e.charges.length })),
       molShot: async () => '/mol/look.png',
       onMol: nothing,
-      molReply: noop
+      molReply: noop,
+      lessonRead: no,
+      lessonFigure: no,
+      lessonCurriculum: async () => ({ dir: '', data: null }),
+      lessonWatch: noop,
+      onLessonChanged: nothing,
+      lessonMol: no,
+      onLesson: nothing,
+      lessonReply: noop
     }
   }
 }

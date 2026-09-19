@@ -24,6 +24,8 @@ import { PokemonPane } from './components/PokemonPane'
 import { installGameboy } from './lib/gameboy'
 import { installMol, onMolPane, rethemeMol, syncMolTiles } from './lib/mol'
 import { MolPane } from './components/MolPane'
+import { installLesson, onLessonPane, syncLessonTiles } from './lib/lesson'
+import { LessonPane } from './components/LessonPane'
 import { onWebApp } from './lib/webapps'
 import { WebLayer } from './components/WebLayer'
 import { useSettings } from './lib/theme'
@@ -54,6 +56,8 @@ export default function App() {
   const [pokemonOpen, setPokemonOpen] = useState(false)
   // A molecule viewer, the same way (the Molecule tile it belongs to): the three of them and an open agent take turns.
   const [molOpen, setMolOpen] = useState<number | null>(null)
+  // A Lesson tile at reading size, the same way (which tile's).
+  const [lessonOpen, setLessonOpen] = useState<number | null>(null)
   // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
   const [webOpen, setWebOpen] = useState<string | null>(null)
   // The session the Studio is talking to ("Ask Claude for help" starts one): shown INSIDE the Studio
@@ -67,6 +71,8 @@ export default function App() {
   const settings = useSettings()
   const molTiles = useRef<number[]>([1])
   molTiles.current = settings.molTiles
+  const lessonTiles = useRef<number[]>([1])
+  lessonTiles.current = settings.lessonTiles
   const webApps = useRef(settings.webApps)
   webApps.current = settings.webApps
   // Subagents of every open session (SubagentStart / SubagentStop hooks), each a tile of its own.
@@ -90,6 +96,7 @@ export default function App() {
         setDoc(null)
         setFoxOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
         setWebOpen(null)
         setLeash(null)
       }
@@ -102,13 +109,23 @@ export default function App() {
         setStudioOpen(false)
         setPokemonOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
         setMolOpen((v) => (v === null ? (molTiles.current[0] ?? 1) : null))
+      }
+      if (ev.type === 'toggleLesson') {
+        setWebOpen(null)
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+        setLessonOpen((v) => (v === null ? (lessonTiles.current[0] ?? 1) : null))
       }
       if (ev.type === 'toggleStudio') {
         setWebOpen(null)
         setMolOpen(null)
         setPokemonOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
         setStudioOpen((v) => !v)
       }
       if (ev.type === 'toggleWeb') {
@@ -117,6 +134,7 @@ export default function App() {
         setStudioOpen(false)
         setPokemonOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
         setWebOpen((v) => (v === id ? null : id))
       }
       if (ev.type === 'togglePokemon') {
@@ -124,6 +142,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
         setPokemonOpen((v) => !v)
       }
     })
@@ -132,13 +151,23 @@ export default function App() {
       setStudioOpen(false)
       setPokemonOpen(false)
       setAgentOpen(null)
+      setLessonOpen(null)
       setMolOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? molTiles.current[0] ?? 1)))
+    })
+    const offLesson = onLessonPane((want) => {
+      setWebOpen(null)
+      setMolOpen(null)
+      setStudioOpen(false)
+      setPokemonOpen(false)
+      setAgentOpen(null)
+      setLessonOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? lessonTiles.current[0] ?? 1)))
     })
     const offStudio = onStudio((want) => {
       setWebOpen(null)
       setMolOpen(null)
       setPokemonOpen(false)
       setAgentOpen(null)
+      setLessonOpen(null)
       setStudioOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offPokemon = onPokemon((want) => {
@@ -146,6 +175,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setAgentOpen(null)
+      setLessonOpen(null)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offWeb = onWebApp((want) => {
@@ -155,6 +185,7 @@ export default function App() {
         setStudioOpen(false)
         setPokemonOpen(false)
         setAgentOpen(null)
+        setLessonOpen(null)
       }
       setWebOpen((v) => (want.want === false || (want.want === 'toggle' && v === id) ? null : id))
     })
@@ -170,6 +201,7 @@ export default function App() {
         setPokemonOpen(false)
         setMolOpen(null)
         setWebOpen(null)
+        setLessonOpen(null)
       }
       setAgentOpen(id)
     })
@@ -185,6 +217,7 @@ export default function App() {
       offStudio()
       offPokemon()
       offMol()
+      offLesson()
       offWeb()
       window.clearTimeout(t)
     }
@@ -196,6 +229,7 @@ export default function App() {
     setStudioOpen(false)
     setPokemonOpen(false)
     setMolOpen(null)
+    setLessonOpen(null)
     setAgentOpen(null)
     setWebOpen(null)
   }, [focusSlot])
@@ -219,6 +253,14 @@ export default function App() {
     setMolOpen((v) => (v !== null && !settings.molTiles.includes(v) ? null : v))
   }, [settings.molTiles])
 
+  // The Lesson tile answers its door (`POST /lesson`) from boot, and every tile has its deck (its lesson restored) before it is scrolled to.
+  useEffect(() => {
+    if (!settings.showLesson) return
+    installLesson()
+    syncLessonTiles(settings.lessonTiles)
+    setLessonOpen((v) => (v !== null && !settings.lessonTiles.includes(v) ? null : v))
+  }, [settings.showLesson, settings.lessonTiles])
+
   // A session that left the open set (parked / killed) drops its terminal.
   useEffect(() => {
     if (!state) return
@@ -237,7 +279,7 @@ export default function App() {
   // A web app that was removed while showing gives the center back.
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -286,6 +328,8 @@ export default function App() {
           <PokemonPane onClose={() => setPokemonOpen(false)} />
         ) : molOpen !== null ? (
           <MolPane tile={molOpen} onClose={() => setMolOpen(null)} />
+        ) : lessonOpen !== null ? (
+          <LessonPane tile={lessonOpen} session={focused} onClose={() => setLessonOpen(null)} />
         ) : studioOpen ? (
           <StudioPane session={focused} chat={state.open.find((s) => s.id === studioChat) ?? null} onChat={setStudioChat} onClose={() => setStudioOpen(false)} />
         ) : (

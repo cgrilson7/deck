@@ -1,5 +1,5 @@
 // Where every grid tile sits: two columns (sessions and their packs LEFT, mini apps RIGHT: `homeSide`), each an ordered list of tile keys — `slot:<n>` (a
-// session), `beta:<id>`, `pack:<alpha id>`, or a plugin key (`mol:<n>` for a Molecule tile past the first, `web:<id>` for a web app). The saved order (`gridOrder`, a
+// session), `beta:<id>`, `pack:<alpha id>`, or a plugin key (`mol:<n>` / `lesson:<n>` for a Molecule / Lesson tile past the first, `web:<id>` for a web app). The saved order (`gridOrder`, a
 // setting) is written whenever a tile is dragged; a tile it has never seen takes a default place
 // that does not depend on what else is showing, so focusing a session (which takes its tile out
 // of the grid) or a pack appearing never reshuffles the rest.
@@ -19,7 +19,7 @@ export interface OrderItem {
 
 export const GRID_ORDER_MAX = 64
 
-const KEY = new RegExp(`^(slot:\\d{1,3}|(pack|beta):[0-9a-z-]{1,40}|${PLUGIN_KEYS.join('|')}|mol:[1-9]\\d?|web:[a-z0-9][a-z0-9-]{0,23})$`)
+const KEY = new RegExp(`^(slot:\\d{1,3}|(pack|beta):[0-9a-z-]{1,40}|${PLUGIN_KEYS.join('|')}|mol:[1-9]\\d?|lesson:[1-9]\\d?|web:[a-z0-9][a-z0-9-]{0,23})$`)
 
 export function isGridKey(k: unknown): k is string {
   return typeof k === 'string' && KEY.test(k)

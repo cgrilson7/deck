@@ -1,6 +1,6 @@
 // A small markdown → React renderer for Claude's prose in the grid tiles: paragraphs,
 // headings, bullet / numbered lists, fenced code, pipe tables, and inline code / bold /
-// italic / links. Builds elements, never HTML, so nothing in a reply can inject markup.
+// italic / links (and, for a caller that asks, footnote marks). Builds elements, never HTML, so nothing in a reply can inject markup.
 // `cwd` is the session's folder: file references in the prose become clickable and are
 // resolved against it (lib/filerefs.tsx).
 
@@ -8,7 +8,12 @@ import type { ReactNode } from 'react'
 import { FileRef, linkifyPaths } from './filerefs'
 import { isPathRef, splitRef } from './paths'
 
-export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
+/** What a caller may add to the renderer. `foot`: a footnote mark `[^id]` (the Lesson tile's sources); without it the mark stays text. */
+export interface MarkdownExt {
+  foot?: (id: string, key: string) => ReactNode
+}
+
+export function renderMarkdown(src: string, cwd?: string, ext?: MarkdownExt): ReactNode[] {
   const lines = src.replace(/\r\n?/g, '\n').split('\n')
   const out: ReactNode[] = []
   let i = 0
@@ -41,7 +46,7 @@ export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
     if (h) {
       const level = Math.min(h[1].length + 2, 6) // tiles are small: h1 renders as h3
       const Tag = `h${level}` as 'h3'
-      out.push(<Tag key={k()}>{inline(h[2], cwd)}</Tag>)
+      out.push(<Tag key={k()}>{inline(h[2], cwd, ext)}</Tag>)
       i++
       continue
     }
@@ -69,7 +74,7 @@ export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
             <thead>
               <tr>
                 {head.map((c, j) => (
-                  <th key={j}>{inline(c, cwd)}</th>
+                  <th key={j}>{inline(c, cwd, ext)}</th>
                 ))}
               </tr>
             </thead>
@@ -77,7 +82,7 @@ export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
               {rows.map((r, ri) => (
                 <tr key={ri}>
                   {r.map((c, j) => (
-                    <td key={j}>{inline(c, cwd)}</td>
+                    <td key={j}>{inline(c, cwd, ext)}</td>
                   ))}
                 </tr>
               ))}
@@ -103,7 +108,7 @@ export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
       out.push(
         <Tag key={k()}>
           {items.map((it, j) => (
-            <li key={j}>{inline(it, cwd)}</li>
+            <li key={j}>{inline(it, cwd, ext)}</li>
           ))}
         </Tag>
       )
@@ -113,22 +118,22 @@ export function renderMarkdown(src: string, cwd?: string): ReactNode[] {
     if (/^\s*>/.test(line)) {
       const q: string[] = []
       while (i < lines.length && /^\s*>/.test(lines[i])) q.push(lines[i++].replace(/^\s*>\s?/, ''))
-      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'), cwd)}</blockquote>)
+      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'), cwd, ext)}</blockquote>)
       continue
     }
     // paragraph: run until a blank line or a block start
     const p: string[] = [line]
     i++
     while (i < lines.length && lines[i].trim() && !/^(\s*(```|~~~|#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\|))/.test(lines[i])) p.push(lines[i++])
-    out.push(<p key={k()}>{inline(p.join(' '), cwd)}</p>)
+    out.push(<p key={k()}>{inline(p.join(' '), cwd, ext)}</p>)
   }
   return out
 }
 
-const INLINE = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|_([^_\n]+)_|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)]+)/g
+const INLINE = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|_([^_\n]+)_|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)]+)|\[\^([\w-]+)\]/g
 
 /** Inline markdown inside one block. Plain runs also get their file references linkified. */
-export function inline(text: string, cwd?: string): ReactNode[] {
+export function inline(text: string, cwd?: string, ext?: MarkdownExt): ReactNode[] {
   const out: ReactNode[] = []
   let last = 0
   let n = 0
@@ -141,10 +146,11 @@ export function inline(text: string, cwd?: string): ReactNode[] {
       // reply names a file, so it opens the preview pane instead of sitting there as code.
       const ref = isPathRef(m[2]) ? splitRef(m[2]) : null
       out.push(ref ? <FileRef key={key} path={ref.path} cwd={cwd} line={ref.line} label={m[2]} code /> : <code key={key}>{m[2]}</code>)
-    } else if (m[3] !== undefined || m[4] !== undefined) out.push(<strong key={key}>{inline(m[3] ?? m[4], cwd)}</strong>)
-    else if (m[5] !== undefined || m[6] !== undefined) out.push(<em key={key}>{inline(m[5] ?? m[6], cwd)}</em>)
+    } else if (m[3] !== undefined || m[4] !== undefined) out.push(<strong key={key}>{inline(m[3] ?? m[4], cwd, ext)}</strong>)
+    else if (m[5] !== undefined || m[6] !== undefined) out.push(<em key={key}>{inline(m[5] ?? m[6], cwd, ext)}</em>)
     else if (m[7] !== undefined) out.push(link(key, m[8], m[7]))
     else if (m[9] !== undefined) out.push(link(key, m[9], m[9]))
+    else if (m[10] !== undefined) out.push(ext?.foot ? ext.foot(m[10], key) : m[0])
     last = at + m[0].length
   }
   if (last < text.length) out.push(...linkifyPaths(text.slice(last), cwd, `i${n}p`))

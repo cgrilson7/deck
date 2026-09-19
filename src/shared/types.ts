@@ -2,6 +2,7 @@
 
 import type { Appearance } from './themes'
 import type { GridOrder } from './gridorder'
+import type { Curriculum } from './lesson'
 
 /**
  * Hard cap on open top-level sessions: the focus pane + the grid. Slots 1..CAP are sticky; ⌘1–9
@@ -19,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'mol'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'mol', 'lesson'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -31,6 +32,18 @@ export const molTileOf = (key: string): number | null => (key === 'mol' ? 1 : /^
 /** The number a new Molecule tile takes (the lowest free), or null at the cap. */
 export function nextMolTile(tiles: number[]): number | null {
   if (tiles.length >= MOL_TILES_MAX) return null
+  let n = 1
+  while (tiles.includes(n)) n++
+  return n
+}
+/** The Lesson tiles, the Molecule tiles' way: `lesson` for tile 1, `lesson:<n>` past it (a lesson, a card and its state each). */
+export const LESSON_TILES_MAX = 4
+export const lessonKey = (n: number): string => (n === 1 ? 'lesson' : `lesson:${n}`)
+/** The tile number of a grid key, or null when it is not a Lesson tile's. */
+export const lessonTileOf = (key: string): number | null => (key === 'lesson' ? 1 : /^lesson:([1-9]\d?)$/.test(key) ? Number(key.slice(7)) : null)
+/** The number a new Lesson tile takes (the lowest free), or null at the cap. */
+export function nextLessonTile(tiles: number[]): number | null {
+  if (tiles.length >= LESSON_TILES_MAX) return null
   let n = 1
   while (tiles.includes(n)) n++
   return n
@@ -77,10 +90,10 @@ export function webAppId(name: string, taken: string[]): string {
 }
 
 /** A grid key that belongs to a mini app: a plugin's own, one more Molecule tile's, or a web app's. */
-export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || webAppOf(k) !== null
+export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showMol'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showMol' | 'showLesson'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -90,6 +103,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
   if (s.showMol) out.push('mol')
+  if (s.showLesson) out.push('lesson')
   return out
 }
 
@@ -538,6 +552,10 @@ export interface DeckSettings {
   showMol: boolean
   /** The Molecule tiles that exist, by number (a viewer and a scene each; `molKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   molTiles: number[]
+  /** The Lesson tile (a lesson file of the learner's repo as cards), which a teaching session drives through `$DECK_LESSON`. */
+  showLesson: boolean
+  /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
+  lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
   webApps: WebApp[]
   /** The Pokemon tile (Game Boy Color emulator: serverboy). */
@@ -595,6 +613,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   vocabCycleSeconds: 30,
   showMol: false,
   molTiles: [1],
+  showLesson: false,
+  lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
   pokemonRomDir: '~/Downloads',
@@ -814,7 +834,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -990,6 +1010,48 @@ export interface DeckApi {
   /** The Molecule tile's door: main relays `POST /mol` here (structures already resolved); the renderer answers with `molReply`. */
   onMol(cb: (req: MolRequest) => void): () => void
   molReply(id: string, result: unknown): void
+  /** The Lesson tile: a lesson file's text (an absolute .md, 1MB at most). Main reads; the renderer parses (shared/lesson.ts). Rejects with what to fix. */
+  lessonRead(file: string): Promise<LessonFile>
+  /** A `fig` block's image: `src` relative to the lesson file, inside its folder tree. */
+  lessonFigure(file: string, src: string): Promise<LessonFigure>
+  /** The home view: `curriculum.json` of the session's folder (the pane's own cwd, like the changes tile), else of `fallback` (the folder it was last found in). */
+  lessonCurriculum(sessionId: string | null, fallback?: string): Promise<CurriculumRead>
+  /** Which lesson files are up in some tile: main watches those and re-sends a changed one (`onLessonChanged`). */
+  lessonWatch(files: string[]): void
+  onLessonChanged(cb: (f: LessonFile) => void): () => void
+  /** A `mol` block's button: its lines through the SAME path as `POST /mol`, in order, stopping at the first refusal. */
+  lessonMol(run: LessonMolRun): Promise<LessonMolResult>
+  /** The Lesson tile's door: main relays `POST /lesson` here (the file already read); the renderer answers with `lessonReply`. */
+  onLesson(cb: (req: LessonRequest) => void): () => void
+  lessonReply(id: string, result: unknown): void
+}
+
+/** A lesson file as main read it. */
+export interface LessonFile {
+  file: string
+  text: string
+  mtime: number
+}
+export type LessonFigure = { ok: true; bytes: Uint8Array; mime: string } | { ok: false; error: string }
+/** `<dir>/curriculum.json`: `data` null = none there (`error` when it is there and does not parse). */
+export interface CurriculumRead {
+  dir: string
+  data: Curriculum | null
+  error?: string
+}
+/** One press of a lesson's mol button. `key` names the button (file, card, block), so its `--new` reuses the tile it opened last time. */
+export interface LessonMolRun {
+  file: string
+  key: string
+  lines: string[]
+  tile?: number
+  fresh?: boolean
+}
+export type LessonMolResult = { ok: true; tile: number | null } | { ok: false; error: string }
+/** One request through the Lesson tile's door (main/hooks.ts `/lesson` → lib/lesson.ts). */
+export interface LessonRequest {
+  id: string
+  body: Record<string, unknown>
 }
 
 export type MolFormat = 'sdf' | 'cif' | 'pdb' | 'mol2' | 'xyz' | 'cube'

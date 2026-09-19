@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Molecule),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Molecule, Lesson),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -55,6 +55,7 @@ src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + nam
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door,
                              and POST /studio, the Studio's,
                              and POST /gameboy + POST /mol, the doors to the renderer's Game Boy and molecule viewer (main/index.ts relays both),
+                             and POST /lesson, the Lesson tile's door (`onLesson`, a FIELD set after construction like `onStatus`, never a constructor argument),
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
 src/main/usage.ts          USAGE for the header: every session's status line POSTs the CLI's status JSON to /status → the account's 5-hour / weekly
                              windows + each session's context % (`usage:update`; windows kept in userData/usage.json)
@@ -67,7 +68,9 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              skills/studio/SKILL.md (`/deck:studio`: how to draft a Gemini image prompt and run it),
                              scripts/studio.mjs (the session's CLI: gen, list, models, info, comic; its path is DECK_STUDIO in every session's env),
                              skills/mol/SKILL.md (`/deck:mol`: show and annotate molecules while teaching),
-                             scripts/mol.mjs (show, style, compare, select, highlight, measure, label, view, look, list, clear; DECK_MOL in every session's env)
+                             scripts/mol.mjs (show, style, compare, select, highlight, measure, label, view, look, list, clear; DECK_MOL in every session's env),
+                             skills/lesson/SKILL.md (`/deck:lesson`: teach from a lesson file, card by card; ALSO the lesson file format's authoring reference),
+                             scripts/lesson.mjs (show, goto, mark, note, ask, look, home, reset, tiles, close, lint; DECK_LESSON in every session's env)
 src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
@@ -75,6 +78,9 @@ src/main/files.ts          reads a referenced path for the preview pane: text (c
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/mol.ts            the Molecule tile's disk + network side: a target → structure text (library, RCSB, AlphaFold DB, PubChem, a file), cached in userData/mol
+src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson` (front matter, cards, the mol / fig / ask / dad blocks), `lintLesson`,
+                             `molBody` (one line of a mol block → the Molecule door's body; MIRRORS plugin/scripts/mol.mjs's argv handling, keep them in step), `cleanCurriculum`
+src/main/lesson.ts         the Lesson tile's disk side: a lesson's text (.md, 1MB), a figure's bytes (inside the lesson's folder tree), curriculum.json, `lint`, the watch on files that are up
 src/main/data/molLibrary.ts  GENERATED (scripts/mollib.mjs): 16 small molecules, 3D coordinates + partial charges
 src/main/pokemon.ts        Pokemon's disk side: the ROM list of `pokemonRomDir`, a ROM's bytes, battery saves + save states under userData/pokemon
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
@@ -110,6 +116,8 @@ src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon()
 src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
 src/renderer/src/serverboy.d.ts     serverboy ships no types
 src/renderer/src/lib/mol.ts         THE MOLECULE VIEWER: 3Dmol.js as a module singleton (one viewer moved between tile and pane, the scene as state, every op of the door); useMol(), openMol()
+src/renderer/src/lib/lesson.ts      THE LESSON TILE's state: a deck per tile (file, card, marks, note, ad-hoc asks, answers, mol runs), every op of the door (`drive`), live reload,
+                                    `useLesson()`, `useCurriculum()`, `setMarks()` (the CSS Custom Highlight API), `openLesson()`
 src/renderer/src/3dmol.d.ts         the slice of 3Dmol lib/mol.ts uses, for the minified ES build it imports by path
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
@@ -129,6 +137,8 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
+                                    LessonTile (a lesson's card as a plugin cell, or HOME: the curriculum), LessonPane (it at reading size in the center column: a rail of the cards, the sources),
+                                    LessonCard (one card — prose, mol button, figure, ask, "for Dad", sources — shared by the two, and the home view),
                                     WebTile (a web app as a plugin cell: its last snapshot, a door), WebLayer (the ALWAYS-MOUNTED webviews in the center column),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch),
@@ -544,6 +554,57 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   scroll is left alone. A pinch arrives as a ctrlKey wheel: that one is `preventDefault`ed and
   zooms by `exp(−deltaY × ZOOM_PER_DELTA)`, capped per event, so the same gesture always zooms
   the same amount and spreading the fingers draws the molecule nearer. Not on the phone.
+- **Lesson** (`shared/lesson.ts`, `lib/lesson.ts`, `LessonTile`, `LessonPane`, `LessonCard`, `main/lesson.ts`, `plugin/skills/lesson/`,
+  `plugin/scripts/lesson.mjs`; the `showLesson` setting, off by default): THE OTHER HALF OF THE TEACHER. A teaching session
+  (~/grail) drives the Molecule tiles AND points at the lesson itself: a card with the idea, its cited source, a figure, a
+  button that puts the right molecule up, and a question answered IN the tile, which the session then `look`s at. Built on
+  the Molecule tile's plan throughout. LESSONS ARE MARKDOWN FILES IN THE LEARNER'S REPO (`~/grail/lessons/*.md`); the tile
+  renders them and NEVER WRITES THERE. THE FORMAT (`parseLesson`, pure; the skill is its authoring reference): a front
+  matter that is a YAML subset read by hand (`key: value` scalars + one list of maps, `sources`: id / cite / url; unknown
+  keys kept), `## ` headings cut the file into CARDS (never inside a fence; text before the first is the intro card, id
+  `intro`; a card's id is `{#id}` at the end of the heading, else a slug), `[^id]` is a numbered footnote mark to a source,
+  and FOUR FENCES are taken over by language — `mol` (a ▶ button: `label:`, optional `tile:` / `new:`, every other line ONE
+  mol.mjs command as its argv), `fig` (`src:` relative to the lesson file and INSIDE its folder tree — a symlink out is
+  refused — png jpg jpeg gif webp svg, read by main/files.ts, shown as a blob: URL; `caption:`), `ask` (`id:`, `q:`, `- `
+  options with `- * ` on the right one(s) — several right = tick-boxes and a check button; none = a free-text box, which
+  nobody marks — `why:` shown after the answer), `dad` (a "for Dad" callout: accent rule, a small label). Everything else
+  is `lib/markdown.tsx`, which grew ONE hook for it (`MarkdownExt.foot`; without it `[^id]` stays text); the fences are cut
+  by the parser, not the renderer, because `lint` and `look` need them too. SOURCES ARE NOT DECORATION: a card's footer
+  lists what it cites, else all of the file's, and with neither a quiet "unsourced" tag. A MOL BUTTON goes renderer →
+  `lesson:mol` → main, which turns each line into a body (`molBody`, the mirror of mol.mjs) and calls `molCall` — THE SAME
+  PATH as `POST /mol` — in order, stopping at the first refusal; a file target is relative to the lesson; a `--new` button
+  REMEMBERS the tile it opened (by file + card + block + line, in main's memory) so pressing it twice does not open two.
+  With `showMol` off the button says so and its click turns the tile on. It works with no session involved. HOME (no
+  lesson up) is `<cwd>/curriculum.json` of the FOCUSED session (`lesson:curriculum`: the pane's own cwd, like the changes
+  tile; polled every 3s while showing, re-rendered when the JSON changed), falling back to the folder it was last found in
+  (localStorage `lesson:home`) so focusing another session does not blank it; blocks with status, the active one unfolded
+  to its items (a title opens its `lesson`, an item with a `card` opens it there), the questions for Dad under them; every
+  field optional (`cleanCurriculum`); no file = `.plugin-empty`. SEVERAL LESSON TILES, copied from `molTiles`
+  (`lessonTiles`, `[1]`, `LESSON_TILES_MAX` = 4; keys `lessonKey(n)`: `lesson`, `lesson:<n>`; the picker's pill says
+  "another here"; × closes one of several, puts the last away). STATE IS THE RENDERER'S (`lesson(n)`, a deck per tile:
+  file, card, marks, note, ad-hoc asks, answers, mol runs, an event log for `look`'s `since`), and the UI and the door call
+  the same `drive(body)`. Kept in localStorage: `lesson:scene:<n>` (`{ file, card id, ad-hoc asks }`, restored at boot by
+  `syncLessonTiles` — every tile has its deck before it is scrolled to, so tiles survive ⌘R) and
+  `lesson:answers:<absolute file>` (`{ [askId]: { chosen, text, correct, at } }`, shared by every tile showing that file;
+  the door's `reset` clears it; an answered ask is locked). LIVE RELOAD: the renderer tells main which files are up
+  (`lesson:watch`), main watches each file's FOLDER filtered to its name (an editor's rename-over-save would orphan a watch
+  on the file), settles 120ms, and re-sends the text (`lesson:changed`); the card is kept BY ID, and with it the marks and
+  the note. THE DOOR: `POST /lesson` → `lessonCall` in `main/index.ts` (10s budget) — `lint` is main's own and needs NO
+  TILE (the parser plus what needs the disk: do the figures resolve); the rest refuse AT ONCE with "turn on the Lesson
+  tile" when `showLesson` is off; `show` READS THE FILE FIRST (absolute `.md`, 1MB) and its text rides along; main picks
+  the tile — `tile`, `new` (the first tile at HOME, else `nextLessonTile`), else the last used — and every answer carries
+  `tile`. Ops: show (the same file again keeps the card up; a card that does not exist refuses the whole load), goto
+  (n | id | next | prev), mark (a phrase that must be ON the card as worded — checked against `cardText`; painted with the
+  CSS Custom Highlight API, `::highlight(lesson-mark)`, so no DOM changes under React, and the first one scrolled to),
+  note (a markdown callout pinned over the card), ask (an ad-hoc question on the card), look (the card up, every card's
+  asks with the learner's answers IN THE OPTION'S WORDS, marks, note, the mol buttons pressed, `since`), home, reset,
+  tiles, close (the last tile only goes home). Marks and the note go when the card changes; none of the ad-hoc three
+  touch the file. The TILE: head (GraduationCap, the title, `3 / 9`, home, +, ⤢), the card scrolling, ‹ › and card dots
+  (an answered card's dot is green). The PANE (⌘⇧E, View ▸ Lesson, the tile's ⤢) takes the CENTER like the Molecule viewer
+  (they all take turns; a focus change or Esc closes it; ← → page the cards): the card at reading size, a left rail of the
+  cards (answered asks ticked), the file's sources, and with several tiles Molecule's rail of chips. `DECK_LESSON` is
+  derived from the mol script's folder in `hooks.ts` (no constructor change); a session started before the tile existed
+  has no `DECK_LESSON`, which is why the skill falls back to `$(dirname "$DECK_MOL")/lesson.mjs`. Not on the phone.
 - **Web apps** (`shared/types.ts` `WebApp`, `main/webapps.ts`, `WebLayer`, `WebTile`, `lib/webapps.ts`; the `webApps`
   setting): ANY SITE AS A MINI APP — registered by a name + URL (`{ id, name, url, show }`, `WEB_APPS_MAX` 12;
   Village, `https://villagenotes.app/dream`, is the default entry; the `+` picker's "Web app" row registers
@@ -869,7 +930,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A B. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B E. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -891,7 +952,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, webApps, showPokemon, pokemonRomDir, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

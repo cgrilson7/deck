@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
+import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { useSettings } from '../lib/theme'
 import { ParkedCard, StartCard } from './SessionForm'
@@ -63,6 +63,12 @@ export const PLUGINS: {
     label: 'Molecule',
     hint: 'A 3D molecule viewer: small molecules and proteins, which a session can drive (/deck:mol)',
     setting: 'showMol'
+  },
+  {
+    key: 'lesson',
+    label: 'Lesson',
+    hint: 'A lesson from the focused folder as cards: sources, figures, molecule buttons, questions you answer here; a session drives it (/deck:lesson)',
+    setting: 'showLesson'
   }
 ]
 
@@ -135,7 +141,7 @@ function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; sta
                 {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => (
                   <button key={p.key} className="pill" onClick={() => place(p)} title={p.hint}>
                     {p.label}
-                    {shown.has(p.key) && <small>{p.key === 'mol' && nextMolTile(settings.molTiles) !== null ? 'another here' : 'move here'}</small>}
+                    {shown.has(p.key) && <small>{(p.key === 'mol' && nextMolTile(settings.molTiles) !== null) || (p.key === 'lesson' && nextLessonTile(settings.lessonTiles) !== null) ? 'another here' : 'move here'}</small>}
                   </button>
                 ))}
               </div>

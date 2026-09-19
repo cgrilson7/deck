@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { PLUGIN_KEYS, molKey, molTileOf, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
+import { PLUGIN_KEYS, lessonKey, lessonTileOf, molKey, molTileOf, nextLessonTile, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
 import { arrange, homeSide, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
 import { PLUGINS, PlusTile, type Placed } from './PlusTile'
@@ -12,6 +12,7 @@ import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
 import { PokemonTile } from './PokemonTile'
 import { MolTile } from './MolTile'
+import { LessonTile } from './LessonTile'
 import { WebTile } from './WebTile'
 import { PackTile } from './PackTile'
 import { patchSettings, useSettings } from '../lib/theme'
@@ -64,6 +65,8 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
     for (const k of pluginCells(settings)) {
       // The Molecule plugin is as many cells as there are Molecule tiles.
       if (k === 'mol') for (const n of settings.molTiles) out.push({ key: molKey(n), kind: 'plugin', needy: false, node: <MolTile tile={n} /> })
+      // So is the Lesson plugin.
+      else if (k === 'lesson') for (const n of settings.lessonTiles) out.push({ key: lessonKey(n), kind: 'plugin', needy: false, node: <LessonTile tile={n} session={focused} /> })
       else out.push({ key: k, kind: 'plugin', needy: false, node: plugin(k, settings, focused) })
     }
     // The web apps after them, a cell each.
@@ -105,8 +108,11 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
             }
             // The Molecule pill while one is already showing = ANOTHER Molecule tile, at the foot of this column.
             const n = k === 'mol' && settings.showMol ? nextMolTile(settings.molTiles) : null
+            // The Lesson pill, the same way.
+            const l = k === 'lesson' && settings.showLesson ? nextLessonTile(settings.lessonTiles) : null
             if (n !== null) save(moved(full, molKey(n), null), { molTiles: [...settings.molTiles, n] })
-            else save(moved(full, k === 'mol' ? molKey(settings.molTiles[0]) : k, null), { [PLUGINS.find((p) => p.key === k)!.setting]: true } as Partial<DeckSettings>)
+            else if (l !== null) save(moved(full, lessonKey(l), null), { lessonTiles: [...settings.lessonTiles, l] })
+            else save(moved(full, k === 'mol' ? molKey(settings.molTiles[0]) : k === 'lesson' ? lessonKey(settings.lessonTiles[0]) : k, null), { [PLUGINS.find((p) => p.key === k)!.setting]: true } as Partial<DeckSettings>)
           }}
         />
       ))}
@@ -248,7 +254,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
     case 'translate':
       return <TranslateTile />
     case 'mol':
-      // A cell per Molecule tile: the grid makes those itself.
+    case 'lesson':
+      // A cell per Molecule tile, and per Lesson tile: the grid makes those itself.
       return null
   }
 }
@@ -288,9 +295,10 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
   const [over, setOver] = useState<'before' | 'after' | null>(null)
   const el = useRef<HTMLDivElement>(null)
   const molTile = cell?.kind === 'plugin' ? molTileOf(cell.key) : null
-  const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === (molTile !== null ? 'mol' : cell.key)) : undefined
+  const lessonTile = cell?.kind === 'plugin' ? lessonTileOf(cell.key) : null
+  const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === (molTile !== null ? 'mol' : lessonTile !== null ? 'lesson' : cell.key)) : undefined
   const web = cell?.kind === 'plugin' ? webAppOf(cell.key) : null
-  const { molTiles, webApps } = useSettings()
+  const { molTiles, lessonTiles, webApps } = useSettings()
   const webApp = web !== null ? webApps.find((a) => a.id === web) : undefined
   const half = (e: React.DragEvent): 'before' | 'after' => {
     if (!cell) return 'before'
@@ -338,11 +346,12 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
       {plugin && (
         <button
           className="cell-x"
-          title={molTile !== null && molTiles.length > 1 ? 'Close this Molecule tile (its scene goes with it)' : `Put ${plugin.label} away (a +, or the launcher, brings it back)`}
+          title={molTile !== null && molTiles.length > 1 ? 'Close this Molecule tile (its scene goes with it)' : lessonTile !== null && lessonTiles.length > 1 ? 'Close this Lesson tile (answers are kept with the lesson file)' : `Put ${plugin.label} away (a +, or the launcher, brings it back)`}
           onClick={(e) => {
             e.stopPropagation()
             // One of several Molecule tiles closes for good; the last one is put away like any mini app.
             if (molTile !== null && molTiles.length > 1) patchSettings({ molTiles: molTiles.filter((n) => n !== molTile) })
+            else if (lessonTile !== null && lessonTiles.length > 1) patchSettings({ lessonTiles: lessonTiles.filter((n) => n !== lessonTile) })
             else patchSettings({ [plugin.setting]: false } as Partial<DeckSettings>)
           }}
         >

@@ -1,7 +1,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
-import { CAP, MOL_TILES_MAX, nextMolTile } from '@shared/types'
+import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
+import { molBody } from '@shared/lesson'
 import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
@@ -34,6 +35,9 @@ import { Wolfpack } from './pack'
 import { Studio } from './studio'
 import { Pokemon } from './pokemon'
 import { Mol } from './mol'
+import { LessonWatch, lessonFigure, lintLessonFile, readCurriculum, readLesson } from './lesson'
+import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
+import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 
@@ -357,6 +361,106 @@ app.whenReady().then(async () => {
     p.resolve(result)
   })
 
+  // The Lesson tile: lessons are files of the learner's repo, read (and watched) here; the renderer parses and shows them.
+  const lessonWatch = new LessonWatch((f) => send('lesson:changed', f))
+  ipcMain.handle('lesson:read', (_e, file: string) => readLesson(String(file ?? '')))
+  ipcMain.handle('lesson:figure', (_e, file: string, src: string) => lessonFigure(String(file ?? ''), String(src ?? '')))
+  ipcMain.on('lesson:watch', (_e, files: string[]) => lessonWatch.sync(Array.isArray(files) ? files : []))
+  // A lesson's mol button: its lines through molCall — THE SAME PATH as `POST /mol` — in order. A
+  // file target is relative to the lesson; a `--new` button reuses the tile it opened last time
+  // (pressing it twice must not open two).
+  const lessonMolTiles = new Map<string, number>()
+  ipcMain.handle('lesson:mol', async (_e, run: LessonMolRun) => {
+    let tile: number | null = null
+    try {
+      const lines = Array.isArray(run?.lines) ? run.lines.map(String) : []
+      let fresh = run?.fresh === true
+      for (let i = 0; i < lines.length; i++) {
+        const parsed = molBody(lines[i])
+        if ('error' in parsed) throw new Error(`\`${lines[i]}\`: ${parsed.error}`)
+        const b = parsed.body
+        for (const k of ['target', 'a', 'b']) {
+          const t = b[k]
+          if (typeof t !== 'string' || isAbsolute(t) || t.startsWith('~')) continue
+          const abs = resolvePath(dirname(String(run.file ?? '')), t)
+          if ((/\.(pdb|ent|cif|mmcif|sdf|mol|mol2|xyz|cube)$/i.test(t) || t.startsWith('./') || t.startsWith('../')) && existsSync(abs)) b[k] = abs
+        }
+        if (b.tile == null && run.tile != null) b.tile = run.tile
+        if (fresh && b.tile == null && (b.op === 'show' || b.op === 'compare')) b.new = true
+        // A --new this button has used before goes back to the tile it opened then, if that is still there.
+        const key = `${String(run.key)}#${i}`
+        const opens = b.new === true
+        if (opens) {
+          fresh = false
+          const had = lessonMolTiles.get(key)
+          if (had !== undefined && settings!.get().molTiles.includes(had)) Object.assign(b, { new: false, tile: had })
+        }
+        const r = (await molCall(b)) as { ok?: boolean; error?: string; tile?: number }
+        if (r?.ok === false) throw new Error(`\`${lines[i]}\`: ${r.error ?? 'the Molecule tile refused'}`)
+        if (typeof r?.tile === 'number') {
+          tile = r.tile
+          if (opens) lessonMolTiles.set(key, r.tile)
+        }
+      }
+      return { ok: true, tile }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  // Its door: a POST /lesson on the hooks server (the /mol plan). `lint` is main's own and needs no
+  // tile; for the rest the file is READ FIRST and its text rides along to lib/lesson.ts, whose
+  // answer comes back on lesson:reply. Main picks the tile: `tile` (--tile n), `new` (--new: the
+  // first tile at HOME, else one more, up to LESSON_TILES_MAX), else the last one the door used.
+  const LESSON_OFF = 'no Lesson tile listening: turn on the Lesson tile (a mini app in the right column\'s + picker, or View ▸ Lesson ▸ Show Lesson Tile) and run this again'
+  const lessonPending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
+  let lessonLast = 0
+  const lessonAsk = (b: Record<string, unknown>): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      const id = randomUUID()
+      const timer = setTimeout(() => {
+        lessonPending.delete(id)
+        reject(new Error(LESSON_OFF))
+      }, 10_000)
+      lessonPending.set(id, { resolve, timer })
+      send('lesson:req', { id, body: b })
+    })
+  const lessonCall = async (body: unknown): Promise<unknown> => {
+    const b = { ...((body ?? {}) as Record<string, unknown>) }
+    if (b.op === 'lint') return lintLessonFile(String(b.file ?? ''))
+    if (!win || win.isDestroyed()) throw new Error('no window')
+    if (!settings!.get().showLesson) throw new Error(LESSON_OFF)
+    const tiles = () => settings!.get().lessonTiles
+    const current = () => (tiles().includes(lessonLast) ? lessonLast : tiles()[0])
+    if (b.op === 'tiles') return { ...((await lessonAsk({ op: 'tiles', tiles: tiles() })) as object), current: current(), max: LESSON_TILES_MAX }
+    if (b.op === 'show') Object.assign(b, await readLesson(String(b.file ?? '')))
+    let n: number
+    if (b.tile != null && b.tile !== '') {
+      n = Number(b.tile)
+      if (!tiles().includes(n)) throw new Error(`there is no Lesson tile ${String(b.tile)}: the tiles are ${tiles().join(', ')} (\`tiles\` says what each shows; \`show <file.md> --new\` opens another)`)
+    } else if (b.new) {
+      const all = ((await lessonAsk({ op: 'tiles', tiles: tiles() })) as { tiles?: { tile: number; empty: boolean }[] }).tiles ?? []
+      const free = all.find((t) => t.empty)?.tile ?? nextLessonTile(tiles())
+      if (free == null) throw new Error(`${LESSON_TILES_MAX} Lesson tiles is the most: reuse one with --tile <n>, or \`close --tile <n>\` first. \`tiles\` says what each shows`)
+      if (!tiles().includes(free)) settings!.update({ lessonTiles: [...tiles(), free] })
+      n = free
+    } else n = current()
+    if (b.op === 'close') {
+      // The last tile only goes home: the door always has somewhere to show.
+      if (tiles().length === 1) return { ...((await lessonAsk({ op: 'home', tile: n })) as object), note: `tile ${n} is the only Lesson tile, so it went back to the curriculum rather than closing` }
+      settings!.update({ lessonTiles: tiles().filter((t) => t !== n) })
+      return { ok: true, closed: n, tiles: tiles() }
+    }
+    lessonLast = n
+    return lessonAsk({ ...b, tile: n })
+  }
+  ipcMain.on('lesson:reply', (_e, id: string, result: unknown) => {
+    const p = lessonPending.get(id)
+    if (!p) return
+    clearTimeout(p.timer)
+    lessonPending.delete(id)
+    p.resolve(result)
+  })
+
   // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
   const hooks = new HooksServer(
     HOOK_PORT,
@@ -377,6 +481,7 @@ app.whenReady().then(async () => {
     // Every tool call asks the leash (a paused member waits, a cancelled one is refused): main/agents.ts.
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
+  hooks.onLesson = (body) => lessonCall(body)
   await hooks.start()
 
   manager = new SessionManager({
@@ -506,6 +611,16 @@ app.whenReady().then(async () => {
     const cwd = (name ? await tmux.paneCwd(name) : null) ?? manager?.cwdOf(sid) ?? settings!.get().defaultCwd
     return gitChanges(cwd, env)
   })
+  // The Lesson tile's home view: curriculum.json of the focused session's folder, found the way the changes tile finds its tree.
+  ipcMain.handle('lesson:curriculum', async (_e, id: string | null, fallback?: string) => {
+    const sid = String(id ?? '')
+    const name = sid ? manager?.tmuxNameOf(sid) : undefined
+    const cwd = sid ? ((name ? await tmux.paneCwd(name) : null) ?? manager?.cwdOf(sid) ?? null) : null
+    const here = cwd ? await readCurriculum(cwd) : null
+    if (here?.data || here?.error || typeof fallback !== 'string' || !isAbsolute(fallback)) return here ?? { dir: '', data: null }
+    const there = await readCurriculum(fallback)
+    return there.data ? there : here
+  })
   ipcMain.handle('git:diff', (_e, repo: string, path: string, untracked: boolean) => gitDiff(String(repo ?? ''), String(path ?? ''), !!untracked, env))
 
   // The phone page and its socket, on the tailnet / LAN only, token-gated (main/remote.ts).
@@ -583,6 +698,7 @@ app.whenReady().then(async () => {
     fleet.stop()
     spotify.stop()
     hooks.stop()
+    lessonWatch.stop()
     remote?.stop()
     foxtrot?.stop()
     manager?.detachAll()

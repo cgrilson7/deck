@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -151,7 +151,23 @@ const api: DeckApi = {
     ipcRenderer.on('mol:req', h)
     return () => ipcRenderer.removeListener('mol:req', h)
   },
-  molReply: (id: string, result: unknown) => ipcRenderer.send('mol:reply', id, result)
+  molReply: (id: string, result: unknown) => ipcRenderer.send('mol:reply', id, result),
+  lessonRead: (file) => ipcRenderer.invoke('lesson:read', file),
+  lessonFigure: (file, src) => ipcRenderer.invoke('lesson:figure', file, src),
+  lessonCurriculum: (sessionId, fallback) => ipcRenderer.invoke('lesson:curriculum', sessionId, fallback),
+  lessonWatch: (files) => ipcRenderer.send('lesson:watch', files),
+  onLessonChanged: (cb) => {
+    const h = (_e: unknown, f: LessonFile) => cb(f)
+    ipcRenderer.on('lesson:changed', h)
+    return () => ipcRenderer.removeListener('lesson:changed', h)
+  },
+  lessonMol: (run) => ipcRenderer.invoke('lesson:mol', run),
+  onLesson: (cb) => {
+    const h = (_e: unknown, req: LessonRequest) => cb(req)
+    ipcRenderer.on('lesson:req', h)
+    return () => ipcRenderer.removeListener('lesson:req', h)
+  },
+  lessonReply: (id: string, result: unknown) => ipcRenderer.send('lesson:reply', id, result)
 }
 
 contextBridge.exposeInMainWorld('deck', api)
