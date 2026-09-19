@@ -80,6 +80,8 @@ export class HooksServer {
     private readonly studioScript: string,
     /** Absolute path of plugin/scripts/trainer.mjs (the Pokemon trainer's CLI), handed to every session as DECK_TRAINER. */
     private readonly trainerScript: string,
+    /** Absolute path of plugin/scripts/mol.mjs (the Molecule tile's CLI), handed to every session as DECK_MOL. */
+    private readonly molScript: string,
     private readonly onEvent: (event: HookEvent, payload: HookPayload) => void,
     /** `POST /pack`: the body, parsed; the result goes back as JSON (an Error = 400 with its message). */
     private readonly onPack: (body: unknown) => Promise<unknown>,
@@ -87,6 +89,8 @@ export class HooksServer {
     private readonly onStudio: (body: unknown) => Promise<unknown>,
     /** `POST /gameboy`: the trainer's door to the renderer's emulator (main/index.ts relays it), the same shape. */
     private readonly onGameboy: (body: unknown) => Promise<unknown>,
+    /** `POST /mol`: the Molecule tile's door (main resolves the structure, the renderer's viewer does the rest), the same shape. */
+    private readonly onMol: (body: unknown) => Promise<unknown>,
     /**
      * `POST /pretool`: the decision on a tool call. Resolves to null = let it through (at once, as a
      * rule; late, for a paused member), or a deny decision; `gone` fires if the caller hung up first.
@@ -137,7 +141,7 @@ export class HooksServer {
       ]
     })
     const settings = {
-      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript },
+      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
@@ -190,9 +194,9 @@ export class HooksServer {
             return
           }
           if (path !== 'gameboy') this.log(path, payload)
-          if (path === 'pack' || path === 'studio' || path === 'gameboy') {
-            // The wolfpack (or the Studio, or the Game Boy) answers: JSON either way, and never hangs the caller.
-            void (path === 'pack' ? this.onPack(payload) : path === 'studio' ? this.onStudio(payload) : this.onGameboy(payload)).then(
+          if (path === 'pack' || path === 'studio' || path === 'gameboy' || path === 'mol') {
+            // The wolfpack (or the Studio, the Game Boy, the Molecule tile) answers: JSON either way, and never hangs the caller.
+            void (path === 'pack' ? this.onPack(payload) : path === 'studio' ? this.onStudio(payload) : path === 'mol' ? this.onMol(payload) : this.onGameboy(payload)).then(
               (result) => {
                 res.statusCode = 200
                 res.setHeader('content-type', 'application/json')

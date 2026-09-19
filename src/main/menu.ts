@@ -65,7 +65,7 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
     { type: 'separator' },
     ...[2, 3, 4, 5, 6].map((n): MenuItemConstructorOptions => ({ label: `${n} rows`, type: 'radio', checked: s.gridRows === n, click: () => patch({ gridRows: n }) })),
     { type: 'separator' },
-    { label: 'Reset Layout (unpin every tile)', enabled: s.gridLayout.some(Boolean), click: () => patch({ gridLayout: [] }) }
+    { label: 'Reset Layout (every tile back to its default place)', enabled: s.gridOrder.left.length + s.gridOrder.right.length > 0, click: () => patch({ gridOrder: { left: [], right: [] } }) }
   ]
 
   const template: MenuItemConstructorOptions[] = [
@@ -126,6 +126,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           submenu: [
             { label: 'Open Studio', accelerator: 'CmdOrCtrl+Shift+I', click: () => ui({ type: 'toggleStudio' }) },
             { label: 'Show Studio Tile', type: 'checkbox', checked: s.showStudio, click: () => patch({ showStudio: !settings().showStudio }) }
+          ]
+        },
+        {
+          label: 'Molecule',
+          submenu: [
+            { label: 'Open Molecule Viewer', accelerator: 'CmdOrCtrl+Shift+A', click: () => ui({ type: 'toggleMol' }) },
+            { label: 'Show Molecule Tile', type: 'checkbox', checked: s.showMol, click: () => patch({ showMol: !settings().showMol }) }
           ]
         },
         {

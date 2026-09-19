@@ -1,13 +1,14 @@
 # deck
 
 Up to ten Claude Code sessions in one Electron window. The focused session fills the CENTER column
-as a real terminal; everything else lives in two columns of tiles either side of it, four a
-side, paged (hover an outer edge for the arrows): the other sessions as conversation views (your
+as a real terminal; everything else lives in two columns of tiles either side of it, four to a
+column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator),
-and any WOLFPACK member — a Fable alpha's Opus subagents and beta sessions, one tile EACH, gold
-foxes, a pause and a cancel-with-reason on every head. Click a tile to
-swap it into focus (a subagent's opens full size over the grid); drag one by its grip to keep it somewhere.
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Molecule),
+and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
+the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
+pause and a cancel-with-reason on every one. Click a tile to
+swap it into focus (a subagent opens full size in the center); drag one by its grip to keep it somewhere.
 The `+` in the grid opens a chooser for a new session (which folder, worktree or not, or resume a parked one); ⌘N starts one in the focused folder without asking. The same sessions are reachable from a phone (the `phone` button in the top bar: a QR code, over Tailscale). A personal tool, macOS only.
 
 ## What it is, in one paragraph
@@ -44,6 +45,7 @@ Requirements on the machine: macOS, tmux, Node, and the `claude` CLI logged in.
 ## Layout
 
 ```
+src/shared/gridorder.ts    the grid's two columns as ordered tile keys: arrange() / moved() / pruned(), the key test the settings sanitizer uses
 src/shared/types.ts        CAP, SessionRecord/SessionView/DeckState, DeckCommand, DeckApi
 src/main/index.ts          app boot: profile, single-instance lock, window, IPC, menu
 src/main/sessions.ts       SessionManager: slots, spawn/attach/detach/kill/resume, state
@@ -51,6 +53,7 @@ src/main/tmux.ts           tmux wrapper (private socket, tmux.conf) + shq()
 src/main/fleet.ts          polls `claude agents --json` (busy/idle/blocked + names)
 src/main/hooks.ts          local HTTP server + the --settings hooks file for instant "needs you"; also POST /pack, the wolfpack's door,
                              and POST /studio, the Studio's,
+                             and POST /gameboy + POST /mol, the doors to the renderer's Game Boy and molecule viewer (main/index.ts relays both),
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
 src/main/agents.ts         subagents as tiles + THE LEASH: SubagentStart/Stop hooks → the list, names off the parent's Agent call, transcripts
                              handed to the tailer; pause / resume / cancel of any member (subagent or beta), the alpha told in its terminal
@@ -59,21 +62,27 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              .claude-plugin/plugin.json (name `deck`), skills/wolfpack/SKILL.md (the skill, `/deck:wolfpack`),
                              scripts/wolfpack.mjs (the alpha's CLI: spawn, status, wait, say, dismiss; its path is DECK_WOLFPACK in every session's env),
                              skills/studio/SKILL.md (`/deck:studio`: how to draft a Gemini image prompt and run it),
-                             scripts/studio.mjs (the session's CLI: gen, list, models, info, comic; its path is DECK_STUDIO in every session's env)
+                             scripts/studio.mjs (the session's CLI: gen, list, models, info, comic; its path is DECK_STUDIO in every session's env),
+                             skills/mol/SKILL.md (`/deck:mol`: show and annotate molecules while teaching),
+                             scripts/mol.mjs (show, style, compare, select, highlight, measure, label, view, look, list, clear; DECK_MOL in every session's env)
 src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
+src/main/mol.ts            the Molecule tile's disk + network side: a target → structure text (library, RCSB, AlphaFold DB, PubChem, a file), cached in userData/mol
+src/main/data/molLibrary.ts  GENERATED (scripts/mollib.mjs): 16 small molecules, 3D coordinates + partial charges
 src/main/pokemon.ts        Pokemon's disk side: the ROM list of `pokemonRomDir`, a ROM's bytes, battery saves + save states under userData/pokemon
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
+src/main/weather.ts        the weather under that tile's clock: Open-Meteo (no key), every `weatherPlaces` place in one call (cached 10 min) + its geocoder
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
 src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
 scripts/lemmas.py          regenerates data/esLemmas.ts from doozan/spanish_data frequency.csv
+scripts/mollib.mjs         regenerates data/molLibrary.ts from PubChem's 3D conformers (+ three entries written by hand)
 src/main/spotify.ts        the music tile's Spotify face: Spotify.app over AppleScript (poll, transport, play a URI), oEmbed names for the chips
 src/main/spotifyauth.ts    a Spotify account: PKCE OAuth (loopback redirect, no secret), tokens in userData/spotify.json
 src/main/spotifyapi.ts     the account's playlists, recent contexts and search over the Web API
@@ -94,6 +103,8 @@ src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a
 src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
 src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
 src/renderer/src/serverboy.d.ts     serverboy ships no types
+src/renderer/src/lib/mol.ts         THE MOLECULE VIEWER: 3Dmol.js as a module singleton (one viewer moved between tile and pane, the scene as state, every op of the door); useMol(), openMol()
+src/renderer/src/3dmol.d.ts         the slice of 3Dmol lib/mol.ts uses, for the minified ES build it imports by path
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
@@ -101,14 +112,16 @@ src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + liv
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
-src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two paged side columns + drag-to-pin), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
-                                    AgentTile (a subagent as a cell of its own), AgentPane (a subagent full size over the right column), LeashButtons (⏸ ▶ ✕ on a member's head),
+src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two scrolling side columns + drag anywhere), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
+                                    PackTile (a session's subagents as one cell: a roster of miniature foxes), AgentPane (a subagent full size in the center column), AgentStatus (pip + word + clock),
+                                    LeashButtons (⏸ ▶ ✕ on a member's head),
                                     LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
-                                    WikiTile, MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
+                                    MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 ad/                        THE AD, a film of the deck made FROM the deck: its own Vite root that mounts the real `App` against a scripted fake
@@ -149,40 +162,64 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 
 - **Cap = 10** (`CAP` in `src/shared/types.ts`). Slots 1..10 are sticky while open: a session keeps its
   number until parked/killed; a new session takes the lowest free slot. ⌘1–9 = focus slots 1–9,
-  ⌘0 = slot 10. Plugin and wolfpack member tiles cost no slot: the grid pages. A config.json from
+  ⌘0 = slot 10. Plugin and wolfpack member tiles cost no slot: the columns scroll. A config.json from
   before the two-sided grid (no `gridRows`) has its `gridColumns` reset, since it meant the whole
   grid's columns then. A saved record whose slot
   is above the cap is parked on load. Betas (below) sit at `BETA_SLOT_BASE` (100) and up: sticky
   too, never in the ⌘ range, never counted.
-- **The grid** (`Grid.tsx`): TWO columns of cells either side of the focus pane (`.main` is
-  tiles · focus · tiles; `focusWidth` sets the center's share), each `gridColumns` (1) wide and
-  `gridRows` (4) tall, so a PAGE is eight tiles around the center; cells are numbered down the
-  left column, then down the right (`grid-auto-flow: column`), then the next page. SESSIONS
-  ALWAYS COME FIRST, in that order (`attention` first, then slot, `App.tsx`), and the wolfpack
-  MEMBERS (each beta session and each subagent, a cell apiece) right behind them; that block
-  is never pinned and has no grip. After it come the plugins
-  (`pluginCells()`: wiki, music, studio, pokemon, git, vocab, translate; compact mode drops the first two), into
-  the free cells, except where one is pinned (`gridLayout` in config.json: cell index across
-  pages → a plugin key; a pin inside the block waits until the
-  block shrinks past it; one past the end grows the pages to reach it; View ▸ Grid ▸ Reset Layout
-  unpins). Every EMPTY cell is a `+` (`PlusTile` with its cell index) that opens the PICKER, a
-  modal over the window: a pill row of the mini apps (turned on if off, pinned to that cell
-  either way; one already showing says "move here"), and below the cap THE LAUNCHER'S OWN
-  SESSION FORM and parked list (`StartCard` / `ParkedCard` from `SessionForm.tsx`, the one
-  module both draw them from: the focused folder leads the pills there, and starting or
-  resuming closes the picker) — a session takes its place in the block, not the cell. A full
-  last page grows one more while a session can still be added. A plugin tile's grip (⠿,
-  top right on hover) drags it onto another plugin or empty cell and both are pinned; its
-  × (beside the grip) turns its setting off. Hover a column and its outer-edge arrow
-  pages (accent when a session needing you is that way); dots at the foot of the right column
-  jump. Plugin tiles wear an accent-tinted frame
-  (`.tile-plugin`) so they never pass for a session. The preview pane, Foxtrot's log and the agent
-  pane open over the RIGHT column (`.doc`, grid column 3; ⤢ = the whole window).
-- **Wolfpack** (`plugin/skills/wolfpack/`, `main/agents.ts`, `AgentTile`, `AgentPane`, `LeashButtons`,
-  `LeashDialog`, `lib/leash.ts`): a session (the ALPHA, Fable as a rule) and the Opus agents
-  doing its typing, EVERY ONE A GRID CELL OF ITS OWN, right after the sessions (grouped by
-  alpha in slot order, its betas needing you first, then its subagents as they started; part
-  of the unpinnable block like the sessions; never nested, no pack tile, no pack pane). The
+- **The grid** (`Grid.tsx`, `shared/gridorder.ts`): TWO columns of tiles either side of the focus
+  pane (`.main` is tiles · focus · tiles; `focusWidth` sets the center's share), EACH ITS OWN
+  ENDLESS SCROLL — no pages, no arrows, no dots. `gridRows` (4) is how many tiles fill a column's
+  height, so it sets the tile height (`.grid-scroll` is a size container; a row is
+  `(100cqh − gaps) / --rows`), `gridColumns` (1) how many sit side by side in one; past that the
+  column scrolls (scrollbar hidden, `scroll-snap` proximity to tile tops; a tile's own chat
+  scrolls first and chains to the column at its end). EVERY TILE DRAGS ANYWHERE in either column
+  by its grip (⠿, top right on hover; the whole tile is the drag image): a session, a beta, a
+  pack, a mini app. It lands before / after the tile under the pointer by which half it is over
+  (left / right halves when a column is two wide; an accent bar shows where) or at the foot of
+  a column on its `+`. What rides under the pointer is `dragGhost()`, a small DETACHED copy of
+  the tile's head — never the live cell, which Chromium snapshots with its neighbours inside a
+  scroller. While a tile is dragged a column AUTOSCROLLS within `EDGE` (72px) of its top or
+  bottom, faster the closer (a rAF loop fed by dragover; scroll-snap is off for the drag,
+  `.is-dragging`, or each step snaps back), and the dropped tile is scrolled into view where it
+  landed. The arrangement is the `gridOrder` setting, `{ left, right }` lists of
+  tile keys (`slot:<n>`, `beta:<id>`, `pack:<alpha id>`, a plugin key, `mol:<n>` for a Molecule tile past the first), written WHOLE on every
+  drop: `arrange()` keeps saved keys that are not showing in place (the focused session's tile
+  is out of the grid while focused and comes back where it was; a mini app that is off), and
+  `pruned()` drops only what cannot come back (a gone beta / pack). A tile the order has never
+  seen takes a DEFAULT THAT DOES NOT DEPEND ON WHAT ELSE IS SHOWING, so a focus swap never
+  reshuffles: a session by slot (odd left, even right), a beta or pack on its alpha's side —
+  these go right after the last session / member of that column, ahead of the mini apps — and
+  a mini app by its index in `PLUGIN_KEYS` (even left, odd right) at the foot. So `attentionFirst`
+  only orders tiles nobody has placed. The key test in `main/settings.ts` (`isGridKey`) is BUILT
+  FROM `PLUGIN_KEYS`: the old hand-written regex never learned `pokemon`, which is why that tile
+  could not be dragged. View ▸ Grid ▸ Reset Layout (and the launcher) empties `gridOrder`. Each
+  column ends in a `+` (`PlusTile`) that opens the PICKER, a modal over the window: a pill row
+  of the mini apps (turned on if off, moved to the foot of THAT column either way; one already
+  showing says "move here"), and below the cap THE LAUNCHER'S OWN SESSION FORM and parked list
+  (`StartCard` / `ParkedCard` from `SessionForm.tsx`, the one module both draw them from: the
+  focused folder leads the pills there, and starting or resuming closes the picker). A tile that
+  needs you (attention / blocked, a pack with a held agent) and is scrolled out of sight raises
+  a chip at that edge of its column ("↓ 1 needs you"; click scrolls to it). A mini app's ×
+  (beside the grip) turns its setting off. Plugin tiles wear an accent-tinted frame
+  (`.tile-plugin`) so they never pass for a session. The preview pane and Foxtrot's log
+  open over the RIGHT column (`.doc`, grid column 3; ⤢ = the whole window); the agent pane takes the CENTER.
+- **Wolfpack** (`plugin/skills/wolfpack/`, `main/agents.ts`, `PackTile`, `AgentPane`, `AgentStatus`, `LeashButtons`,
+  `LeashDialog`, `lib/leash.ts`, `lib/agents.ts`): a session (the ALPHA, Fable as a rule) and the Opus agents
+  doing its typing, in the grid right after the sessions, grouped by alpha in slot order: its
+  betas needing you first, a cell each, then ITS PACK TILE, one cell for all its subagents (key
+  `pack:<alpha id>`, so a pack never mixes two sessions'; part of the unpinnable block). The
+  PACK TILE is what ties agents to their session: the head is `α<slot>` + the session's name
+  (click = focus it), the tally ("2 working · 1 finished") and "clear n" for the finished; the
+  body is a ROSTER, a row per agent as it started — a MINIATURE gold fox in its pose (runs while
+  working, looks around while pausing, sits up alert when held, asleep once finished, down when
+  cancelled), name, type · model, the line it is on NOW (`useLastBlock`: its transcript's last
+  block, live; what it said last once finished; the reason when cancelled), the leash (on row
+  hover, always while paused) and `AgentStatus` (a pulsing pip + the running clock; `✓ 3m 12s`
+  when finished). A pack of ONE has room for the full thing: its conversation runs under the
+  row; five or more (`DENSE_FROM`) go to one line each and the roster scrolls. A held agent
+  makes the tile `needy` (the page arrow lights). `lib/agents.ts` holds state / pose / clock
+  / the last block and `openAgentPane(id)`, the window event App listens to. The
   skill reaches every session as `/deck:wolfpack` because the deck starts each one with
   `--plugin-dir <plugin/>` (beside `--settings`), so no repo and no user needs a copy of it;
   outside the deck it does not exist, which is right — it can do nothing there. Two kinds of
@@ -202,12 +239,23 @@ github.com/cgrilson7/casa, private) and will run on the mini.
     is named by the Agent call's description; a Workflow's agents (no Agent call) take the
     prompt's first line once the transcript shows it, else the type. A stop (or a tool call)
     for an agent never seen to start still makes a tile. No terminal, nothing to type into:
-    it is the parent's. Click = the AGENT PANE over the right column (the `.doc` slot, one
-    pane at a time with the preview and Foxtrot's log; ⤢ = the whole window): the whole
-    conversation full size, its type / model / background, an `α<slot>` button to focus the
-    parent, and the leash. Broadcast as `agents:update` (`DeckApi.agents` / `onAgents`; the
+    it is the parent's. A roster row (or a solo pack tile) = the AGENT PANE in the CENTER
+    column, the way the Studio takes it (`.focus.agent-pane`; it, the Studio and the Game Boy
+    take turns; the focused session shows as a grid tile meanwhile; a session tile, a focus
+    change, the head's `α<slot> name` badge, close or Esc gives the center back, and a
+    dismissed agent closes it): a hero — the gold fox at 3× in its pose, the name, `AgentStatus`
+    with the running clock, type / model / background, and the leash as labelled buttons —
+    then a pause / cancel banner, the brief (one line, click to unfold), a RAIL of the pack as
+    chips with miniature foxes (click, or ← →, steps between them; the open one's roster row
+    is lit), and the whole conversation. The preview and Foxtrot's log still open over the
+    right column beside it. Broadcast as `agents:update` (`DeckApi.agents` / `onAgents`; the
     phone gets the frame and shows each one as a gold β chip and a swipe page after its
-    parent, the leash under ⋯). A finished agent stays until the parent's next TYPED
+    parent, the leash under ⋯). THE AUTO-KILLER (`useAutoDismiss` in `lib/agents.ts`, mounted once in
+    App; renderer state, so not the phone's): a finished agent's row counts down 15s
+    (`AUTO_DISMISS_MS`) where its state was and is then dismissed; the count is a button that
+    HOLDS it ("kept"; clicking again lets it go, from 15), opening an agent in the center keeps
+    it too, its × is always showing, and the head's "clear n" takes every finished one, a pack
+    of one included. Failing all that, a finished agent stays until the parent's next TYPED
     prompt — the CLI also fires `UserPromptSubmit` when a background agent's result comes back
     as a `<task-notification>` turn, and that one must not clear the pack — or 30 min, 12 per
     parent, or its × (`agentDismiss`). `userData/hooks.log` has one line per hook that
@@ -260,8 +308,21 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   click opens its file page via `deck:openExternal` (http(s) only). It rotates: every 2 minutes
   (`CYCLE_MS` in `WikiTile`) a random day's picture from the archive (2016 on, the feed is empty
   before; `wikiPicture('past')` tries 4 days then falls back to today's), and every third one is
-  today's again; the caption carries the day for archive pictures. Main caches past days for
+  today's again; the caption carries the day for archive pictures. ‹ › on the caption's tag line (on hover)
+  step by hand: ‹ back through the pictures shown since the tile mounted, › forward and then on to a new
+  one; a manual step starts the 2-minute clock over. Main caches past days for
   good, today's for 1h. A clock (`.wiki-clock`, local zone, ticking each second) sits top left;
+  THE WEATHER sits under it (`Weather.tsx`, `main/weather.ts`; the two are `.wiki-corner`): the first
+  place of the `weatherPlaces` setting large (glyph, temperature, the word for the WMO code, then
+  its name with today's high / low; feels-like and wind in the tooltip), every other place a line
+  (with its own time when its zone is not this machine's). Portland, Maine in °F by default
+  (`WEATHER_PLACE_DEFAULT`, `weatherUnit`), `WEATHER_PLACES_MAX` (6). A click on it lays the PLACES
+  EDITOR over the darkened picture (the `places` overlay, the results panel's frame): ↑ makes a
+  place the first, × removes it, °F / °C, and a line that finds a place by name — Open-Meteo's
+  geocoder matches the name alone, so "Portland, Maine" searches "Portland" and ranks the hits
+  whose state / country match the rest; ⏎ adds the first hit. No places = a faint "+ weather".
+  Data is Open-Meteo (no key), one forecast call for all the places, cached 10 min in main; the
+  tile asks every 5 min and when the places or the unit change. Hidden while a search shows.
   a transparent search box sits top right over it (`.wiki-search`: no chrome until hover/focus). Typing (350ms pause, or ⏎)
   searches English Wikipedia (`/w/rest.php/v1/search/page`) and the hits take over the tile over
   the darkened picture; a hit loads its lead section (`/api/rest_v1/page/summary`) in place, its
@@ -366,6 +427,73 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   while running, on pause, on a cartridge swap, when the last view unmounts (the tile turned off
   with the pane closed stops the loop: the game waits) and on `pagehide` (⌘R reloads the
   renderer, so the game restarts from that save); states are `<name>.state0..2`. Not on the phone.
+- **Molecule** (`lib/mol.ts`, `MolTile`, `MolPane`, `main/mol.ts`, `main/data/molLibrary.ts`, `plugin/skills/mol/`,
+  `plugin/scripts/mol.mjs`; the `showMol` setting, off by default): a 3D molecular viewer a TEACHING SESSION
+  DRIVES while it explains (the grail lessons: chemistry up to protein folding), built on the Game Boy's
+  plan — the state lives in the renderer and a door reaches it. THERE CAN BE SEVERAL MOLECULE TILES (the
+  `molTiles` setting: tile numbers, `[1]` by default, `MOL_TILES_MAX` = 8 because each viewer holds a WebGL
+  context and Chromium caps those), a viewer and a scene each — the one mini app that is more than one cell.
+  Grid keys are `molKey(n)`: `mol` for tile 1, `mol:<n>` past it (`isPluginKey` / `molTileOf` in
+  `shared/types.ts`; `isGridKey` takes them), sides taken in turn. A tile's head `+` opens another, the `+`
+  picker's Molecule pill says "another here" while one shows, and a cell's × CLOSES one of several (its
+  scene goes with it) but only puts the last one away (`showMol` off). `App` calls `syncMolTiles` on every
+  `molTiles` change: a viewer whose tile is gone is disposed (`WEBGL_lose_context`), and the pane closes if
+  it was showing it. A tile's scene (targets + looks) is kept in localStorage (`mol:scene:<n>`) and
+  `restore()`d when its viewer is made, so tiles survive ⌘R; any other op calls a restore off. The viewer is **3Dmol.js** (npm `3dmol`,
+  BSD-3), a dynamic import of its minified ES build BY PATH (`3dmol/build/3Dmol.es6-min.js`, typed by
+  `3dmol.d.ts`; the package's `main` is 5MB with an inline source map). Pure JS + WebGL, so the CSP is
+  untouched — EXCEPT that its surfaces are computed in workers made from a blob: URL, which `script-src
+  'self'` refuses, so `setSyncSurface(true)` runs them on the renderer's thread (a protein's surface blocks
+  for a second or two; `molCall`'s 45s budget is for that). ONE VIEWER PER TILE (`mol(n)`, made on first use): it lives
+  in a host element of its own that `mount(el, name, rank)` moves to the highest-ranked view showing — the
+  pane (1) over its tile (0), a fixed off-screen `.mol-staging` box when neither is mounted — so the two
+  always show the same scene and `look` has a frame even before the tile was ever scrolled to. THE SCENE
+  IS STATE (models, style, colour, surface, labels, selection, highlight, measurements, callouts, picks)
+  and `redraw()` repaints all of it from scratch after every op; ops run one at a time (a queue). The UI
+  and the door call the SAME `drive(body)`. THE DOOR: `POST /mol` (hooks server) → `molCall` in
+  `main/index.ts`, which answers `list` itself, refuses AT ONCE with "turn on the Molecule tile" when
+  `showMol` is off, RESOLVES ANY STRUCTURE FIRST (`show`: `structures[0]`, `compare`: two) and only then
+  sends `mol:req` WITH THE TILE IT IS FOR — main picks it: `tile` (`--tile n`; an unknown one is refused
+  with the list), `new` (`show|compare --new`: the first EMPTY tile per the renderer's `tiles` op, else
+  `nextMolTile` added to `molTiles`; `molClaimed` keeps parallel `--new`s off one tile), else the tile the
+  door used last (`molLast`). Every answer carries `tile`. `tiles` lists them (+ `current`), `close` removes
+  one (the last is only emptied); the renderer answers on `mol:reply`. `installMol()` runs at boot in App when the tile
+  is on. ALL FETCHING IS MAIN'S (`Mol.resolve`): a library name / formula / alias → `data/molLibrary.ts`
+  (16 molecules, H₂ to a Gly-Ala dipeptide, offline, with per-atom partial charges: PubChem's MMFF94 ones,
+  and three entries by hand — H₂, the NaCl ion pair with FORMAL ±1, the hydrogen-bonded water dimer — each
+  entry's `method` says which; regenerate with `scripts/mollib.mjs`); a 4-character PDB id → RCSB mmCIF;
+  `AF-<uniprot>` → AlphaFold DB, the file's URL taken from its API because the version suffix moves (v6 in
+  Sept 2026); any other name, `smiles:<…>` (POSTed; cached under its hash) or `cid:<n>` → PubChem's 3D
+  conformer SDF, whose `PUBCHEM_MMFF94_PARTIAL_CHARGES` field is parsed into charges; an absolute path
+  (the CLI makes paths absolute; `~/` for the tile's input) → `.pdb .cif .sdf .mol .mol2 .xyz .cube`, 60MB
+  at most. Everything fetched is kept in `userData/mol/cache/`, so a second `show 1UBQ` never leaves the
+  machine. Proteins (20+ standard residues) get 3Dmol's Amber-style charges (`applyPartialCharges`); a
+  small molecule shows ball-and-stick in element colours, a protein as a cartoon by chain with ligands as
+  sticks and waters hidden. COLOUR IS ONE FUNCTION (`colorOf`) for atoms, cartoon, surface AND the sequence
+  strip: element, charge (red δ− / blue δ+), hydrophobicity (Kyte–Doolittle), residue (side-chain class),
+  chain, secondary, plddt (AlphaFold's bands, from the B-factor), bfactor, model. `--surface electrostatic`
+  is the VDW surface coloured by partial charge, NOT a computed potential (a `.cube` from xtb is the way
+  to a real one later), and the skill says so. SELECTIONS are the deck's own little language compiled to
+  a predicate (`resi 14,87`, `chain A and resn HIS`, `within 5 of (…)`, `byres`, `picked`…; never 3Dmol's
+  selection objects — atoms go to 3Dmol as `{model, index}`). ATOM NUMBERS are index + 1 within the model
+  (`12`, or `2.12` with several models); `p1`…`p4` are the picks. `highlight --hbonds` is geometric (with
+  hydrogens: H···A ≤ 2.5 Å, angle ≥ 120°; without: N/O pairs ≤ 3.5 Å two residues apart) and says so in its
+  answer; `--contacts <Å>` is the selection against the rest. `compare` lays B on A — Cα pairs from an
+  end-gap-free sequence alignment (so 1UBQ finds the FIRST copy inside polyubiquitin AF-P0CG48), Horn's
+  quaternion fit refitted on the pairs within 3 Å — and reports RMSD over all pairs and over that core.
+  `look` is the session's eye: the scene as JSON (a small molecule's atoms in full), THE ATOMS THE USER
+  CLICKED (a click toggles a pick, the last four kept), and a PNG at `userData/mol/look.png` (`look-<n>.png` for tile n > 1). The TILE is
+  the scene + the last pick's readout + an input line (a PDB id or a name = `show`), the library as formula
+  chips while empty; the PANE (⌘⇧A, View ▸ Molecule, the tile's ⤢) takes the CENTER like the Studio and the
+  Game Boy (the four of them with the agent pane take turns; a focus change closes it; `openMol(tile)` says WHICH
+  tile's viewer it takes, ⌘⇧A the first, and with several a RAIL of chips — or ← → — steps between them) and adds the style
+  / colour / surface / label rows, spin, reset, H-bonds, a select line, the picks with "measure
+  distance|angle|dihedral" between them, the measurements, and for a protein the SEQUENCE STRIP: one-letter
+  residues in the active colours, hover ↔ the residue named in 3D, click = pick its Cα, double-click zooms
+  — the "1D string becomes a 3D shape" device, in place of a sequence tile. Background and labels are the
+  theme's (`--panel`, `--ink`, `--accent`), repainted on a theme change (`retheme()`); the data palettes
+  (charge, hydropathy, pLDDT…) are constants in `lib/mol.ts`, not theme colours. Wheel over the viewer
+  zooms the molecule, not the column. Not on the phone.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -667,7 +795,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -677,14 +805,16 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `vocab.db` — the vocabulary store (translations, words with entries, reviews); see the store rule above
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
+- `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
-- `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridLayout, focusWidth, fonts, plugins, defaultCwd, defaultModel,
+- `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
+  weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showPokemon, pokemonRomDir, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showPokemon, pokemonRomDir, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

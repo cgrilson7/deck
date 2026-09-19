@@ -79,7 +79,7 @@ function isDeckShortcut(ev: KeyboardEvent): boolean {
   if (/^[0-9]$/.test(k) && (k === '0' ? 10 : Number(k)) <= CAP) return true
   if (k === '[' || k === ']' || k === 'Enter') return true
   const l = k.toLowerCase()
-  return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || l === 'j' || ((l === 'i' || l === 'g') && ev.shiftKey) || k === ','
+  return l === 'n' || l === 'w' || l === 'o' || l === 'q' || l === 'r' || l === 'l' || l === 'm' || l === 'j' || ((l === 'i' || l === 'g' || l === 'a') && ev.shiftKey) || k === ','
 }
 
 /** Tell the terminal which folder its session runs in (TermHost, from the session record). */

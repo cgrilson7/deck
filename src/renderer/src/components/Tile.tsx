@@ -7,6 +7,7 @@ import { LeashButtons } from './LeashButtons'
 import { useDropTarget } from './useDropTarget'
 import { leashOfBeta } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
+import { closePokemon } from '../lib/pokemon'
 
 /**
  * A session's tile: its conversation and a prompt bar. A wolfpack's beta wears the gold coat and
@@ -14,7 +15,8 @@ import { closeStudio } from '../lib/studio'
  */
 export function Tile({ session: s }: { session: SessionView }) {
   const focus = () => {
-    closeStudio()
+    closeStudio() // …and the agent pane with it (App); the Game Boy too: the center goes back to the session
+    closePokemon()
     void window.deck.command({ type: 'focus', slot: s.slot! })
   }
   const beta = !!s.pack

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { PLUGIN_KEYS, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
+import { PLUGIN_KEYS, nextMolTile, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
 import { patchSettings, useSettings } from '../lib/theme'
 import { ParkedCard, StartCard } from './SessionForm'
 
@@ -53,26 +53,23 @@ export const PLUGINS: {
     label: 'Translator',
     hint: 'English ⇄ Spanish',
     setting: 'showTranslate'
+  },
+  {
+    key: 'mol',
+    label: 'Molecule',
+    hint: 'A 3D molecule viewer: small molecules and proteins, which a session can drive (/deck:mol)',
+    setting: 'showMol'
   }
 ]
 
-/** `gridLayout` with `key` pinned at `cell` and nowhere else. */
-export function pinned(layout: string[], cell: number, key: string): string[] {
-  const out = layout.map((k) => (k === key ? '' : k))
-  while (out.length <= cell) out.push('')
-  out[cell] = key
-  return out
-}
-
 /**
- * The + in every empty cell: click opens the PICKER, a modal over the window — a row of pills
- * for the mini apps (pinned to this cell), and below the cap THE LAUNCHER'S SESSION FORM
- * (`StartCard`: the focused session's folder first, recents, a folder dialog or a new project,
- * worktree / model / permission mode, a name, a first prompt) and its parked sessions
- * (`ParkedCard`). Sessions are never pinned: they fill the grid in order, top left down then
- * top right down. ⌘N in the menu bar is the no-questions path.
+ * The + at the foot of each grid column: click opens the PICKER, a modal over the window — a row
+ * of pills for the mini apps (turned on if off, and moved to the foot of this column), and below
+ * the cap THE LAUNCHER'S SESSION FORM (`StartCard`: the focused session's folder first, recents,
+ * a folder dialog or a new project, worktree / model / permission mode, a name, a first prompt)
+ * and its parked sessions (`ParkedCard`). ⌘N in the menu bar is the no-questions path.
  */
-export function PlusTile({ state, cell, canAdd }: { state: DeckState; /** The grid cell this + sits in. */ cell: number; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
+export function PlusTile({ state, onPlace, canAdd }: { state: DeckState; /** A mini app picked: the grid puts it at the foot of this +'s column. */ onPlace: (key: PluginKey) => void; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -80,19 +77,19 @@ export function PlusTile({ state, cell, canAdd }: { state: DeckState; /** The gr
       <button className="plus" title={canAdd ? 'New session or mini app here… (⌘N starts a session without asking)' : 'A mini app here… (every session slot is open)'} onClick={() => setOpen(true)}>
         +
       </button>
-      {open && createPortal(<Picker state={state} cell={cell} canAdd={canAdd} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<Picker state={state} onPlace={onPlace} canAdd={canAdd} onClose={() => setOpen(false)} />, document.body)}
     </div>
   )
 }
 
-function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: number; canAdd: boolean; onClose: () => void }) {
+function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace: (key: PluginKey) => void; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
   const shown = new Set(pluginCells(settings))
-  /** A mini app here: turned on if it was off, and pinned to this cell either way. */
+  /** A mini app here: turned on if it was off, and moved to the foot of this column either way. */
   const place = (p: (typeof PLUGINS)[number]) => {
     onClose()
-    patchSettings({ [p.setting]: true, gridLayout: pinned(settings.gridLayout, cell, p.key) } as Partial<DeckSettings>)
+    onPlace(p.key)
   }
 
   useEffect(() => {
@@ -118,7 +115,7 @@ function Picker({ state, cell, canAdd, onClose }: { state: DeckState; cell: numb
             {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => (
               <button key={p.key} className="pill" onClick={() => place(p)} title={p.hint}>
                 {p.label}
-                {shown.has(p.key) && <small>move here</small>}
+                {shown.has(p.key) && <small>{p.key === 'mol' && nextMolTile(settings.molTiles) !== null ? 'another here' : 'move here'}</small>}
               </button>
             ))}
           </div>

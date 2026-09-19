@@ -35,6 +35,8 @@ try {
 check('plugin manifest names the plugin "deck"', manifestName === 'deck', manifestName || 'unreadable')
 check('plugin ships skills/wolfpack/SKILL.md', existsSync(join(plugin, 'skills', 'wolfpack', 'SKILL.md')))
 check('plugin ships scripts/wolfpack.mjs', existsSync(join(plugin, 'scripts', 'wolfpack.mjs')))
+check('plugin ships skills/mol/SKILL.md', existsSync(join(plugin, 'skills', 'mol', 'SKILL.md')))
+check('plugin ships scripts/mol.mjs', existsSync(join(plugin, 'scripts', 'mol.mjs')))
 
 // 2. tmux round trip on a private socket
 const tmux = (...args) => execFileSync('tmux', ['-L', SOCK, '-f', conf, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

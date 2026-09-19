@@ -332,6 +332,8 @@ class World {
       wikiPicture: async () => ({ date: '2026-09-19', today: true, title: 'Red fox on a frosted alpine meadow at sunrise', credit: '', imageUrl: potd, url: '' }),
       wikiSearch: async () => [],
       wikiSummary: no,
+      weather: async () => [],
+      weatherSearch: async () => [],
       onSpotify: (cb) => {
         queueMicrotask(() => cb(this.spotify))
         return this.spotifyEv.on(cb)

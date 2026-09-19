@@ -246,6 +246,8 @@ export const api: DeckApi = {
   wikiPicture: notHere,
   wikiSearch: notHere,
   wikiSummary: notHere,
+  weather: notHere,
+  weatherSearch: notHere,
   onSpotify: nothing,
   spotify: noop,
   spotifyPlay: noop,
@@ -300,7 +302,12 @@ export const api: DeckApi = {
   pokemonLoadState: notHere,
   pokemonShot: notHere,
   onGameboy: nothing,
-  gameboyReply: noop
+  gameboyReply: noop,
+  molResolve: notHere,
+  molLibrary: () => Promise.resolve([]),
+  molShot: notHere,
+  onMol: nothing,
+  molReply: noop
 }
 
 /** Stand in for the preload: the components read window.deck and window.deckErrors. */

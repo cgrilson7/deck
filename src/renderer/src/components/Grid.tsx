@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { pageSize, pluginCells, type AgentView, type DeckSettings, type DeckState, type PluginKey, type SessionView } from '@shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import { PLUGIN_KEYS, molKey, molTileOf, nextMolTile, pluginCells, type AgentView, type DeckSettings, type DeckState, type PluginKey, type SessionView } from '@shared/types'
+import { arrange, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
 import { PLUGINS, PlusTile } from './PlusTile'
 import { Tile } from './Tile'
@@ -10,171 +11,219 @@ import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
 import { PokemonTile } from './PokemonTile'
-import { packTiles } from './PackTile'
-import { patchSettings } from '../lib/theme'
+import { MolTile } from './MolTile'
+import { PackTile } from './PackTile'
+import { patchSettings, useSettings } from '../lib/theme'
 
-/** A wolfpack's members, each a cell of its own: a subagent (no terminal; the agent pane on click) or a beta session (a real tile). */
+/** A wolfpack's members: a beta session (a real tile of its own) or a subagent (a row of its alpha's pack tile; the agent pane in the center on click). */
 export type Member = { kind: 'agent'; agent: AgentView; parent: SessionView | null } | { kind: 'beta'; session: SessionView }
 
 /**
- * The grid: two columns of tiles either side of the focus pane, `gridColumns` wide and
- * `gridRows` tall each (1 × 4 by default, so eight tiles around the center). That many tiles
- * make a page; the rest page on, and the arrows show on hover at the outer edges (an arrow
- * turns accent when a session needing you is on another page). SESSIONS ALWAYS COME FIRST, in
- * order (needing you first, then by slot), filling the left column top to bottom, then the
- * right, then the next page — they are never pinned. Right after them, the same way, come the
- * WOLFPACK MEMBERS, one cell each: every subagent and every beta session (grouped by alpha, in
- * the order they started; never nested, never pinned). Then the plugins
- * flow into the free cells, except where one is pinned (`gridLayout`, a setting: a mini app
- * picked from an empty cell's +, or a drag by the grip ⠿ that shows on hover; a pin inside the
- * session block is deferred until the sessions leave it; View ▸ Grid ▸ Reset Layout unpins).
- * Every EMPTY cell is a +, a full page grows one more while a session can still be added, and
- * a plugin tile's × puts it away. Plugin tiles wear a tinted frame so they never pass for a
- * session.
+ * The grid: two columns of tiles either side of the focus pane, EACH ITS OWN ENDLESS SCROLL.
+ * `gridRows` is how many tiles fill a column's height (so it sets the tile height) and
+ * `gridColumns` how many sit side by side in one; past that the column scrolls, snapping
+ * loosely to tile tops. No pages. EVERY tile can be dragged ANYWHERE in either column by its
+ * grip (⠿, top right on hover): a session, a beta, a pack, a mini app. A drop lands before or
+ * after the tile under the pointer (a bar shows where), or at the foot of a column on its +,
+ * and the whole arrangement is written to the `gridOrder` setting (`shared/gridorder.ts`).
+ * A tile nobody has placed takes a default that does not depend on what else is showing —
+ * a session by its slot (odd left, even right), a beta or a pack beside its alpha, a mini app
+ * by its place in PLUGIN_KEYS — sessions and packs ahead of the mini apps; View ▸ Grid ▸ Reset
+ * Layout goes back to that. Each column ends in a + (the picker). A tile that needs you and is
+ * scrolled out of sight raises a chip at that edge of its column; click = scroll to it. A
+ * mini app's × puts it away; its tinted frame keeps it from passing for a session.
  */
-export function Grid({ sessions, members, state, settings, onOpenAgent }: { sessions: SessionView[]; members: Member[]; state: DeckState; settings: DeckSettings; onOpenAgent: (id: string) => void }) {
-  const per = pageSize(settings)
-  const half = settings.gridColumns * settings.gridRows
+export function Grid({ sessions, members, state, settings, openAgent }: { sessions: SessionView[]; members: Member[]; state: DeckState; settings: DeckSettings; /** The agent the center pane shows: its roster row is lit. */ openAgent: string | null }) {
   const focused = state.open.find((s) => s.slot === state.focusSlot) ?? null
   const canAdd = state.open.filter((s) => !s.pack).length < state.cap
 
   const items = useMemo(() => {
+    const sideOf = (slot: number | null | undefined): GridSide => ((slot ?? 1) % 2 === 1 ? 'left' : 'right')
     const out: Item[] = sessions.map((s) => ({
       key: `slot:${s.slot}`,
       kind: 'session',
+      prefer: sideOf(s.slot),
       needy: s.attention || s.status === 'blocked',
       node: <Tile session={s} />
     }))
-    // Betas are still full tiles (they have terminals); subagents collapse into pack tiles.
+    // A beta is a tile of its own (it has a terminal); an alpha's subagents share ONE pack tile.
+    // A held agent waits on YOU (▶), so its pack counts as needing you.
+    const seen = new Set<string>()
     for (const m of members) {
-      if (m.kind === 'beta') out.push({ key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
+      if (m.kind === 'beta') {
+        const alpha = state.open.find((s) => s.id === m.session.pack!.alpha)
+        out.push({ key: `beta:${m.session.id}`, kind: 'member', prefer: sideOf(alpha?.slot), needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
+        continue
+      }
+      const alpha = m.agent.parent
+      if (seen.has(alpha)) continue
+      seen.add(alpha)
+      const pack = members.flatMap((x) => (x.kind === 'agent' && x.agent.parent === alpha ? [x.agent] : []))
+      out.push({ key: `pack:${alpha}`, kind: 'member', prefer: sideOf(m.parent?.slot), needy: pack.some((a) => a.held), node: <PackTile alpha={m.parent} agents={pack} openId={openAgent} /> })
     }
-    const agentMembers = members.filter((m): m is Member & { kind: 'agent' } => m.kind === 'agent')
-    const parentCwds = new Map(agentMembers.map((m) => [m.agent.parent, m.parent?.cwd ?? '']))
-    for (const pt of packTiles(agentMembers.map((m) => m.agent), parentCwds, onOpenAgent)) out.push({ key: pt.key, kind: 'member', needy: false, node: pt.node })
-    for (const k of pluginCells(settings))
-      out.push({
-        key: k,
-        kind: 'plugin',
-        needy: false,
-        node: plugin(k, settings, focused)
-      })
+    for (const k of pluginCells(settings)) {
+      const prefer: GridSide = PLUGIN_KEYS.indexOf(k) % 2 === 0 ? 'left' : 'right'
+      // The Molecule plugin is as many cells as there are Molecule tiles, the sides taken in turn.
+      if (k === 'mol') for (const n of settings.molTiles) out.push({ key: molKey(n), kind: 'plugin', prefer: n % 2 === 1 ? prefer : prefer === 'left' ? 'right' : 'left', needy: false, node: <MolTile tile={n} /> })
+      else out.push({ key: k, kind: 'plugin', prefer, needy: false, node: plugin(k, settings, focused) })
+    }
     return out
-  }, [sessions, members, settings, focused, onOpenAgent])
+  }, [sessions, members, settings, focused, openAgent, state.open])
 
-  const cells = useMemo(() => place(items, settings.gridLayout, per, canAdd), [items, settings.gridLayout, per, canAdd])
-  const pages = Math.max(1, Math.ceil(cells.length / per))
-  const [page, setPage] = useState(0)
-  const cur = Math.min(page, pages - 1)
-  useEffect(() => {
-    if (page !== cur) setPage(cur)
-  }, [page, cur])
+  // The columns in full (keys that are not showing keep their place), and what is drawn of them.
+  const full = useMemo(() => arrange(items, settings.gridOrder), [items, settings.gridOrder])
+  const byKey = useMemo(() => new Map(items.map((i) => [i.key, i])), [items])
 
-  // A session needing you on another page: the arrow that way lights up.
-  const needyBefore = cells.slice(0, cur * per).some((c) => c?.needy)
-  const needyAfter = cells.slice((cur + 1) * per).some((c) => c?.needy)
-
-  const onDrop = (to: number, key: string) => {
-    const from = cells.findIndex((c) => c?.key === key)
-    if (from < 0 || from === to || cells[from]?.kind !== 'plugin' || (cells[to] && cells[to].kind !== 'plugin')) return
-    const layout = [...settings.gridLayout]
-    while (layout.length < cells.length) layout.push('')
-    layout[to] = key
-    layout[from] = cells[to]?.key ?? ''
-    patchSettings({ gridLayout: layout })
-  }
-
-  const side = (which: 'left' | 'right') => {
-    const start = cur * per + (which === 'left' ? 0 : half)
-    const slice: (Cell | null)[] = []
-    for (let i = 0; i < half; i++) slice.push(cells[start + i] ?? null)
-    const prev = which === 'left'
-    const at = prev ? cur > 0 : cur < pages - 1
-    return (
-      <section className={`grid-col grid-${which}`}>
-        <div
-          className="grid"
-          style={{
-            ['--cols' as string]: settings.gridColumns,
-            ['--rows' as string]: settings.gridRows
-          }}
-        >
-          {slice.map((c, i) => (
-            <GridCell key={c?.key ?? `empty-${start + i}`} index={start + i} cell={c} state={state} canAdd={canAdd} onDrop={onDrop} />
-          ))}
-        </div>
-        {pages > 1 && (
-          <button
-            className={`page-arrow page-${prev ? 'prev' : 'next'} ${(prev ? needyBefore : needyAfter) ? 'needy' : ''}`}
-            disabled={!at}
-            onClick={() => setPage(cur + (prev ? -1 : 1))}
-            title={prev ? `Previous page (${cur} more)` : `Next page (${pages - 1 - cur} more)`}
-          >
-            {prev ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-        )}
-        {pages > 1 && which === 'right' && (
-          <span className="pager" aria-label={`Page ${cur + 1} of ${pages}`}>
-            {Array.from({ length: pages }, (_, i) => (
-              <button key={i} className={`pager-dot ${i === cur ? 'on' : ''}`} onClick={() => setPage(i)} title={`Page ${i + 1}`} />
-            ))}
-          </span>
-        )}
-      </section>
-    )
+  const save = (next: GridOrder, extra?: Partial<DeckSettings>) => patchSettings({ ...extra, gridOrder: pruned(next, new Set(byKey.keys())) })
+  // The tile that was just dropped: its column scrolls it into view once it is drawn in its new place.
+  const [landed, setLanded] = useState<{ key: string; n: number } | null>(null)
+  const onDrop = (key: string, side: GridSide, target: string | null, after: boolean) => {
+    if (key === target) return
+    save(moved(full, key, side, target, after))
+    setLanded((l) => ({ key, n: (l?.n ?? 0) + 1 }))
   }
 
   return (
     <>
-      {side('left')}
-      {side('right')}
+      {(['left', 'right'] as const).map((side) => (
+        <Column
+          key={side}
+          side={side}
+          cells={full[side].flatMap((k) => byKey.get(k) ?? [])}
+          state={state}
+          settings={settings}
+          canAdd={canAdd}
+          landed={landed}
+          onDrop={onDrop}
+          onPlace={(k) => {
+            // The Molecule pill while one is already showing = ANOTHER Molecule tile, at the foot of this column.
+            const n = k === 'mol' && settings.showMol ? nextMolTile(settings.molTiles) : null
+            if (n !== null) save(moved(full, molKey(n), side, null), { molTiles: [...settings.molTiles, n] })
+            else save(moved(full, k === 'mol' ? molKey(settings.molTiles[0]) : k, side, null), { [PLUGINS.find((p) => p.key === k)!.setting]: true } as Partial<DeckSettings>)
+          }}
+        />
+      ))}
     </>
   )
 }
 
 interface Item {
   key: string
-  /** `session` and `member` (a subagent, a beta) are the block at the front, never pinned; only a plugin can be. */
   kind: 'session' | 'member' | 'plugin'
+  /** The column it takes while `gridOrder` does not name it. */
+  prefer: GridSide
   needy: boolean
   node: ReactNode
 }
-type Cell = Item
 
-/**
- * Cells across every page: the sessions first, in order, from cell 0, and the pack members right
- * behind them (the block); then pinned keys (a pin
- * inside the block waits; one past the end of what is here is honored, the pages grow
- * to reach it); then the rest in order into the free cells. Trailing empty pages are dropped,
- * there is always at least one page, and while a session can still be added there is always
- * an empty cell (a full last page gets one more).
- */
-function place(items: Item[], layout: string[], per: number, canAdd: boolean): (Cell | null)[] {
-  const byKey = new Map(items.map((i) => [i.key, i]))
-  const placed = new Set<string>()
-  const cells: (Cell | null)[] = items.filter((it) => it.kind !== 'plugin')
-  for (const c of cells) placed.add(c!.key)
-  const block = cells.length
-  layout.forEach((k, i) => {
-    const it = k && byKey.get(k)
-    if (!it || placed.has(k) || it.kind !== 'plugin' || i < block) return
-    while (cells.length <= i) cells.push(null)
-    cells[i] = it
-    placed.add(k)
-  })
-  let i = block
-  for (const it of items) {
-    if (placed.has(it.key)) continue
-    while (cells[i]) i++
-    while (cells.length <= i) cells.push(null)
-    cells[i] = it
+/** One side: the scroller, its cells, the + at its foot, and the chips for needy tiles out of sight. */
+function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace }: { side: GridSide; cells: Item[]; state: DeckState; settings: DeckSettings; canAdd: boolean; landed: { key: string; n: number } | null; onDrop: (key: string, side: GridSide, target: string | null, after: boolean) => void; onPlace: (k: PluginKey) => void }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [away, setAway] = useState({ above: 0, below: 0 })
+  const needyKeys = cells.filter((c) => c.needy).map((c) => c.key).join(' ')
+
+  // Which needy tiles are scrolled out of sight, and which way.
+  const measure = useCallback(() => {
+    const el = box.current
+    if (!el) return
+    const view = el.getBoundingClientRect()
+    let above = 0
+    let below = 0
+    for (const n of el.querySelectorAll<HTMLElement>('.cell[data-needy="1"]')) {
+      const r = n.getBoundingClientRect()
+      if (r.bottom <= view.top + 8) above++
+      else if (r.top >= view.bottom - 8) below++
+    }
+    setAway((a) => (a.above === above && a.below === below ? a : { above, below }))
+  }, [])
+  useEffect(measure, [measure, needyKeys, cells.length, settings.gridRows, settings.gridColumns])
+  useEffect(() => {
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure])
+
+  // A dropped tile is brought into view where it landed (after the new order is drawn).
+  const order = cells.map((c) => c.key).join(' ')
+  useEffect(() => {
+    if (!landed) return
+    const n = box.current?.querySelector<HTMLElement>(`.cell[data-key="${CSS.escape(landed.key)}"]`)
+    n?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [landed, order])
+
+  // AUTOSCROLL while a tile is dragged: within EDGE px of the column's top or bottom the column
+  // scrolls that way, faster the closer the pointer is. A rAF loop carries the speed the last
+  // dragover set (dragover keeps firing while the pointer is still), and scroll-snap is off for
+  // the drag (`is-dragging`) or it would pull each small step back to a tile top.
+  const speed = useRef(0)
+  const raf = useRef(0)
+  const [dragging, setDragging] = useState(false)
+  const stopScroll = useCallback(() => {
+    speed.current = 0
+    cancelAnimationFrame(raf.current)
+    raf.current = 0
+    setDragging(false)
+  }, [])
+  useEffect(() => {
+    window.addEventListener('dragend', stopScroll)
+    window.addEventListener('drop', stopScroll)
+    return () => {
+      window.removeEventListener('dragend', stopScroll)
+      window.removeEventListener('drop', stopScroll)
+      cancelAnimationFrame(raf.current)
+    }
+  }, [stopScroll])
+  const onDragOver = (e: React.DragEvent) => {
+    const el = box.current
+    if (!el || !e.dataTransfer.types.includes(MIME)) return
+    if (!dragging) setDragging(true)
+    const r = el.getBoundingClientRect()
+    const up = r.top + EDGE - e.clientY
+    const down = e.clientY - (r.bottom - EDGE)
+    speed.current = up > 0 ? -Math.min(1, up / EDGE) * MAX_SPEED : down > 0 ? Math.min(1, down / EDGE) * MAX_SPEED : 0
+    if (speed.current !== 0 && !raf.current) {
+      const step = () => {
+        raf.current = 0
+        if (speed.current === 0 || !box.current) return
+        box.current.scrollTop += speed.current
+        raf.current = requestAnimationFrame(step)
+      }
+      raf.current = requestAnimationFrame(step)
+    }
   }
-  let last = cells.length - 1
-  while (last >= 0 && !cells[last]) last--
-  let n = Math.max(per, Math.ceil((last + 1) / per) * per)
-  if (canAdd && last + 1 >= n) n += per
-  while (cells.length < n) cells.push(null)
-  return cells.slice(0, n)
+
+  const jump = (dir: 'above' | 'below') => {
+    const el = box.current
+    if (!el) return
+    const view = el.getBoundingClientRect()
+    const all = [...el.querySelectorAll<HTMLElement>('.cell[data-needy="1"]')]
+    const hit = dir === 'above' ? all.filter((n) => n.getBoundingClientRect().bottom <= view.top + 8).pop() : all.find((n) => n.getBoundingClientRect().top >= view.bottom - 8)
+    hit?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }
+
+  return (
+    <section className={`grid-col grid-${side}`} onDragOver={onDragOver} onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && (speed.current = 0)}>
+      <div className={`grid-scroll ${dragging ? 'is-dragging' : ''}`} ref={box} onScroll={measure}>
+        <div className="grid" style={{ ['--cols' as string]: settings.gridColumns, ['--rows' as string]: settings.gridRows }}>
+          {cells.map((c) => (
+            <GridCell key={c.key} cell={c} side={side} across={settings.gridColumns > 1} onDrop={onDrop} />
+          ))}
+          <GridCell cell={null} side={side} across={false} onDrop={onDrop}>
+            <PlusTile state={state} onPlace={onPlace} canAdd={canAdd} />
+          </GridCell>
+        </div>
+      </div>
+      {away.above > 0 && (
+        <button className="grid-needy grid-needy-above" onClick={() => jump('above')} title="Scroll up to it">
+          <ChevronUp size={12} /> {away.above} need{away.above === 1 ? 's' : ''} you
+        </button>
+      )}
+      {away.below > 0 && (
+        <button className="grid-needy grid-needy-below" onClick={() => jump('below')} title="Scroll down to it">
+          <ChevronDown size={12} /> {away.below} need{away.below === 1 ? 's' : ''} you
+        </button>
+      )}
+    </section>
+  )
 }
 
 function plugin(k: PluginKey, settings: DeckSettings, focused: SessionView | null): ReactNode {
@@ -193,58 +242,106 @@ function plugin(k: PluginKey, settings: DeckSettings, focused: SessionView | nul
       return <VocabTile />
     case 'translate':
       return <TranslateTile />
+    case 'mol':
+      // A cell per Molecule tile: the grid makes those itself.
+      return null
   }
 }
 
 const MIME = 'application/x-deck-tile'
+/** Autoscroll during a drag: how close to a column's edge it starts (px), and its top speed (px a frame). */
+const EDGE = 72
+const MAX_SPEED = 18
 
-/** One cell: the tile, its grip (and a plugin's ×), and a drop target. An empty cell is a + you can also drop onto. */
-function GridCell({ index, cell, state, canAdd, onDrop }: { index: number; cell: Cell | null; state: DeckState; canAdd: boolean; onDrop: (to: number, key: string) => void }) {
-  const [over, setOver] = useState(false)
-  const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === cell.key) : undefined
+/**
+ * What rides under the pointer during a drag: a small DETACHED card, the tile's own head cloned
+ * (or its name, for a tile without one). Never the live cell: Chromium snapshots an element
+ * inside a scroller together with its neighbours, and a full-size tile would hide the drop bar.
+ * The browser takes its picture synchronously, so the caller removes it a tick later.
+ */
+function dragGhost(cell: HTMLElement | null, label: string): HTMLElement {
+  const ghost = document.createElement('div')
+  ghost.className = 'drag-ghost'
+  const head = cell?.querySelector(':scope > .tile > .pane-head')
+  if (head) {
+    const copy = head.cloneNode(true) as HTMLElement
+    for (const b of copy.querySelectorAll('button:not(.slot), .spacer')) b.remove()
+    ghost.append(copy)
+  } else ghost.textContent = label
+  document.body.append(ghost)
+  return ghost
+}
+
+/**
+ * One cell: the tile, its grip (and a mini app's ×), and a drop target — the dragged tile lands
+ * before or after this one, by which half the pointer is over (left / right halves when the
+ * column is two wide). The + (`cell` null) has no grip and takes a drop as "the foot of this column".
+ */
+function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null; side: GridSide; across: boolean; onDrop: (key: string, side: GridSide, target: string | null, after: boolean) => void; children?: ReactNode }) {
+  const [over, setOver] = useState<'before' | 'after' | null>(null)
+  const el = useRef<HTMLDivElement>(null)
+  const molTile = cell?.kind === 'plugin' ? molTileOf(cell.key) : null
+  const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === (molTile !== null ? 'mol' : cell.key)) : undefined
+  const { molTiles } = useSettings()
+  const half = (e: React.DragEvent): 'before' | 'after' => {
+    if (!cell) return 'before'
+    const r = e.currentTarget.getBoundingClientRect()
+    return (across ? e.clientX - r.left > r.width / 2 : e.clientY - r.top > r.height / 2) ? 'after' : 'before'
+  }
   return (
     <div
-      className={`cell cell-${cell?.kind ?? 'empty'} ${over ? 'cell-over' : ''}`}
+      ref={el}
+      className={`cell cell-${cell?.kind ?? 'empty'} ${over ? `drop-${over}` : ''} ${across ? 'drop-across' : ''}`}
+      data-needy={cell?.needy ? '1' : undefined}
+      data-key={cell?.key}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(MIME)) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
-        if (!over) setOver(true)
+        const h = half(e)
+        if (over !== h) setOver(h)
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null)
+      }}
       onDrop={(e) => {
-        setOver(false)
+        setOver(null)
         const key = e.dataTransfer.getData(MIME)
         if (!key) return
         e.preventDefault()
         e.stopPropagation()
-        onDrop(index, key)
+        onDrop(key, side, cell?.key ?? null, half(e) === 'after')
       }}
     >
-      {cell ? cell.node : <PlusTile state={state} cell={index} canAdd={canAdd} />}
+      {cell ? cell.node : children}
       {plugin && (
         <button
           className="cell-x"
-          title={`Put ${plugin.label} away (an empty cell's + brings it back)`}
+          title={molTile !== null && molTiles.length > 1 ? 'Close this Molecule tile (its scene goes with it)' : `Put ${plugin.label} away (a +, or the launcher, brings it back)`}
           onClick={(e) => {
             e.stopPropagation()
-            patchSettings({ [plugin.setting]: false } as Partial<DeckSettings>)
+            // One of several Molecule tiles closes for good; the last one is put away like any mini app.
+            if (molTile !== null && molTiles.length > 1) patchSettings({ molTiles: molTiles.filter((n) => n !== molTile) })
+            else patchSettings({ [plugin.setting]: false } as Partial<DeckSettings>)
           }}
         >
           ×
         </button>
       )}
-      {cell && cell.kind === 'plugin' && (
+      {cell && (
         <span
           className="grip"
           draggable
-          title="Drag to another cell (both stay put after)"
+          title="Drag to anywhere in either column"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => {
             e.stopPropagation()
             e.dataTransfer.setData(MIME, cell.key)
             e.dataTransfer.effectAllowed = 'move'
+            const ghost = dragGhost(el.current, plugin?.label ?? cell.key)
+            e.dataTransfer.setDragImage(ghost, ghost.offsetWidth - 14, 12)
+            window.setTimeout(() => ghost.remove(), 0)
           }}
         >
           ⠿

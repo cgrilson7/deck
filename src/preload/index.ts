@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -47,6 +47,8 @@ const api: DeckApi = {
   wikiPicture: (when?: 'today' | 'past') => ipcRenderer.invoke('wiki:picture', when ?? 'today') as Promise<WikiPicture | null>,
   wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,
   wikiSummary: (key: string) => ipcRenderer.invoke('wiki:summary', key) as Promise<WikiSummary>,
+  weather: () => ipcRenderer.invoke('weather:now') as Promise<WeatherNow[]>,
+  weatherSearch: (q: string) => ipcRenderer.invoke('weather:search', q) as Promise<WeatherPlace[]>,
   onSpotify: (cb) => {
     const h = (_e: unknown, state: SpotifyState) => cb(state)
     ipcRenderer.on('spotify:state', h)
@@ -133,7 +135,16 @@ const api: DeckApi = {
     ipcRenderer.on('gameboy:req', h)
     return () => ipcRenderer.removeListener('gameboy:req', h)
   },
-  gameboyReply: (id: string, result: unknown) => ipcRenderer.send('gameboy:reply', id, result)
+  gameboyReply: (id: string, result: unknown) => ipcRenderer.send('gameboy:reply', id, result),
+  molResolve: (target) => ipcRenderer.invoke('mol:resolve', target),
+  molLibrary: () => ipcRenderer.invoke('mol:library'),
+  molShot: (bytes, tile) => ipcRenderer.invoke('mol:shot', bytes, tile),
+  onMol: (cb) => {
+    const h = (_e: unknown, req: MolRequest) => cb(req)
+    ipcRenderer.on('mol:req', h)
+    return () => ipcRenderer.removeListener('mol:req', h)
+  },
+  molReply: (id: string, result: unknown) => ipcRenderer.send('mol:reply', id, result)
 }
 
 contextBridge.exposeInMainWorld('deck', api)

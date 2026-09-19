@@ -1,87 +1,130 @@
 import { useEffect, useState } from 'react'
-import { Maximize2, Minimize2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { AgentView, SessionView } from '@shared/types'
 import { agentName } from '@shared/types'
 import { modelLabel } from '@shared/models'
 import { Fox } from './Fox'
 import { ChatView } from './ChatView'
 import { LeashButtons } from './LeashButtons'
-import { agentPose, agentState } from './AgentTile'
+import { AgentStatus } from './AgentStatus'
+import { agentPose, agentState, openAgentPane, useNow } from '../lib/agents'
 import { leashOfAgent } from '../lib/leash'
 
-const WIDE_KEY = 'deck.agentPane.wide'
-
 /**
- * A subagent tapped into: the pane over the right column (where the file preview and Foxtrot's
- * log go, one at a time) with its whole conversation full size, and the leash on the head —
- * pause / resume, cancel with a reason — plus its parent to jump to. Read-only otherwise: there
- * is no terminal behind a subagent. ⤢ takes the whole window; Esc closes, unless the keystroke
- * came from a terminal.
+ * A subagent in the CENTER column, the way the Studio takes it: the focus pane steps aside (the
+ * focused session shows as a grid tile meanwhile) and a focus change, a session tile or Esc gives
+ * the center back. The head says whose it is (`α<slot>`, click = back to that session); the hero
+ * is the gold fox at full size in the agent's pose, its name, its state with a running clock,
+ * what it is (type / model / background) and THE LEASH with words on it; under that the brief it
+ * was given, the rest of the pack as a rail of miniature foxes to step between (← → too), and the
+ * whole conversation. Read-only otherwise: there is no terminal behind a subagent.
  */
-export function AgentPane({ agent: a, parent, onClose }: { agent: AgentView; parent: SessionView | null; onClose: () => void }) {
-  const [wide, setWide] = useState(() => localStorage.getItem(WIDE_KEY) === '1')
+export function AgentPane({ agent: a, parent, pack, onClose }: { agent: AgentView; parent: SessionView | null; /** Every agent of the same parent, this one included, in order. */ pack: AgentView[]; onClose: () => void }) {
+  const [briefOpen, setBriefOpen] = useState(false)
+  const now = useNow(pack.some((p) => p.endedAt === null))
+  const at = pack.findIndex((p) => p.id === a.id)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if ((e.target as HTMLElement | null)?.closest('.xterm, .picker')) return
-      onClose()
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.xterm, .picker, input, textarea, select')) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === 'Escape') onClose()
+      else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && pack.length > 1 && at >= 0) {
+        e.preventDefault()
+        openAgentPane(pack[(at + (e.key === 'ArrowLeft' ? pack.length - 1 : 1)) % pack.length].id)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  const toggleWide = () => {
-    setWide((w) => {
-      localStorage.setItem(WIDE_KEY, w ? '0' : '1')
-      return !w
-    })
-  }
+  }, [onClose, pack, at])
 
   const done = a.endedAt !== null
   const gone = done || !!a.cancelled
   const state = agentState(a)
-  const started = new Date(a.startedAt)
-  const mins = Math.round(((a.endedAt ?? Date.now()) - a.startedAt) / 60_000)
+  const name = agentName(a)
+  const toAlpha = () => {
+    onClose()
+    if (parent) void window.deck.command({ type: 'focus', slot: parent.slot! })
+  }
   return (
-    <section className={`doc agent-pane is-${state} ${wide ? 'is-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <div className="doc-scrim" onClick={onClose} />
-      <div className="doc-panel">
-        <header className="doc-head">
-          <Fox anim={agentPose(a)} scale={1} coat="gold" />
-          <span className="doc-name" title={a.task || agentName(a)}>
-            {agentName(a)}
-          </span>
-          <span className="doc-where">
-            {a.type}
-            {a.model ? ` · ${modelLabel(a.model)}` : ''}
-            {a.background ? ' · background' : ''}
-          </span>
-          <span className="doc-meta" title={`started ${started.toLocaleTimeString()}`}>
-            {state} · {mins < 1 ? 'under a minute' : `${mins} min`}
-          </span>
-          <span className="spacer" />
-          {parent && (
-            <button className="doc-btn wide" title={`Its parent: slot ${parent.slot} “${parent.name}” — focus it`} onClick={() => void window.deck.command({ type: 'focus', slot: parent.slot! })}>
-              α{parent.slot}
-            </button>
-          )}
-          <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={gone} wide onDismiss={() => (void window.deck.command({ type: 'agentDismiss', id: a.id, force: !done }), onClose())} />
-          <button className={`doc-btn ${wide ? 'on' : ''}`} title={wide ? 'Back over the grid' : 'The whole window'} onClick={toggleWide}>
-            {wide ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+    <section className={`focus focus-beta agent-pane is-${state}`}>
+      <header className="pane-head">
+        <span className="slot slot-beta" title="A subagent">
+          β
+        </span>
+        <span className="name">subagent</span>
+        {parent && (
+          <button className="badge badge-pack" title={`Its session: slot ${parent.slot} “${parent.name}” — click to go back to it`} onClick={toAlpha}>
+            α{parent.slot} {parent.name}
           </button>
-          <button className="doc-btn" title="Close (Esc)" onClick={onClose}>
-            <X size={14} />
-          </button>
-        </header>
-        {a.cancelled && <div className="doc-problem">cancelled: {a.cancelled.reason}</div>}
-        {a.paused && !a.cancelled && <div className="doc-problem is-pause">{a.held ? 'paused: its tool call is waiting in the deck' : 'pausing: its next tool call will wait'}</div>}
-        {a.task && a.description && (
-          <div className="agent-task" title={a.task}>
-            {a.task}
-          </div>
         )}
-        <div className="agent-chat">
-          <ChatView id={`agent:${a.id}`} cwd={parent?.cwd ?? ''} status={done ? 'idle' : 'busy'} attention={false} />
+        <span className="spacer" />
+        {pack.length > 1 && (
+          <span className="agent-count" title="← → step through the pack">
+            {at + 1} / {pack.length}
+          </span>
+        )}
+        <button className="ghost" title="Give the center back to the session (Esc)" onClick={onClose}>
+          close
+        </button>
+      </header>
+
+      <div className="agent-hero">
+        <div className="agent-hero-fox">
+          <Fox anim={agentPose(a)} scale={3} coat="gold" />
         </div>
+        <div className="agent-hero-main">
+          <h2 className="agent-hero-name" title={name}>
+            {name}
+          </h2>
+          <div className="agent-hero-meta">
+            <AgentStatus agent={a} now={now} />
+            <span className="badge" title="Agent type">
+              {a.type}
+            </span>
+            {a.model && (
+              <span className="badge" title={`model: ${a.model}`}>
+                {modelLabel(a.model)}
+              </span>
+            )}
+            {a.background && (
+              <span className="badge" title="Started with run_in_background: its session goes on working meanwhile">
+                background
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="agent-hero-leash">
+          <LeashButtons target={leashOfAgent(a)} paused={a.paused} done={gone} wide onDismiss={() => (void window.deck.command({ type: 'agentDismiss', id: a.id, force: !done }), onClose())} />
+        </div>
+      </div>
+
+      {a.cancelled && <div className="agent-banner is-cancel">cancelled: {a.cancelled.reason}</div>}
+      {a.paused && !a.cancelled && <div className="agent-banner is-pause">{a.held ? 'Paused: its tool call is waiting in the deck. Resume lets it through.' : 'Pausing: its next tool call will wait.'}</div>}
+
+      {a.task && (
+        <button className={`agent-brief ${briefOpen ? 'is-open' : ''}`} title="The brief it was given (its prompt's first line)" onClick={() => setBriefOpen((v) => !v)}>
+          {briefOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          <span className="agent-brief-label">brief</span>
+          <span className="agent-brief-text">{a.task}</span>
+        </button>
+      )}
+
+      {pack.length > 1 && (
+        <nav className="agent-rail" aria-label="The rest of the pack">
+          {pack.map((p) => (
+            <button key={p.id} className={`agent-chip is-${agentState(p)} ${p.id === a.id ? 'on' : ''}`} title={`${agentName(p)} (${p.type}) — ${agentState(p)}`} onClick={() => openAgentPane(p.id)}>
+              <Fox anim={agentPose(p)} scale={1} coat="gold" />
+              <span className="agent-chip-name">{agentName(p)}</span>
+              <AgentStatus agent={p} now={now} short />
+            </button>
+          ))}
+        </nav>
+      )}
+
+      <div className="agent-chat">
+        <ChatView key={a.id} id={`agent:${a.id}`} cwd={parent?.cwd ?? ''} status={done ? 'idle' : 'busy'} attention={false} />
       </div>
     </section>
   )

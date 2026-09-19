@@ -5,9 +5,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
+import { DEFAULT_SETTINGS, MOL_TILES_MAX, WEATHER_PLACES_MAX, type DeckSettings, type WeatherPlace } from '@shared/types'
 import { THEMES } from '@shared/themes'
 import { cleanModel } from '@shared/models'
+import { GRID_ORDER_MAX, isGridKey } from '@shared/gridorder'
 
 export class SettingsStore {
   private current: DeckSettings
@@ -54,8 +55,29 @@ export class SettingsStore {
   }
 }
 
-/** What a grid cell may be pinned to: a plugin, the + (older keys — a slot, a pack — are read and never matched). */
-const LAYOUT_KEY = /^(slot:\d{1,2}|pack:[0-9a-f]{6}|wiki|music|studio|git|vocab|translate|plus)$/
+/** One side column of `gridOrder`: tile keys only (`isGridKey` is built from PLUGIN_KEYS, so a new mini app is never dropped), each once. */
+function orderSide(raw: unknown): string[] {
+  return Array.isArray(raw) ? [...new Set(raw.filter(isGridKey))].slice(0, GRID_ORDER_MAX) : []
+}
+
+/** The Molecule tiles: distinct numbers 1–99, at most MOL_TILES_MAX, never none. */
+function molTiles(raw: unknown): number[] {
+  const ns = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 99))].slice(0, MOL_TILES_MAX) : []
+  return ns.length ? ns : [1]
+}
+
+/** The weather places: a name and real coordinates each, at most WEATHER_PLACES_MAX. An empty list is kept (no weather). */
+function weatherPlaces(raw: unknown, dflt: WeatherPlace[]): WeatherPlace[] {
+  if (!Array.isArray(raw)) return dflt
+  const out: WeatherPlace[] = []
+  for (const p of raw as Partial<WeatherPlace>[]) {
+    if (!p || typeof p.name !== 'string' || !p.name.trim()) continue
+    if (typeof p.lat !== 'number' || !Number.isFinite(p.lat) || Math.abs(p.lat) > 90) continue
+    if (typeof p.lon !== 'number' || !Number.isFinite(p.lon) || Math.abs(p.lon) > 180) continue
+    out.push({ name: p.name.trim().slice(0, 60), region: typeof p.region === 'string' ? p.region.trim().slice(0, 60) : '', lat: p.lat, lon: p.lon })
+  }
+  return out.slice(0, WEATHER_PLACES_MAX)
+}
 
 const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : dflt
@@ -80,7 +102,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     // A file from before the two-sided grid had `gridColumns` meaning the whole grid's; start it over.
     gridColumns: raw.gridRows === undefined ? d.gridColumns : clampInt(raw.gridColumns, 1, 2, d.gridColumns),
     gridRows: clampInt(raw.gridRows, 2, 6, d.gridRows),
-    gridLayout: Array.isArray(raw.gridLayout) ? raw.gridLayout.slice(0, 64).map((k) => (typeof k === 'string' && LAYOUT_KEY.test(k) ? k : '')) : d.gridLayout,
+    gridOrder: { left: orderSide(raw.gridOrder?.left), right: orderSide(raw.gridOrder?.right) },
     focusWidth: oneOf(raw.focusWidth, ['third', 'twoFifths', 'half'] as const, d.focusWidth),
     attentionFirst: bool(raw.attentionFirst, d.attentionFirst),
     confirmKill: bool(raw.confirmKill, d.confirmKill),
@@ -94,6 +116,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     cursorStyle: oneOf(raw.cursorStyle, ['bar', 'block', 'underline'] as const, d.cursorStyle),
     scrollback: clampInt(raw.scrollback, 0, 100_000, d.scrollback),
     showWiki: bool(raw.showWiki, d.showWiki),
+    weatherPlaces: weatherPlaces(raw.weatherPlaces, d.weatherPlaces),
+    weatherUnit: oneOf(raw.weatherUnit, ['F', 'C'] as const, d.weatherUnit),
     // `showYouTube` is what config.json said before the tile grew a Spotify face.
     showMusic: bool(raw.showMusic ?? (raw as { showYouTube?: unknown }).showYouTube, d.showMusic),
     music: oneOf(raw.music, ['spotify', 'youtube'] as const, d.music),
@@ -103,6 +127,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     spotifyClientId: typeof raw.spotifyClientId === 'string' && /^[a-f0-9]{32}$/i.test(raw.spotifyClientId.trim()) ? raw.spotifyClientId.trim() : d.spotifyClientId,
     showTranslate: bool(raw.showTranslate, d.showTranslate),
     showStudio: bool(raw.showStudio, d.showStudio),
+    showMol: bool(raw.showMol, d.showMol),
+    molTiles: molTiles(raw.molTiles),
     showPokemon: bool(raw.showPokemon, d.showPokemon),
     pokemonRomDir: typeof raw.pokemonRomDir === 'string' && raw.pokemonRomDir.trim() ? raw.pokemonRomDir.trim() : d.pokemonRomDir,
     geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,

@@ -212,10 +212,10 @@ function AppsCard({ settings }: { settings: DeckSettings }) {
         </div>
         <span className="lset-label">Layout</span>
         <div className="lrow">
-          <button className="lbtn" disabled={!settings.gridLayout.some(Boolean)} onClick={() => patchSettings({ gridLayout: [] })} title="Unpin every tile; they flow into the free cells again">
+          <button className="lbtn" disabled={settings.gridOrder.left.length + settings.gridOrder.right.length === 0} onClick={() => patchSettings({ gridOrder: { left: [], right: [] } })} title="Every tile back to its default place in the two columns">
             Reset layout
           </button>
-          <span className="lmuted">{settings.gridLayout.filter(Boolean).length || 'no'} pinned</span>
+          <span className="lmuted">{settings.gridOrder.left.length + settings.gridOrder.right.length > 0 ? 'arranged by hand' : 'default order'}</span>
         </div>
       </div>
     </Card>
@@ -462,6 +462,7 @@ const KEYS: [string, string][] = [
   ['⌘W', 'park the focused session'],
   ['⌘⇧I', 'the Studio'],
   ['⌘⇧G', 'Pokemon'],
+  ['⌘⇧A', 'Molecule viewer'],
   ['⌘J', "Foxtrot's log"],
   ['⌘,', 'theme'],
   ['⌘⇧L', 'light / dark'],

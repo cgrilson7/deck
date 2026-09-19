@@ -249,11 +249,10 @@ button {
   color: var(--muted);
 }
 
-/* ---- the grid: a column of cells either side of the focus pane (Grid.tsx) ---- */
+/* ---- the grid: two columns of cells either side of the focus pane, each its own endless scroll (Grid.tsx) ---- */
 .grid-col {
   position: relative;
   display: flex;
-  flex-direction: column;
   min-height: 0;
   min-width: 0;
 }
@@ -263,14 +262,30 @@ button {
 .grid-right {
   grid-area: 1 / 3 / 2 / 4;
 }
-.grid {
+/* The scroller is the size container: a tile is 1/--rows of ITS height, however many there are. */
+.grid-scroll {
   flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  container-type: size;
+  scroll-snap-type: y proximity;
+  scrollbar-width: none;
+  border-radius: var(--radius);
+}
+/* No snapping while a tile is dragged: the autoscroll moves in small steps. */
+.grid-scroll.is-dragging {
+  scroll-snap-type: none;
+}
+.grid-scroll::-webkit-scrollbar {
+  display: none;
+}
+.grid {
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
-  grid-auto-flow: column; /* down a column, then the next: the order the cells are numbered in */
+  grid-auto-rows: calc((100cqh - (var(--rows) - 1) * 8px) / var(--rows));
   gap: 8px;
-  min-height: 0;
   min-width: 0;
 }
 /* One cell: the tile fills it; the grip (⠿) shows on hover, top right, and is what you drag. */
@@ -280,16 +295,104 @@ button {
   min-height: 0;
   min-width: 0;
   border-radius: var(--radius);
+  scroll-snap-align: start;
 }
 .cell > .tile {
   flex: 1 1 0;
   width: 100%;
 }
-.cell-over {
-  box-shadow: 0 0 0 2px var(--accent);
+/* Room in the head for the grip (and a mini app's ×), so they never sit on a tile's own buttons. */
+.cell-session > .tile > .pane-head,
+.cell-member > .tile > .pane-head {
+  padding-right: 28px;
 }
-.cell-over > .tile {
-  opacity: 0.6;
+.cell-plugin > .tile > .pane-head {
+  padding-right: 48px;
+}
+/* Where a dragged tile will land: a bar in the gap before or after this cell. */
+.cell.drop-before::before,
+.cell.drop-after::after {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.cell.drop-before::before {
+  top: -6px;
+}
+.cell.drop-after::after {
+  bottom: -6px;
+}
+.cell.drop-across.drop-before::before,
+.cell.drop-across.drop-after::after {
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  height: auto;
+  right: auto;
+}
+.cell.drop-across.drop-before::before {
+  left: 0;
+}
+.cell.drop-across.drop-after::after {
+  left: auto;
+  right: 0;
+}
+/* The first cell's bar would be clipped above the scroller. */
+.cell:first-child.drop-before:not(.drop-across)::before {
+  top: 0;
+}
+.cell-empty.drop-before > .tile {
+  border-color: var(--accent);
+}
+/* The card that rides under the pointer while a tile is dragged (dragGhost); parked off screen for its snapshot. */
+.drag-ghost {
+  position: fixed;
+  top: -200px;
+  left: 0;
+  width: 240px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.drag-ghost .pane-head {
+  padding: 0;
+  border: none;
+  background: none;
+}
+/* A tile that needs you, scrolled out of sight: a chip at that edge of the column. */
+.grid-needy {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--blocked);
+  color: var(--panel);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.grid-needy-above {
+  top: 6px;
+}
+.grid-needy-below {
+  bottom: 6px;
 }
 .grip {
   position: absolute;
@@ -340,76 +443,6 @@ button {
   opacity: 1 !important;
   color: var(--blocked);
 }
-/* An agent tile has no prompt bar: the conversation gets the room. */
-.tile-body-agent .chat {
-  padding-bottom: 8px;
-}
-/* Paging: an arrow on the outer edge of each column, on hover; accent when a session needing you is that way. */
-.page-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 3;
-  width: 26px;
-  height: 64px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
-  border: 1px solid var(--line);
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-.page-prev {
-  left: -4px;
-}
-.page-next {
-  right: -4px;
-}
-.grid-col:hover .page-arrow:not(:disabled) {
-  opacity: 0.7;
-}
-.page-arrow:hover:not(:disabled) {
-  opacity: 1 !important;
-  color: var(--ink);
-}
-.page-arrow:disabled {
-  opacity: 0 !important;
-  cursor: default;
-}
-.page-arrow.needy:not(:disabled) {
-  opacity: 1;
-  color: var(--blocked);
-  border-color: var(--blocked);
-}
-.pager {
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
-  display: flex;
-  gap: 5px;
-  padding: 3px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-.grid-col:hover .pager {
-  opacity: 1;
-}
-.pager-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--line);
-}
-.pager-dot.on {
-  background: var(--accent);
-}
-
 .tile {
   cursor: pointer;
 }
@@ -432,32 +465,32 @@ button {
   border-style: dashed;
   cursor: default;
 }
-/* A wolfpack's beta: gold, like its fox. A subagent's tile is the same gold, no prompt bar. */
+/* A wolfpack is gold, like its foxes: a beta's tile, a pack tile, the agent pane. */
+:root {
+  --gold: #c9a227;
+  --gold-line: color-mix(in srgb, #e5b843 55%, var(--line));
+  --gold-wash: color-mix(in srgb, #e5b843 12%, transparent);
+}
 .tile-beta,
 .focus-beta {
-  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
+  border-color: var(--gold-line);
 }
 .slot-beta {
-  background: #c9a227;
+  background: var(--gold);
   color: #fff;
 }
 .badge-pack {
   cursor: pointer;
-  border-color: #c9a227;
-  color: #a6821c;
+  border-color: var(--gold);
+  color: color-mix(in srgb, var(--gold) 80%, var(--ink));
+  max-width: 50%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .badge-pack:hover {
-  background: color-mix(in srgb, #e5b843 20%, transparent);
+  background: var(--gold-wash);
 }
-.tile-agent {
-  cursor: pointer;
-}
-.tile-agent.is-done,
-.tile-agent.is-cancelled {
-  opacity: 0.8;
-}
-.tile-agent.is-paused,
-.tile-agent.is-pausing,
 .tile.is-paused {
   border-style: dashed;
 }
@@ -474,17 +507,6 @@ button {
 .badge-state.is-cancelling {
   border-color: var(--blocked);
   color: var(--blocked);
-}
-/* Why it was cancelled, under the head. */
-.agent-reason {
-  flex: 0 0 auto;
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--line);
-  color: var(--blocked);
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* The leash: ⏸ / ▶ and ✕ on a member's head; on a tile they show on hover (▶ always, while paused). */
 .leash-btn {
@@ -504,19 +526,437 @@ button {
 .tile .leash-btn.is-on {
   opacity: 1;
 }
-/* The agent pane: a subagent full size over the right column. */
-.agent-pane .doc-problem.is-pause {
+
+/* A subagent's state as a pill (AgentStatus.tsx): pip + word + clock. */
+.agent-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.agent-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.agent-status.is-working {
+  color: var(--busy);
+}
+.agent-status.is-working .agent-pip {
+  animation: agent-pulse 1.4s ease-in-out infinite;
+}
+.agent-status.is-done {
+  color: var(--green);
+}
+.agent-status.is-paused,
+.agent-status.is-pausing {
   color: var(--accent);
 }
-.agent-task {
-  flex: 0 0 auto;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--line);
+.agent-status.is-cancelled,
+.agent-status.is-cancelling {
+  color: var(--blocked);
+}
+@keyframes agent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-status.is-working .agent-pip {
+    animation: none;
+  }
+}
+
+/* The pack tile (PackTile.tsx): a session's subagents as a roster of miniature foxes. */
+.tile-pack {
+  border-color: var(--gold-line);
+  cursor: default;
+}
+.tile-pack.pack-solo {
+  cursor: pointer;
+}
+.tile-pack .pane-head {
+  background: var(--gold-wash);
+}
+.pack-alpha {
+  cursor: pointer;
+}
+.pack-alpha:hover {
+  filter: brightness(1.1);
+}
+.pack-tally {
+  flex: 0 1 auto;
   color: var(--muted);
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.pack-clear {
+  flex: 0 0 auto;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.pack-roster {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.pack-solo .pack-roster {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.pack-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 6px;
+  min-width: 0;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  transition: background 120ms ease;
+}
+.pack-row:last-child {
+  border-bottom: none;
+}
+.pack-row:hover {
+  background: var(--gold-wash);
+}
+.pack-row.is-open {
+  border-left-color: var(--gold);
+  background: var(--gold-wash);
+}
+.pack-row > .fox {
+  flex: 0 0 auto;
+}
+/* Finished and cancelled ones step back; the ones still working carry the tile. */
+.pack-row.is-done .pack-row-main,
+.pack-row.is-cancelled .pack-row-main,
+.pack-row.is-done > .fox,
+.pack-row.is-cancelled > .fox {
+  opacity: 0.6;
+}
+.pack-row-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pack-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.pack-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pack-type {
+  flex: 0 100 auto;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pack-line {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 1.3em;
+}
+.pack-line.is-tool {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+}
+.pack-row.is-cancelled .pack-line,
+.pack-row.is-cancelling .pack-line {
+  color: var(--blocked);
+}
+/* Five or more: one line each, the live line beside the name. */
+.pack-dense .pack-row {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.pack-dense .pack-row-main {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+.pack-dense .pack-row-top {
+  flex: 0 1 auto;
+  max-width: 55%;
+}
+.pack-dense .pack-type {
+  display: none;
+}
+.pack-dense .pack-line {
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* The leash on a row: there on hover, and always while it is paused (▶ is the way out). */
+.pack-row-leash {
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+}
+.pack-row:hover .pack-row-leash,
+.pack-row.is-paused .pack-row-leash,
+.pack-row.is-pausing .pack-row-leash {
+  display: inline-flex;
+}
+.pack-row.is-done .pack-row-leash,
+.pack-row.is-cancelled .pack-row-leash {
+  display: inline-flex;
+}
+.tile-pack .pack-row .leash-btn {
+  opacity: 1;
+}
+/* The auto-killer's count on a finished row: a button that holds it (▶ kept = let it go again). */
+.pack-count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 40px;
+  justify-content: center;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--green) 50%, var(--line));
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--green);
+}
+.pack-row.is-cancelled .pack-count {
+  border-color: color-mix(in srgb, var(--blocked) 50%, var(--line));
+  color: var(--blocked);
+}
+.pack-count:hover {
+  background: var(--bg);
+}
+.pack-count.is-kept {
+  border-color: var(--line);
+  color: var(--muted);
+}
+/* A pack of one has no prompt bar under its conversation: the chat gets the room. */
+.tile-body-agent .chat {
+  padding-bottom: 8px;
+}
+
+/* The agent pane (AgentPane.tsx): a subagent in the center column. */
+.agent-pane > .pane-head {
+  background: var(--gold-wash);
+}
+.agent-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.agent-hero {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.agent-hero-fox {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 76px;
+  border-radius: 12px;
+  border: 1.5px solid var(--gold-line);
+  background: var(--gold-wash);
+}
+.agent-pane.is-done .agent-hero-fox,
+.agent-pane.is-cancelled .agent-hero-fox {
+  border-color: var(--line);
+  background: transparent;
+}
+.agent-hero-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-hero-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.agent-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.agent-hero-meta .agent-status {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.agent-hero-meta .agent-pip {
+  width: 8px;
+  height: 8px;
+}
+.agent-hero-leash {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.agent-hero-leash .leash-btn {
+  justify-content: center;
+  padding: 5px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.agent-hero-leash .leash-btn:hover {
+  border-color: var(--muted);
+}
+.agent-hero-leash .leash-btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.agent-hero-leash .leash-btn.danger:hover {
+  border-color: var(--blocked);
+  color: var(--blocked);
+}
+.agent-banner {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.agent-banner.is-pause {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.agent-banner.is-cancel {
+  color: var(--blocked);
+  background: color-mix(in srgb, var(--blocked) 8%, transparent);
+}
+.agent-brief {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 16px 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  min-width: 0;
+}
+.agent-brief:hover {
+  color: var(--ink);
+}
+.agent-brief > svg {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.agent-brief-label {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.agent-brief-text {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-brief.is-open .agent-brief-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+/* The rest of the pack: a rail of miniature foxes to step between. */
+.agent-rail {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.agent-rail::-webkit-scrollbar {
+  display: none;
+}
+.agent-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 3px 9px 3px 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--ink);
+}
+.agent-chip:hover {
+  border-color: var(--muted);
+}
+.agent-chip.on {
+  border-color: var(--gold);
+  background: var(--gold-wash);
+}
+.agent-chip.is-done:not(.on),
+.agent-chip.is-cancelled:not(.on) {
+  opacity: 0.65;
+}
+.agent-chip-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.agent-chip .agent-status {
+  font-size: 10px;
 }
 .agent-chat {
   flex: 1;
@@ -527,102 +967,6 @@ button {
 .agent-chat .chat {
   padding-bottom: 12px;
   font-size: 13px;
-}
-/* The pack tile: subagents in a 4-wide grid, each quarter with a scrolling transcript (PackTile.tsx). */
-.tile-pack {
-  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
-  cursor: default;
-}
-.pack-grid {
-  flex: 1 1 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-}
-.pack-quarter {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  cursor: pointer;
-  border-right: 1px solid var(--line);
-}
-.pack-quarter:last-child {
-  border-right: none;
-}
-.pack-quarter:hover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-}
-.pack-quarter.is-done,
-.pack-quarter.is-cancelled {
-  opacity: 0.55;
-}
-.pack-head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  min-width: 0;
-}
-.pack-name {
-  flex: 1;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.pack-mark {
-  flex: 0 0 auto;
-  width: 12px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 10px;
-}
-.pack-mark.is-done {
-  color: var(--green, #5cb85c);
-}
-.pack-mark.is-cancel {
-  color: var(--blocked);
-}
-.pack-mark.is-pause {
-  color: var(--accent);
-  font-size: 8px;
-}
-.pack-mark.is-work {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1;
-}
-.pack-transcript {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.pack-transcript .chat {
-  font-size: 9px;
-  line-height: 1.35;
-  padding: 3px 5px 3px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-.pack-transcript .chat-text,
-.pack-transcript .chat-user {
-  white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-.pack-transcript .chat-tool {
-  white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-.pack-transcript .chat-busy {
-  padding: 2px 5px;
 }
 /* The leash dialog: the reason for a cancel, a note for a pause (LeashDialog.tsx; the picker's frame). */
 .picker.leash {
@@ -1540,7 +1884,8 @@ button {
   color: #fff;
 }
 .wiki-results,
-.wiki-article {
+.wiki-article,
+.wiki-places {
   cursor: default;
 }
 .wiki-img {
@@ -1566,7 +1911,8 @@ button {
   transition: background 200ms ease;
 }
 .wiki-results .wiki-scrim,
-.wiki-article .wiki-scrim {
+.wiki-article .wiki-scrim,
+.wiki-places .wiki-scrim {
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
 }
@@ -1592,6 +1938,37 @@ button {
   letter-spacing: 0.12em;
   opacity: 0.8;
 }
+.wiki-tagline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* ‹ › through the pictures: there on hover, like the search box's chrome */
+.wiki-steps {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.wiki:hover .wiki-steps {
+  opacity: 1;
+}
+.wiki-steps button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  background: rgba(0, 0, 0, 0.35);
+}
+.wiki-steps button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+}
+.wiki-steps button:disabled {
+  opacity: 0.35;
+}
 .wiki-title {
   margin: 0;
   font-size: 15px;
@@ -1613,17 +1990,23 @@ button {
   overflow: hidden;
 }
 
-/* the clock, top left, over the picture; a shadow instead of chrome so it reads on any picture */
-.wiki-clock {
+/* the clock and the weather under it, top left, over the picture; a shadow instead of chrome so they read on any picture */
+.wiki-corner {
   position: absolute;
   top: 8px;
   left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: flex-start;
+  gap: 5px;
   pointer-events: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.5);
   z-index: 2;
+}
+.wiki-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .wiki-clock-time {
   font-size: 18px;
@@ -1636,6 +2019,151 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   opacity: 0.85;
+}
+
+/* the weather: the first place large, the others a line each; the whole block opens the places editor */
+.wiki-weather {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  margin: 0 -6px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  text-shadow: inherit;
+  pointer-events: auto;
+}
+.wiki-weather:hover {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+.wiki-weather-none {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.6;
+}
+.wiki-weather-none:hover {
+  opacity: 1;
+}
+.wiki-weather-now {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+}
+.wiki-weather-now .wiki-weather-temp {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.wiki-weather-now .wiki-weather-glyph {
+  font-size: 16px;
+}
+.wiki-weather-temp {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.wiki-weather-place {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.85;
+}
+.wiki-weather-other {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  opacity: 0.92;
+}
+.wiki-weather-other:first-of-type {
+  margin-top: 3px;
+}
+.wiki-weather-other .wiki-weather-glyph {
+  width: 13px;
+  text-align: center;
+}
+.wiki-weather-time {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the places editor, in the results panel's frame */
+.wiki-places-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 4px;
+}
+.wiki-places-head .wiki-back {
+  margin-left: auto;
+}
+.wiki-places-units {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.wiki-places-units button {
+  padding: 1px 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.wiki-places-units button.on {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.wiki-place {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+.wiki-place-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wiki-place button {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.8);
+}
+.wiki-place button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.wiki-place-input {
+  flex: none;
+  margin: 4px 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  outline: 0;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+.wiki-place-input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+.wiki-place-input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.wiki-place-hit {
+  flex: none;
+  align-items: baseline;
+  gap: 8px;
 }
 
 /* the search box: no chrome until it has focus, just white text over the picture */
@@ -4262,4 +4790,261 @@ button.foxlog-chip:hover {
 .pokemon-row .pill:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ---- Molecule: one 3Dmol viewer (lib/mol.ts) shown by the tile and, full size, by the center
+   pane. `.mol-host` is the viewer's own element, moved between the two `.mol-stage` boxes;
+   `.mol-staging` holds it off screen when neither is mounted, so `look` still has a frame. */
+.mol-glyph {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.mol-face {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.mol-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.mol-host {
+  position: absolute;
+  inset: 0;
+}
+.mol-host canvas {
+  outline: none;
+}
+.mol-staging {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 720px;
+  height: 540px;
+  pointer-events: none;
+}
+.mol-over {
+  position: absolute;
+  inset: 0;
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  background: var(--panel);
+}
+.mol-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 520px;
+  overflow-y: auto;
+}
+.mol .mol-chips .pill {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.mol-readout,
+.mol-error {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  pointer-events: none;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 86%, transparent);
+  border: 1px solid var(--line);
+}
+.mol-error {
+  bottom: auto;
+  top: 6px;
+  pointer-events: auto;
+  user-select: text;
+  color: var(--blocked);
+  border-color: color-mix(in srgb, var(--blocked) 50%, var(--line));
+}
+.mol-busy,
+.mol-note {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.mol-input {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 6px;
+}
+.mol-input input,
+.mol-inline input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  outline: none;
+}
+.mol-input input:focus,
+.mol-inline input:focus {
+  border-color: var(--accent);
+}
+.mol-pane {
+  min-height: 0;
+  outline: none;
+}
+.mol-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.mol-rail .pill.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mol-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 8px 2px;
+  border-top: 1px solid var(--line);
+  max-height: 46%;
+  overflow-y: auto;
+}
+.mol-bar .mol-input {
+  padding: 2px 0 6px;
+}
+.mol-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mol-row .pill,
+.mol-list .pill {
+  padding: 2px 9px;
+  font-size: 11px;
+  gap: 4px;
+}
+.mol-row .pill.on,
+.mol-list .pill.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mol-label {
+  flex: 0 0 52px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mol-row .mol-sep + .mol-label {
+  flex-basis: auto;
+  margin-right: 2px;
+}
+.mol-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.mol-inline {
+  flex: 1 1 180px;
+  display: flex;
+  min-width: 120px;
+}
+.mol-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.mol-list {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 11px;
+}
+.mol-list-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mol-list-head .mol-label {
+  flex: 1 1 auto;
+}
+.mol-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 0;
+  color: var(--ink);
+}
+.mol-ref {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.mol-x {
+  margin-left: auto;
+}
+/* The sequence strip: the chain as letters in the active colours, linked both ways with the 3D view. */
+.mol-seq {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 11px;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 12px 8px 6px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 15px;
+  user-select: none;
+}
+.mol-seq-cell {
+  display: inline-flex;
+}
+.mol-seq-chain {
+  margin: 0 5px 0 8px;
+  color: var(--muted);
+}
+.mol-res {
+  position: relative;
+  width: 10px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--ink);
+}
+.mol-res.tick::before {
+  content: attr(data-n);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  font-size: 8px;
+  line-height: 10px;
+  color: var(--muted);
+}
+.mol-res.selected {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.mol-res.picked {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  z-index: 1;
+}
+.mol-res.hover,
+.mol-res:hover {
+  outline: 1px solid var(--ink);
+  z-index: 2;
 }

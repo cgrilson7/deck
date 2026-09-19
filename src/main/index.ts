@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
-import { CAP } from '@shared/types'
+import { CAP, MOL_TILES_MAX, nextMolTile } from '@shared/types'
 import { REMOTE_PORT } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
@@ -16,6 +16,7 @@ import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
 import { VocabStore } from './store'
 import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
+import { weatherNow, weatherSearch } from './weather'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
 import { Spotify, spotifyItems } from './spotify'
@@ -30,6 +31,7 @@ import { RemoteServer } from './remote'
 import { Wolfpack } from './pack'
 import { Studio } from './studio'
 import { Pokemon } from './pokemon'
+import { Mol } from './mol'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 
@@ -285,6 +287,71 @@ app.whenReady().then(async () => {
     p.resolve(result)
   })
 
+  // The Molecule tile: main resolves structures (the renderer may not fetch), the renderer's viewer shows them.
+  const mol = new Mol(userData)
+  ipcMain.handle('mol:resolve', (_e, target: string) => mol.resolve(String(target ?? '')))
+  ipcMain.handle('mol:library', () => mol.library())
+  ipcMain.handle('mol:shot', (_e, bytes: Uint8Array, tile?: number) => mol.shot(bytes ?? new Uint8Array(), Number(tile) || 1))
+  // Its door: a POST /mol on the hooks server. `list` is main's own; for the rest any structure is
+  // resolved FIRST (fetched or read from the cache) and rides along to the renderer's viewer,
+  // whose answer comes back on mol:reply. THERE ARE SEVERAL MOLECULE TILES (`molTiles`) and main
+  // picks the one a request is for: `tile` (--tile n), `new` (--new: the first EMPTY tile, else
+  // one more, up to MOL_TILES_MAX), else the last one the door used. `close` takes one away.
+  const MOL_OFF = 'no Molecule tile listening: turn on the Molecule tile (a mini app in the + picker, or View ▸ Molecule ▸ Show Molecule Tile) and run this again'
+  const molPending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
+  let molLast = 0
+  // Tiles a `--new` has taken and not yet filled: several `--new` at once must not all land on the same empty tile.
+  const molClaimed = new Set<number>()
+  const molAsk = (b: Record<string, unknown>): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      const id = randomUUID()
+      // A surface over a whole protein is computed on the renderer's thread: give it room.
+      const timer = setTimeout(() => {
+        molPending.delete(id)
+        reject(new Error(MOL_OFF))
+      }, 45_000)
+      molPending.set(id, { resolve, timer })
+      send('mol:req', { id, body: b })
+    })
+  const molCall = async (body: unknown): Promise<unknown> => {
+    const b = { ...((body ?? {}) as Record<string, unknown>) }
+    if (b.op === 'list') return { ok: true, ...mol.list() }
+    if (!win || win.isDestroyed()) throw new Error('no window')
+    if (!settings!.get().showMol) throw new Error(MOL_OFF)
+    const tiles = () => settings!.get().molTiles
+    const current = () => (tiles().includes(molLast) ? molLast : tiles()[0])
+    if (b.op === 'tiles') return { ...((await molAsk({ op: 'tiles', tiles: tiles() })) as object), current: current(), max: MOL_TILES_MAX }
+    if (b.op === 'show') b.structures = [await mol.resolve(String(b.target ?? ''))]
+    if (b.op === 'compare') b.structures = await Promise.all([mol.resolve(String(b.a ?? '')), mol.resolve(String(b.b ?? ''))])
+    let n: number
+    if (b.tile != null && b.tile !== '') {
+      n = Number(b.tile)
+      if (!tiles().includes(n)) throw new Error(`there is no Molecule tile ${String(b.tile)}: the tiles are ${tiles().join(', ')} (\`tiles\` says what each shows; \`show <target> --new\` opens another)`)
+    } else if (b.new) {
+      const all = ((await molAsk({ op: 'tiles', tiles: tiles() })) as { tiles?: { tile: number; empty: boolean }[] }).tiles ?? []
+      const free = all.find((t) => t.empty && !molClaimed.has(t.tile))?.tile ?? nextMolTile(tiles())
+      if (free == null) throw new Error(`${MOL_TILES_MAX} Molecule tiles is the most (each holds a WebGL context): reuse one with --tile <n>, or \`close --tile <n>\` first. \`tiles\` says what each shows`)
+      if (!tiles().includes(free)) settings!.update({ molTiles: [...tiles(), free] })
+      n = free
+      molClaimed.add(n)
+    } else n = current()
+    if (b.op === 'close') {
+      // The last tile is only emptied: the door always has somewhere to show.
+      if (tiles().length === 1) return { ...((await molAsk({ op: 'clear', tile: n })) as object), note: `tile ${n} is the only Molecule tile, so it was emptied rather than closed` }
+      settings!.update({ molTiles: tiles().filter((t) => t !== n) })
+      return { ok: true, closed: n, tiles: tiles() }
+    }
+    molLast = n
+    return molAsk({ ...b, tile: n }).finally(() => molClaimed.delete(n))
+  }
+  ipcMain.on('mol:reply', (_e, id: string, result: unknown) => {
+    const p = molPending.get(id)
+    if (!p) return
+    clearTimeout(p.timer)
+    molPending.delete(id)
+    p.resolve(result)
+  })
+
   // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
   const hooks = new HooksServer(
     HOOK_PORT,
@@ -293,6 +360,7 @@ app.whenReady().then(async () => {
     join(pluginDir, 'scripts', 'wolfpack.mjs'),
     join(pluginDir, 'scripts', 'studio.mjs'),
     join(pluginDir, 'scripts', 'trainer.mjs'),
+    join(pluginDir, 'scripts', 'mol.mjs'),
     (event, payload) => {
       manager?.onHook(event, payload)
       agents?.onHook(event, payload)
@@ -300,6 +368,7 @@ app.whenReady().then(async () => {
     (body) => (wolfpack ? wolfpack.handle(body) : Promise.reject(new Error('not ready'))),
     (body) => (studio ? studio.handle(body) : Promise.reject(new Error('not ready'))),
     (body) => gameboyCall(body),
+    (body) => molCall(body),
     // Every tool call asks the leash (a paused member waits, a cancelled one is refused): main/agents.ts.
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
@@ -386,6 +455,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('wiki:picture', (_e, when: unknown) => wikiPicture(when === 'past' ? 'past' : 'today'))
   ipcMain.handle('wiki:search', (_e, q: string) => wikiSearch(String(q ?? '')))
   ipcMain.handle('wiki:summary', (_e, key: string) => wikiSummary(String(key ?? '')))
+  ipcMain.handle('weather:now', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))
+  ipcMain.handle('weather:search', (_e, q: string) => weatherSearch(String(q ?? '')))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
   ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
   ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))

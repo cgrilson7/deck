@@ -1,6 +1,7 @@
 // Types shared by main, preload and renderer. Keep this file dependency-free (themes.ts is ours).
 
 import type { Appearance } from './themes'
+import type { GridOrder } from './gridorder'
 
 /**
  * Hard cap on open top-level sessions: the focus pane + the grid. Slots 1..CAP are sticky; ⌘1–9
@@ -18,11 +19,27 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'mol'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
+/** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
+export const MOL_TILES_MAX = 8
+/** Molecule tile `n`'s grid key: the first keeps the plugin's own (`mol`), the others are `mol:<n>`. */
+export const molKey = (n: number): string => (n === 1 ? 'mol' : `mol:${n}`)
+/** The tile number of a grid key, or null when it is not a Molecule tile's. */
+export const molTileOf = (key: string): number | null => (key === 'mol' ? 1 : /^mol:([1-9]\d?)$/.test(key) ? Number(key.slice(4)) : null)
+/** The number a new Molecule tile takes (the lowest free), or null at the cap. */
+export function nextMolTile(tiles: number[]): number | null {
+  if (tiles.length >= MOL_TILES_MAX) return null
+  let n = 1
+  while (tiles.includes(n)) n++
+  return n
+}
+/** A grid key that belongs to a mini app: a plugin's own, or one more Molecule tile's. */
+export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null
+
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showMol'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -31,12 +48,8 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showGit) out.push('git')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
+  if (s.showMol) out.push('mol')
   return out
-}
-
-/** How many tiles one page of the grid holds: both side columns, `gridColumns` wide and `gridRows` tall each. */
-export function pageSize(s: Pick<DeckSettings, 'gridColumns' | 'gridRows'>): number {
-  return 2 * s.gridColumns * s.gridRows
 }
 
 /** A session's place in a wolfpack: a beta carries its alpha's deck id and its task's name. */
@@ -195,6 +208,43 @@ export interface WikiPicture {
   imageUrl: string
   /** The file page, opened in the browser on click. */
   url: string
+}
+
+/** A place the Wikipedia tile shows the weather for. */
+export interface WeatherPlace {
+  name: string
+  /** "Maine, US": what tells two Portlands apart. '' when unknown. */
+  region: string
+  lat: number
+  lon: number
+}
+
+export type TempUnit = 'F' | 'C'
+
+/** How many places the tile lists under its clock. */
+export const WEATHER_PLACES_MAX = 6
+
+/** Portland, Maine: the weather the tile shows until told otherwise. */
+export const WEATHER_PLACE_DEFAULT: WeatherPlace = { name: 'Portland', region: 'Maine, US', lat: 43.6591, lon: -70.2568 }
+
+/** The weather at one place now (Open-Meteo). Numbers are rounded, null when the answer had none. */
+export interface WeatherNow {
+  place: WeatherPlace
+  unit: TempUnit
+  temp: number | null
+  feels: number | null
+  /** Today's high and low. */
+  high: number | null
+  low: number | null
+  /** mph with °F, km/h with °C. */
+  wind: number | null
+  /** WMO weather code, -1 when unknown. */
+  code: number
+  /** False after dark there. */
+  day: boolean
+  /** IANA zone of the place, and its offset from UTC in seconds. */
+  timezone: string
+  utcOffset: number
 }
 
 /** One result of a Wikipedia search. */
@@ -388,11 +438,10 @@ export interface DeckSettings {
   gridColumns: number
   gridRows: number
   /**
-   * Where plugin tiles were put: cell index (across pages, left column first) → a plugin key,
-   * '' for a cell nothing is pinned to. Sessions and wolfpack members are never pinned: they
-   * always fill the first cells in order; then the plugins flow into what is free, pins honored.
+   * Where tiles were dragged to: each side column's tile keys, top to bottom (`shared/gridorder.ts`).
+   * Written whole on every drag; a tile it does not name takes its default place.
    */
-  gridLayout: string[]
+  gridOrder: GridOrder
   /** How wide the focus column is. */
   focusWidth: 'third' | 'twoFifths' | 'half'
   /** Sessions needing you jump to the front of the grid. */
@@ -414,6 +463,9 @@ export interface DeckSettings {
   scrollback: number
   /** Plugin row. */
   showWiki: boolean
+  /** The places the Wikipedia tile shows the weather for, the first one large. Edited in the tile; none = no weather. */
+  weatherPlaces: WeatherPlace[]
+  weatherUnit: TempUnit
   /** The music tile (Spotify.app now playing, or the lofi YouTube stream behind a click). */
   showMusic: boolean
   /** Which face the music tile shows. Spotify by default; the stream never plays until asked. */
@@ -439,6 +491,10 @@ export interface DeckSettings {
   showVocab: boolean
   /** Seconds each vocabulary word stays before the next one. */
   vocabCycleSeconds: number
+  /** The Molecule tile (a 3D molecular viewer: 3Dmol.js), which sessions drive through `$DECK_MOL`. */
+  showMol: boolean
+  /** The Molecule tiles that exist, by number (a viewer and a scene each; `molKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
+  molTiles: number[]
   /** The Pokemon tile (Game Boy Color emulator: serverboy). */
   showPokemon: boolean
   /** Where to look for .gbc/.gb ROMs. */
@@ -459,7 +515,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   compact: false,
   gridColumns: 1,
   gridRows: 4,
-  gridLayout: [],
+  gridOrder: { left: [], right: [] },
   focusWidth: 'third',
   attentionFirst: true,
   confirmKill: true,
@@ -473,6 +529,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   cursorStyle: 'bar',
   scrollback: 5000,
   showWiki: true,
+  weatherPlaces: [WEATHER_PLACE_DEFAULT],
+  weatherUnit: 'F',
   showMusic: true,
   music: 'spotify',
   spotifyPlaylists: [
@@ -490,6 +548,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
+  showMol: false,
+  molTiles: [1],
   showPokemon: false,
   pokemonRomDir: '~/Downloads',
   showGit: true,
@@ -708,7 +768,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -740,6 +800,10 @@ export interface DeckApi {
   wikiSearch(q: string): Promise<WikiHit[]>
   /** The lead section of one page, by key. */
   wikiSummary(key: string): Promise<WikiSummary>
+  /** The weather now at every place of the `weatherPlaces` setting, in order. Cached 10 min in main. */
+  weather(): Promise<WeatherNow[]>
+  /** Places by name ("Portland, Maine"), for the tile's "add a place" line. */
+  weatherSearch(q: string): Promise<WeatherPlace[]>
   /** Spotify.app's state, now and on every change (main polls it while the tile is showing). */
   onSpotify(cb: (state: SpotifyState) => void): () => void
   spotify(cmd: SpotifyCommand): void
@@ -850,6 +914,43 @@ export interface DeckApi {
   /** The trainer's door: main relays `POST /gameboy` here; the renderer answers with `gameboyReply`. */
   onGameboy(cb: (req: GameboyRequest) => void): () => void
   gameboyReply(id: string, result: unknown): void
+  /** The Molecule tile: a target (library name, PDB id, AF-<uniprot>, a name, smiles:, a path) → its structure text. Main fetches and caches. */
+  molResolve(target: string): Promise<MolStructure>
+  /** The built-in library, for the empty tile's chips. */
+  molLibrary(): Promise<MolLibraryItem[]>
+  /** Write the viewer's PNG to userData/mol/look-<tile>.png and return its path (`look`). */
+  molShot(bytes: Uint8Array, tile?: number): Promise<string>
+  /** The Molecule tile's door: main relays `POST /mol` here (structures already resolved); the renderer answers with `molReply`. */
+  onMol(cb: (req: MolRequest) => void): () => void
+  molReply(id: string, result: unknown): void
+}
+
+export type MolFormat = 'sdf' | 'cif' | 'pdb' | 'mol2' | 'xyz' | 'cube'
+
+/** A structure as main resolved it (main/mol.ts): the text 3Dmol parses, and partial charges in atom order when the source has them. */
+export interface MolStructure {
+  target: string
+  name: string
+  formula?: string
+  format: MolFormat
+  data: string
+  source: 'library' | 'rcsb' | 'alphafold' | 'pubchem' | 'file'
+  cached: boolean
+  charges?: number[]
+  chargeMethod?: string
+}
+
+export interface MolLibraryItem {
+  key: string
+  name: string
+  formula: string
+  atoms: number
+}
+
+/** One request through the Molecule tile's door (main/hooks.ts `/mol` → the renderer's viewer). */
+export interface MolRequest {
+  id: string
+  body: Record<string, unknown>
 }
 
 /** One request through the trainer's door (main/hooks.ts `/gameboy` → the renderer's emulator). */

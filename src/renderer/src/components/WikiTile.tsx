@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 import { plain } from '../lib/errors'
+import { WeatherPlaces, WeatherStrip } from './Weather'
 
 /** A new picture every so often: today's, then two from the archive, then today's again. */
 const CYCLE_MS = 2 * 60 * 1000
@@ -17,7 +18,7 @@ function dayLabel(date: string): string {
   return DAY_FMT.format(new Date(y, m - 1, d))
 }
 
-/** Date and time in the machine's zone, top left of the tile, ticking on the second. */
+/** Date and time in the machine's zone, top left of the tile, ticking on the second; the weather sits under it. */
 function Clock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -35,9 +36,11 @@ function Clock() {
 /**
  * Wikipedia's picture of the day, full bleed, with a transparent search box in the top right and
  * a clock top left. The picture rotates: every CYCLE_MS a random day's picture from the archive
- * takes over, and every TODAY_EVERY-th one is today's again. A search takes over the tile: the
+ * takes over, and every TODAY_EVERY-th one is today's again; ‹ › beside the caption's tag step
+ * by hand (back through what was shown, forward to a new one) and start the clock over. A search takes over the tile: the
  * hits list over a darkened picture, a hit opens its lead section in place, and the title (or the
- * picture) opens Wikipedia in the browser. Esc or the × brings the picture back.
+ * picture) opens Wikipedia in the browser. Esc or the × brings the picture back. Under the clock
+ * is the weather (`Weather.tsx`), and a click on it lays the places editor over the picture.
  */
 export function WikiTile() {
   const [pic, setPic] = useState<WikiPicture | null>(null)
@@ -46,31 +49,56 @@ export function WikiTile() {
   const [hits, setHits] = useState<WikiHit[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [article, setArticle] = useState<WikiSummary | null>(null)
+  const [places, setPlaces] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const seq = useRef(0)
 
+  // Every picture shown so far, so ‹ goes back through them; › past the newest loads another.
+  const shown = useRef<WikiPicture[]>([])
+  const at = useRef(-1)
+  const step = useRef(0)
+  const loading = useRef(false)
+  /** Bumped by a manual step, which starts the cycle's clock over. */
+  const [stepped, setStepped] = useState(0)
+
+  const show = (i: number) => {
+    at.current = i
+    setPic(shown.current[i])
+    setErr(null)
+  }
+
+  const next = () => {
+    if (at.current < shown.current.length - 1) return show(at.current + 1)
+    if (loading.current) return
+    loading.current = true
+    const when = step.current % TODAY_EVERY === 0 ? 'today' : 'past'
+    step.current++
+    window.deck
+      .wikiPicture(when)
+      .then((p) => {
+        if (!p) return shown.current.length || setErr('No picture today')
+        // Today's comes round every third time: point at the one already kept.
+        const had = shown.current.findIndex((x) => x.date === p.date)
+        if (had < 0) shown.current.push(p)
+        show(had < 0 ? shown.current.length - 1 : had)
+      })
+      .catch((e: unknown) => setErr(plain(e)))
+      .finally(() => (loading.current = false))
+  }
+
+  const prev = () => at.current > 0 && show(at.current - 1)
+
   useEffect(() => {
-    let alive = true
-    let step = 0
-    const load = () => {
-      const when = step % TODAY_EVERY === 0 ? 'today' : 'past'
-      step++
-      window.deck
-        .wikiPicture(when)
-        .then((p) => {
-          if (!alive) return
-          setPic(p)
-          setErr(p ? null : 'No picture today')
-        })
-        .catch((e: unknown) => alive && setErr(plain(e)))
-    }
-    load()
-    const t = window.setInterval(load, CYCLE_MS)
-    return () => {
-      alive = false
-      window.clearInterval(t)
-    }
-  }, [])
+    if (at.current < 0) next()
+    const t = window.setInterval(next, CYCLE_MS)
+    return () => window.clearInterval(t)
+  }, [stepped])
+
+  const manual = (go: () => void) => (e: MouseEvent) => {
+    e.stopPropagation()
+    go()
+    setStepped((n) => n + 1)
+  }
 
   const search = (q: string) => {
     const id = ++seq.current
@@ -110,6 +138,7 @@ export function WikiTile() {
     setHits(null)
     setArticle(null)
     setSearching(false)
+    setPlaces(false)
     input.current?.blur()
   }
 
@@ -121,18 +150,31 @@ export function WikiTile() {
       .catch((e: unknown) => setErr(plain(e)))
   }
 
-  const overlay = article ? 'article' : hits || searching ? 'results' : 'picture'
+  const overlay = article ? 'article' : hits || searching ? 'results' : places ? 'places' : 'picture'
   const bg = article?.imageUrl ?? pic?.imageUrl ?? null
 
   return (
     <div className={`tile tile-plugin wiki wiki-${overlay}`} onClick={() => overlay === 'picture' && pic && window.deck.openExternal(pic.url)} title={overlay === 'picture' && pic ? 'Open on Wikipedia' : undefined}>
       {bg && <img key={bg} className="wiki-img" src={bg} alt="" draggable={false} />}
       <div className="wiki-scrim" />
-      <Clock />
+      <div className="wiki-corner">
+        <Clock />
+        {overlay === 'picture' && <WeatherStrip onEdit={() => setPlaces(true)} />}
+      </div>
 
       {overlay === 'picture' && (pic ? (
         <div className="wiki-text">
-          <span className="wiki-tag">{pic.today ? 'picture of the day' : `picture of the day · ${dayLabel(pic.date)}`}</span>
+          <span className="wiki-tagline">
+            <span className="wiki-tag">{pic.today ? 'picture of the day' : `picture of the day · ${dayLabel(pic.date)}`}</span>
+            <span className="wiki-steps">
+              <button onClick={manual(prev)} disabled={at.current <= 0} title="The picture before">
+                ‹
+              </button>
+              <button onClick={manual(next)} title="Another picture">
+                ›
+              </button>
+            </span>
+          </span>
           <h3 className="wiki-title">{pic.title}</h3>
           {pic.credit && <p className="wiki-summary">{pic.credit}</p>}
         </div>
@@ -170,6 +212,8 @@ export function WikiTile() {
           <p className="wiki-extract">{article.extract || '…'}</p>
         </div>
       )}
+
+      {overlay === 'places' && <WeatherPlaces onClose={() => setPlaces(false)} />}
 
       <form
         className={`wiki-search ${searching ? 'searching' : ''}`}
