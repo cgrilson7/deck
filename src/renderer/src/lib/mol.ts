@@ -430,6 +430,16 @@ interface Hilite {
 
 const css = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 
+/**
+ * How far one step of a PINCH zooms. Exponential in the raw deltaY, so the gesture reads as one
+ * continuous motion and the same total pinch always zooms the same amount; each event is capped in
+ * case the OS hands us one enormous delta. (3Dmol's own handler moves the camera by a fixed
+ * FRACTION of the remaining distance per event — ~30% for a mouse notch — which a trackpad's
+ * momentum turns into a molecule that jumps to the camera and vanishes.)
+ */
+const ZOOM_PER_DELTA = 0.01
+const ZOOM_STEP_MAX = 0.3
+
 class MolViewer {
   private lib: Lib | null = null
   private loading: Promise<void> | null = null
@@ -477,7 +487,27 @@ class MolViewer {
       if (this.host.clientWidth > 0 && this.host.clientHeight > 0) this.viewer?.resize()
     })
     this.sizer.observe(this.host)
+    // Capture, so 3Dmol's own listener on the canvas below never sees a wheel event.
+    this.host.addEventListener('wheel', this.onWheel, { capture: true, passive: false })
     this.state = this.snapshot()
+  }
+
+  /**
+   * A PINCH zooms the molecule; a two-finger SCROLL is the column's, so the grid still scrolls
+   * under the tile. Either way 3Dmol's own handler never sees the event (it would zoom on both,
+   * and hard) — stopping propagation keeps it out without touching the browser's default scroll.
+   */
+  private onWheel = (ev: WheelEvent): void => {
+    ev.stopPropagation()
+    // A trackpad pinch reaches the page as a wheel with ctrlKey; a plain scroll has none.
+    if (!ev.ctrlKey) return
+    ev.preventDefault()
+    if (!this.viewer) return
+    // Chromium sends pixels here, but a line-mode wheel would barely move.
+    const delta = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? window.innerHeight : 1)
+    // Spreading the fingers scrolls UP, and must draw the molecule nearer: inverted.
+    const step = Math.max(-ZOOM_STEP_MAX, Math.min(ZOOM_STEP_MAX, -delta * ZOOM_PER_DELTA))
+    this.viewer.zoom(Math.exp(step))
   }
 
   // -- plumbing --
@@ -497,6 +527,7 @@ class MolViewer {
     this.gone = true
     this.restoring = false
     this.sizer.disconnect()
+    this.host.removeEventListener('wheel', this.onWheel, { capture: true })
     this.listeners.clear()
     try {
       this.viewer?.spin(false)

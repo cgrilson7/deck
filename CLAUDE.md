@@ -492,8 +492,14 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   residues in the active colours, hover ↔ the residue named in 3D, click = pick its Cα, double-click zooms
   — the "1D string becomes a 3D shape" device, in place of a sequence tile. Background and labels are the
   theme's (`--panel`, `--ink`, `--accent`), repainted on a theme change (`retheme()`); the data palettes
-  (charge, hydropathy, pLDDT…) are constants in `lib/mol.ts`, not theme colours. Wheel over the viewer
-  zooms the molecule, not the column. Not on the phone.
+  (charge, hydropathy, pLDDT…) are constants in `lib/mol.ts`, not theme colours. A PINCH over the viewer zooms the molecule;
+  a two-finger SCROLL is the COLUMN'S, so the grid still scrolls under the tile. Both are ours,
+  not 3Dmol's: a capture-phase `wheel` on the host stops propagation on every event, so 3Dmol's
+  handler (which zooms on both, by a fixed ~30% of the remaining camera distance PER EVENT — a
+  trackpad's momentum events swallow the molecule) never sees one, while the browser's default
+  scroll is left alone. A pinch arrives as a ctrlKey wheel: that one is `preventDefault`ed and
+  zooms by `exp(−deltaY × ZOOM_PER_DELTA)`, capped per event, so the same gesture always zooms
+  the same amount and spreading the fingers draws the molecule nearer. Not on the phone.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
