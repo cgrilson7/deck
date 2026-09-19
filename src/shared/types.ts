@@ -814,6 +814,22 @@ export interface StudioInfo {
 
 export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleWeb'; id?: string }
 
+/** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
+export interface UsageWindow {
+  pct: number
+  resetsAt: number
+}
+
+/** Usage as Claude Code reports it (main/usage.ts): the account's two windows (null = not known: no subscriber, or nothing said yet) and each session's context %. */
+export interface DeckUsage {
+  fiveHour: UsageWindow | null
+  sevenDay: UsageWindow | null
+  /** When a window last changed (ms; 0 = never). */
+  at: number
+  /** Deck session id → % of its context window in use. */
+  context: Record<string, number>
+}
+
 export interface DeckApi {
   getState(): Promise<DeckState>
   onState(cb: (state: DeckState) => void): () => void
@@ -910,6 +926,9 @@ export interface DeckApi {
   chooseDefaultCwd(): Promise<string>
   /** A folder picker that only answers (the launcher keeps the pick in its form). `title` heads the dialog. Resolves '' when cancelled. Not on the phone. */
   chooseDir(title?: string): Promise<string>
+  /** The account's rate-limit windows and each session's context, as the sessions' status lines report them (main/usage.ts). Not on the phone. */
+  usage(): Promise<DeckUsage>
+  onUsage(cb: (u: DeckUsage) => void): () => void
   /** Every subagent of every open session, running or lately finished (main/agents.ts). */
   agents(): Promise<AgentView[]>
   onAgents(cb: (agents: AgentView[]) => void): () => void

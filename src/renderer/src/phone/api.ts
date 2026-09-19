@@ -279,6 +279,8 @@ export const api: DeckApi = {
   chooseDir: () => Promise.resolve(''),
   foxLog: (limit) => remote.call('foxLog', [limit]),
   onFoxEntry: (cb) => remote.on('fox', cb),
+  usage: () => Promise.resolve({ fiveHour: null, sevenDay: null, at: 0, context: {} }),
+  onUsage: nothing,
   agents: () => remote.call('agents', []),
   onAgents: (cb) => remote.on('agents', cb),
   onUi: nothing,

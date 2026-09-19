@@ -7,6 +7,7 @@ import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
 import { HooksServer } from './hooks'
+import { UsageTracker } from './usage'
 import { buildMenu } from './menu'
 import { SessionManager } from './sessions'
 import { SettingsStore } from './settings'
@@ -417,6 +418,10 @@ app.whenReady().then(async () => {
   // Subagents (SubagentStart / SubagentStop hooks) become tiles of their own, after the sessions.
   agents = new AgentTracker(manager, projectsDir, () => transcripts, (list) => send('agents:update', list))
   ipcMain.handle('agents:list', () => agents!.list())
+  // Usage for the header: every session's status line reports to /status (main/usage.ts).
+  const usage = new UsageTracker(join(userData, 'usage.json'), (sid) => manager?.find({ claudeSessionId: sid })?.id ?? null, (u) => send('usage:update', u))
+  hooks.onStatus = (body) => usage.onStatus(body)
+  ipcMain.handle('usage:get', () => usage.get())
 
   ipcMain.handle('deck:getState', () => manager!.getState())
   // A dropped file that lives in a temp dir (a screenshot thumbnail, a promised file) is copied somewhere that lasts.

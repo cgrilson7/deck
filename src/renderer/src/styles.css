@@ -55,7 +55,7 @@ button {
 }
 
 /* ---- top bar (drag region; the traffic lights sit centered at the left, main's lightsAt()).
-   Tall enough for Foxtrot at 4× and his last three barks (FoxHead); the tools area on the
+   Tall enough for Foxtrot at 4× (FoxHead); the tools area on the
    right wraps, so more buttons and dropdowns have room to land. ---- */
 .topbar {
   height: 88px;
@@ -2324,21 +2324,6 @@ button {
 .app.compact .topbar {
   height: 52px;
 }
-.app.compact .fox-speech {
-  padding: 3px 10px;
-  gap: 0;
-}
-.app.compact .fox-say {
-  font-size: 11px;
-  line-height: 1.25;
-}
-.app.compact .fox-say:first-child {
-  font-size: 11.5px;
-}
-.app.compact .fox-head-fox .bark {
-  left: 32px;
-  font-size: 9px;
-}
 .app.compact .main {
   gap: 5px;
   padding: 5px;
@@ -3757,121 +3742,167 @@ button {
   color: var(--accent);
 }
 
-/* ---- Foxtrot, the head (FoxHead): the fox large at the left of the top bar, and a speech
-   bubble of his last three barks, newest on top and darkest. Both open his log. ---- */
+/* ---- Foxtrot, the head (FoxHead): the fox large at the left of the top bar, posed for the
+   whole deck. No bubble, no barks. He opens his log. ---- */
 .fox-head {
-  flex: 0 1 780px;
-  min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
 }
 .fox-head-fox {
-  position: relative;
   flex: 0 0 auto;
   display: inline-flex;
   padding: 0;
-}
-.fox-head-fox .bark {
-  position: absolute;
-  left: 64px;
-  top: -2px;
-  z-index: 6;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 12px;
-  line-height: 1;
-  color: var(--ink);
-  text-shadow: 2px 2px 0 var(--bg), -2px 2px 0 var(--bg), 2px -2px 0 var(--bg), -2px -2px 0 var(--bg);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  animation: fox-bark 620ms ease-out both;
-}
-.fox-head-fox.barking {
-  animation: fox-hop-big 1.2s ease-out;
-}
-@keyframes fox-hop-big {
-  0%, 20%, 43%, 66%, 100% { transform: none; }
-  10%, 33%, 56% { transform: translateY(-7px); }
-}
-.fox-speech {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  text-align: left;
-  transition: border-color 120ms ease;
-}
-/* the tail, pointing back at the fox */
-.fox-speech::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  transform: translateY(-50%) rotate(45deg);
-  transition: border-color 120ms ease;
-}
-.fox-speech:hover,
-.fox-speech:hover::before {
-  border-color: var(--muted);
-}
-.fox-head.is-open .fox-speech,
-.fox-head.is-open .fox-speech::before {
-  border-color: var(--accent);
-}
-.fox-say {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--muted);
-}
-.fox-say:first-child {
-  font-size: 13px;
-  color: var(--ink);
-}
-.fox-say time {
-  flex: 0 0 3.5ch;
-  text-align: right;
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.fox-say-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.fox-say.is-stale {
-  opacity: 0.55;
-}
-.fox-say.is-quiet {
-  font-style: italic;
-  color: var(--muted);
 }
 .topbar-tools {
   flex: 1 1 320px;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  /* One row, always: nothing moves under the pointer when the window narrows. What gives way
+     is the status chips (clipped) and then the usage meters' extras, never the buttons. */
+  flex-wrap: nowrap;
   align-items: center;
-  align-content: center;
-  gap: 8px 12px;
+  gap: 12px;
+  white-space: nowrap;
+}
+.topbar-tools > * {
+  flex: 0 0 auto;
+}
+.topbar-tools > .spacer {
+  flex: 1 1 0;
+}
+
+/* ---- the deck in a few words (HeaderStatus): chips that are only there above zero, each a way
+   to the sessions it counts ---- */
+.hstat {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.hstat-none {
+  color: var(--muted);
+}
+.hchip {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  transition: border-color 120ms ease;
+}
+.hchip b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.hchip:hover {
+  border-color: var(--muted);
+}
+.hchip.is-working b {
+  color: var(--busy);
+}
+.hchip.is-needy {
+  background: var(--blocked);
+  border-color: var(--blocked);
+  color: #fff;
+  font-weight: 600;
+}
+.hchip.is-needy b {
+  color: inherit;
+}
+.hchip.is-held {
+  border-color: var(--busy);
+  color: var(--busy);
+}
+.hchip.is-held b {
+  color: inherit;
+}
+.hchip.is-risky {
+  border-color: color-mix(in srgb, var(--blocked) 55%, var(--line));
+  color: var(--blocked);
+}
+.hchip.is-risky b {
+  color: inherit;
+}
+
+/* ---- usage (UsageMeter): the account's two windows + the focused session's context ---- */
+.usage {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.usage-win {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  --level: var(--accent);
+}
+.usage-win.is-warn,
+.usage-ctx.is-warn,
+.badge-ctx.is-warn {
+  --level: var(--busy);
+}
+.usage-win.is-hot,
+.usage-ctx.is-hot,
+.badge-ctx.is-hot {
+  --level: var(--blocked);
+}
+.usage-label {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.usage-bar {
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  overflow: hidden;
+}
+.usage-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--level);
+}
+.usage-pct {
+  min-width: 3ch;
+  text-align: right;
+  color: var(--ink);
+  font-weight: 600;
+}
+.usage-win.is-warn .usage-pct,
+.usage-win.is-hot .usage-pct {
+  color: var(--level);
+}
+.usage-left::before {
+  content: '⟳ ';
+}
+.usage-win.is-unknown {
+  opacity: 0.55;
+}
+.usage-ctx b {
+  color: var(--ink);
+}
+.usage-ctx.is-warn b,
+.usage-ctx.is-hot b {
+  color: var(--level);
+}
+.badge-ctx.is-warn,
+.badge-ctx.is-hot {
+  border-color: var(--level);
+  color: var(--level);
+}
+.app.compact .usage-bar {
+  width: 40px;
+}
+.app.compact .usage-left {
+  display: none;
 }
 
 /* ---- the phone button (PhonePair): QR + link for main/remote.ts ---- */

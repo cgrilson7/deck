@@ -1,4 +1,4 @@
-// Where every grid tile sits: two columns, each an ordered list of tile keys — `slot:<n>` (a
+// Where every grid tile sits: two columns (sessions and their packs LEFT, mini apps RIGHT: `homeSide`), each an ordered list of tile keys — `slot:<n>` (a
 // session), `beta:<id>`, `pack:<alpha id>`, or a plugin key (`mol:<n>` for a Molecule tile past the first, `web:<id>` for a web app). The saved order (`gridOrder`, a
 // setting) is written whenever a tile is dragged; a tile it has never seen takes a default place
 // that does not depend on what else is showing, so focusing a session (which takes its tile out
@@ -12,10 +12,9 @@ export interface GridOrder {
   right: string[]
 }
 
-/** A tile to place: its key and the column it goes to when the saved order does not know it. */
+/** A tile to place, by its key. */
 export interface OrderItem {
   key: string
-  prefer: GridSide
 }
 
 export const GRID_ORDER_MAX = 64
@@ -29,40 +28,45 @@ export function isGridKey(k: unknown): k is string {
 const isPlugin = isPluginKey
 
 /**
+ * THE TWO COLUMNS HAVE JOBS. LEFT is where work gets done in the background: every session, beta
+ * and pack, and nothing else. RIGHT is entertainment: the mini apps and the web apps. (The center
+ * is whatever you are on now, either kind.) A key's column is therefore a fact about the key, not
+ * a preference: no drag, picker or saved order can put a tile in the other one.
+ */
+export function homeSide(key: string): GridSide {
+  return isPlugin(key) ? 'right' : 'left'
+}
+
+/**
  * The columns IN FULL: the saved order as it is (keys not showing right now keep their place:
- * the focused session's, a mini app that is off), plus every item it does not know — a session,
- * beta or pack right after the last of those in its preferred column (so they stay ahead of the
- * mini apps), a mini app at the end of its. What is drawn is this, filtered to what is showing.
+ * the focused session's, a mini app that is off) with every key in its home column — one saved
+ * on the wrong side (an order from before the columns had jobs) follows the keys that were
+ * already there — plus every item the order does not know, at the foot of its column. What is
+ * drawn is this, filtered to what is showing.
  */
 export function arrange(items: OrderItem[], order: GridOrder): GridOrder {
-  const left = [...new Set(order.left)]
-  const right = [...new Set(order.right)].filter((k) => !left.includes(k))
-  const cols = { left, right }
+  const saved = [...new Set([...order.left, ...order.right])]
+  const cols: GridOrder = { left: [], right: [] }
+  for (const side of ['left', 'right'] as const) {
+    const here = new Set(order[side])
+    cols[side] = [...saved.filter((k) => homeSide(k) === side && here.has(k)), ...saved.filter((k) => homeSide(k) === side && !here.has(k))]
+  }
   for (const it of items) {
-    if (left.includes(it.key) || right.includes(it.key)) continue
-    const col = cols[it.prefer]
-    if (isPlugin(it.key)) col.push(it.key)
-    else {
-      let at = 0
-      col.forEach((k, i) => {
-        if (!isPlugin(k)) at = i + 1
-      })
-      col.splice(at, 0, it.key)
-    }
+    const col = cols[homeSide(it.key)]
+    if (!col.includes(it.key)) col.push(it.key)
   }
   return cols
 }
 
-/** `full` with `key` moved to `side`, before / after `target` (null = the end of the column). */
-export function moved(full: GridOrder, key: string, side: GridSide, target: string | null, after = false): GridOrder {
+/** `full` with `key` moved before / after `target` in ITS OWN column (null, or a target in the other one = the end). */
+export function moved(full: GridOrder, key: string, target: string | null, after = false): GridOrder {
   const out = { left: full.left.filter((k) => k !== key), right: full.right.filter((k) => k !== key) }
-  const col = out[side]
+  const col = out[homeSide(key)]
   const i = target === null || target === key ? -1 : col.indexOf(target)
   if (i < 0) col.push(key)
   else col.splice(i + (after ? 1 : 0), 0, key)
   return out
 }
-
 /** What is worth writing down: keys not showing are kept only when they can come back (a slot, a mini app). */
 export function pruned(full: GridOrder, showing: Set<string>): GridOrder {
   const keep = (k: string) => showing.has(k) || isPlugin(k) || k.startsWith('slot:')

@@ -374,6 +374,8 @@ class World {
       onSettings: this.settingsEv.on,
       chooseDefaultCwd: async () => '',
       chooseDir: async () => '',
+      usage: async () => ({ fiveHour: null, sevenDay: null, at: 0, context: {} }),
+      onUsage: () => () => {},
       agents: async () => this.agents,
       onAgents: this.agentsEv.on,
       foxLog: async () => this.fox,

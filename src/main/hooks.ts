@@ -19,7 +19,8 @@
 
 
 import { createServer, type Server } from 'node:http'
-import { appendFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 export type HookEvent = 'Notification' | 'Stop' | 'UserPromptSubmit' | 'SubagentStart' | 'SubagentStop' | 'PreToolUse'
@@ -69,6 +70,8 @@ const LOG_MAX = 1 << 20
 export class HooksServer {
   private server: Server | null = null
   readonly settingsPath: string
+  /** `POST /status`: a session's status-line JSON (main/usage.ts). Set after construction; not logged, it arrives with every message. */
+  onStatus: ((body: unknown) => void) | null = null
 
   constructor(
     private readonly port: number,
@@ -99,6 +102,7 @@ export class HooksServer {
   ) {
     this.settingsPath = join(userDataDir, 'claude-hooks.json')
     this.logPath = join(userDataDir, 'hooks.log')
+    this.statusScript = join(userDataDir, 'statusline.sh')
     try {
       if (statSync(this.logPath).size > LOG_MAX) writeFileSync(this.logPath, '')
     } catch {
@@ -116,6 +120,37 @@ export class HooksServer {
     } catch {
       /* not worth a word */
     }
+  }
+
+  /**
+   * USAGE rides the status line: the CLI hands its `statusLine` command the session's status JSON
+   * (context window, and for a subscriber `rate_limits`) — the only documented place the account's
+   * 5-hour / weekly windows appear. `statusLine` is ONE object, so ours REPLACES the user's rather
+   * than merging with it; the script therefore posts the JSON to /status in the background and
+   * then runs the user's own command (read from their settings.json when this file is written)
+   * on the same input, so what they see under the prompt is unchanged. No command of theirs =
+   * it prints nothing.
+   */
+  private readonly statusScript: string
+  private writeStatusScript(): Record<string, unknown> {
+    let theirs: { type?: string; command?: string; padding?: number } = {}
+    try {
+      const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
+      theirs = (JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')).statusLine ?? {}) as typeof theirs
+    } catch {
+      /* no settings of theirs, or none we can read */
+    }
+    const own = theirs.type === 'command' && typeof theirs.command === 'string' && !theirs.command.includes(this.statusScript) ? theirs.command : ''
+    const script = [
+      '#!/bin/bash',
+      '# Written by the deck at every boot (main/hooks.ts): usage for the header, then your own status line.',
+      'input=$(cat)',
+      `printf '%s' "$input" | curl -s -m 2 -X POST http://127.0.0.1:${this.port}/status -H 'content-type: application/json' --data-binary @- >/dev/null 2>&1 &`,
+      own ? `printf '%s' "$input" | (\n${own}\n)` : ':',
+      ''
+    ].join('\n')
+    writeFileSync(this.statusScript, script, { mode: 0o755 })
+    return { type: 'command', command: `bash '${this.statusScript.replace(/'/g, `'\\''`)}'`, ...(typeof theirs.padding === 'number' ? { padding: theirs.padding } : {}) }
   }
 
   private writeSettingsFile(): void {
@@ -141,6 +176,7 @@ export class HooksServer {
       ]
     })
     const settings = {
+      statusLine: this.writeStatusScript(),
       env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript },
       hooks: {
         Notification: [post('notification')],
@@ -191,6 +227,16 @@ export class HooksServer {
                 res.end()
               }
             )
+            return
+          }
+          if (path === 'status') {
+            res.statusCode = 204
+            res.end()
+            try {
+              this.onStatus?.(payload)
+            } catch {
+              /* a bad payload is nobody's problem */
+            }
             return
           }
           if (path !== 'gameboy') this.log(path, payload)

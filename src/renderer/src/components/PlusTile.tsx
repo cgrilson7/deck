@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
-import { patchSettings, useSettings } from '../lib/theme'
+import type { GridSide } from '@shared/gridorder'
+import { useSettings } from '../lib/theme'
 import { ParkedCard, StartCard } from './SessionForm'
 
 /** What the picker hands the grid: a mini app's key, or a web app's grid key (`web:<id>`). */
@@ -66,26 +67,27 @@ export const PLUGINS: {
 ]
 
 /**
- * The + at the foot of each grid column: click opens the PICKER, a modal over the window — a row
- * of pills for the mini apps (turned on if off, and moved to the foot of this column), and below
- * the cap THE LAUNCHER'S SESSION FORM (`StartCard`: the focused session's folder first, recents,
+ * The + at the foot of each grid column: click opens the PICKER, a modal over the window, and
+ * what it offers is the column's job. RIGHT (entertainment): a row of pills for the mini apps
+ * (turned on if off, and moved to the foot of the column) and the web apps. LEFT (work), below
+ * the cap: THE LAUNCHER'S SESSION FORM (`StartCard`: the focused session's folder first, recents,
  * a folder dialog or a new project, worktree / model / permission mode, a name, a first prompt)
  * and its parked sessions (`ParkedCard`). ⌘N in the menu bar is the no-questions path.
  */
-export function PlusTile({ state, onPlace, canAdd }: { state: DeckState; /** A mini app picked: the grid puts it at the foot of this +'s column (`add` = a web app registered just now). */ onPlace: (key: Placed, add?: WebApp) => void; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
+export function PlusTile({ side, state, onPlace, canAdd }: { side: GridSide; state: DeckState; /** A mini app picked: the grid puts it at the foot of this +'s column (`add` = a web app registered just now). */ onPlace: (key: Placed, add?: WebApp) => void; /** False at the session cap: the left + has only a note to show. */ canAdd: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="tile tile-plus">
-      <button className="plus" title={canAdd ? 'New session or mini app here… (⌘N starts a session without asking)' : 'A mini app here… (every session slot is open)'} onClick={() => setOpen(true)}>
+      <button className="plus" title={side === 'right' ? 'A mini app or a web app here…' : canAdd ? 'New session here… (⌘N starts one without asking)' : 'Every session slot is open'} onClick={() => setOpen(true)}>
         +
       </button>
-      {open && createPortal(<Picker state={state} onPlace={onPlace} canAdd={canAdd} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<Picker side={side} state={state} onPlace={onPlace} canAdd={canAdd} onClose={() => setOpen(false)} />, document.body)}
     </div>
   )
 }
 
-function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace: (key: Placed, add?: WebApp) => void; canAdd: boolean; onClose: () => void }) {
+function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; state: DeckState; onPlace: (key: Placed, add?: WebApp) => void; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
   const shown = new Set(pluginCells(settings))
@@ -118,57 +120,61 @@ function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace
     <div className="picker-scrim" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="picker" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Fill this cell">
         <header className="picker-head">
-          <span className="picker-title">{canAdd ? 'A session or a mini app here' : 'A mini app here'}</span>
-          {!canAdd && <span className="picker-note">every session slot is open</span>}
+          <span className="picker-title">{side === 'right' ? 'A mini app here' : 'A session here'}</span>
+          {side === 'left' && !canAdd && <span className="picker-note">every session slot is open</span>}
           <span className="spacer" />
           <button className="doc-btn" title="Close (Esc)" onClick={onClose}>
             <X size={14} />
           </button>
         </header>
-        <section className="picker-row">
-          <h4>Mini app</h4>
-          <div className="pills">
-            {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => (
-              <button key={p.key} className="pill" onClick={() => place(p)} title={p.hint}>
-                {p.label}
-                {shown.has(p.key) && <small>{p.key === 'mol' && nextMolTile(settings.molTiles) !== null ? 'another here' : 'move here'}</small>}
-              </button>
-            ))}
-          </div>
-        </section>
-        <section className="picker-row">
-          <h4>Web app</h4>
-          <div className="pills">
-            {settings.webApps.map((a) => (
-              <button
-                key={a.id}
-                className="pill"
-                title={a.url}
-                onClick={() => {
-                  onClose()
-                  onPlace(webKey(a.id) as Placed)
-                }}
-              >
-                {a.name}
-                {a.show && <small>move here</small>}
-              </button>
-            ))}
-            <form
-              className="web-add"
-              onSubmit={(e) => {
-                e.preventDefault()
-                addWeb()
-              }}
-            >
-              <input value={webName} onChange={(e) => setWebName(e.target.value)} placeholder="name" maxLength={40} spellCheck={false} />
-              <input className="web-add-url" value={webUrl} onChange={(e) => setWebUrl(e.target.value)} placeholder="maptap.gg" spellCheck={false} />
-              <button className="pill" type="submit" disabled={!url || full} title={full ? `${WEB_APPS_MAX} web apps at most` : 'A tile for this site; it opens in the center column and stays signed in'}>
-                add
-              </button>
-            </form>
-          </div>
-        </section>
-        {canAdd && (
+        {side === 'right' && (
+          <>
+            <section className="picker-row">
+              <h4>Mini app</h4>
+              <div className="pills">
+                {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => (
+                  <button key={p.key} className="pill" onClick={() => place(p)} title={p.hint}>
+                    {p.label}
+                    {shown.has(p.key) && <small>{p.key === 'mol' && nextMolTile(settings.molTiles) !== null ? 'another here' : 'move here'}</small>}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section className="picker-row">
+              <h4>Web app</h4>
+              <div className="pills">
+                {settings.webApps.map((a) => (
+                  <button
+                    key={a.id}
+                    className="pill"
+                    title={a.url}
+                    onClick={() => {
+                      onClose()
+                      onPlace(webKey(a.id) as Placed)
+                    }}
+                  >
+                    {a.name}
+                    {a.show && <small>move here</small>}
+                  </button>
+                ))}
+                <form
+                  className="web-add"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    addWeb()
+                  }}
+                >
+                  <input value={webName} onChange={(e) => setWebName(e.target.value)} placeholder="name" maxLength={40} spellCheck={false} />
+                  <input className="web-add-url" value={webUrl} onChange={(e) => setWebUrl(e.target.value)} placeholder="maptap.gg" spellCheck={false} />
+                  <button className="pill" type="submit" disabled={!url || full} title={full ? `${WEB_APPS_MAX} web apps at most` : 'A tile for this site; it opens in the center column and stays signed in'}>
+                    add
+                  </button>
+                </form>
+              </div>
+            </section>
+          </>
+        )}
+        {side === 'left' && canAdd && (
           <div className="launcher launcher-cards picker-cards">
             <StartCard state={state} settings={settings} canAdd={canAdd} focused={cwd} onStarted={onClose} />
             {state.parked.length > 0 && <ParkedCard state={state} canAdd={canAdd} onDone={onClose} />}

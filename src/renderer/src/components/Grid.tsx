@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { PLUGIN_KEYS, molKey, molTileOf, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
-import { arrange, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
+import { arrange, homeSide, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
 import { PLUGINS, PlusTile, type Placed } from './PlusTile'
 import { Tile } from './Tile'
@@ -20,17 +20,19 @@ import { patchSettings, useSettings } from '../lib/theme'
 export type Member = { kind: 'agent'; agent: AgentView; parent: SessionView | null } | { kind: 'beta'; session: SessionView }
 
 /**
- * The grid: two columns of tiles either side of the focus pane, EACH ITS OWN ENDLESS SCROLL.
+ * The grid: two columns of tiles either side of the focus pane, EACH ITS OWN ENDLESS SCROLL,
+ * and each with a job (`homeSide`): the LEFT is work in the background — every session, beta and
+ * pack, nothing else — the RIGHT is entertainment, the mini apps and web apps. A tile drags
+ * anywhere WITHIN its column; the other column does not take it (no drop bar shows there).
  * `gridRows` is how many tiles fill a column's height (so it sets the tile height) and
  * `gridColumns` how many sit side by side in one; past that the column scrolls, snapping
- * loosely to tile tops. No pages. EVERY tile can be dragged ANYWHERE in either column by its
+ * loosely to tile tops. No pages. EVERY tile can be dragged anywhere in its column by its
  * grip (⠿, top right on hover): a session, a beta, a pack, a mini app. A drop lands before or
  * after the tile under the pointer (a bar shows where), or at the foot of a column on its +,
  * and the whole arrangement is written to the `gridOrder` setting (`shared/gridorder.ts`).
- * A tile nobody has placed takes a default that does not depend on what else is showing —
- * a session by its slot (odd left, even right), a beta or a pack beside its alpha, a mini app
- * by its place in PLUGIN_KEYS — sessions and packs ahead of the mini apps; View ▸ Grid ▸ Reset
- * Layout goes back to that. Each column ends in a + (the picker). A tile that needs you and is
+ * A tile nobody has placed goes to the foot of its column, in an order that does not depend on
+ * what else is showing (sessions by slot, then betas and packs; mini apps as PLUGIN_KEYS has
+ * them, then web apps); View ▸ Grid ▸ Reset Layout goes back to that. Each column ends in a + (the picker). A tile that needs you and is
  * scrolled out of sight raises a chip at that edge of its column; click = scroll to it. A
  * mini app's × puts it away; its tinted frame keeps it from passing for a session.
  */
@@ -39,11 +41,9 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
   const canAdd = state.open.filter((s) => !s.pack).length < state.cap
 
   const items = useMemo(() => {
-    const sideOf = (slot: number | null | undefined): GridSide => ((slot ?? 1) % 2 === 1 ? 'left' : 'right')
     const out: Item[] = sessions.map((s) => ({
       key: `slot:${s.slot}`,
       kind: 'session',
-      prefer: sideOf(s.slot),
       needy: s.attention || s.status === 'blocked',
       node: <Tile session={s} />
     }))
@@ -52,24 +52,22 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
     const seen = new Set<string>()
     for (const m of members) {
       if (m.kind === 'beta') {
-        const alpha = state.open.find((s) => s.id === m.session.pack!.alpha)
-        out.push({ key: `beta:${m.session.id}`, kind: 'member', prefer: sideOf(alpha?.slot), needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
+        out.push({ key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
         continue
       }
       const alpha = m.agent.parent
       if (seen.has(alpha)) continue
       seen.add(alpha)
       const pack = members.flatMap((x) => (x.kind === 'agent' && x.agent.parent === alpha ? [x.agent] : []))
-      out.push({ key: `pack:${alpha}`, kind: 'member', prefer: sideOf(m.parent?.slot), needy: pack.some((a) => a.held), node: <PackTile alpha={m.parent} agents={pack} openId={openAgent} /> })
+      out.push({ key: `pack:${alpha}`, kind: 'member', needy: pack.some((a) => a.held), node: <PackTile alpha={m.parent} agents={pack} openId={openAgent} /> })
     }
     for (const k of pluginCells(settings)) {
-      const prefer: GridSide = PLUGIN_KEYS.indexOf(k) % 2 === 0 ? 'left' : 'right'
-      // The Molecule plugin is as many cells as there are Molecule tiles, the sides taken in turn.
-      if (k === 'mol') for (const n of settings.molTiles) out.push({ key: molKey(n), kind: 'plugin', prefer: n % 2 === 1 ? prefer : prefer === 'left' ? 'right' : 'left', needy: false, node: <MolTile tile={n} /> })
-      else out.push({ key: k, kind: 'plugin', prefer, needy: false, node: plugin(k, settings, focused) })
+      // The Molecule plugin is as many cells as there are Molecule tiles.
+      if (k === 'mol') for (const n of settings.molTiles) out.push({ key: molKey(n), kind: 'plugin', needy: false, node: <MolTile tile={n} /> })
+      else out.push({ key: k, kind: 'plugin', needy: false, node: plugin(k, settings, focused) })
     }
-    // The web apps after them, a cell each, the sides taken in turn.
-    settings.webApps.forEach((a, i) => a.show && out.push({ key: webKey(a.id), kind: 'plugin', prefer: i % 2 === 0 ? 'right' : 'left', needy: false, node: <WebTile app={a} /> }))
+    // The web apps after them, a cell each.
+    settings.webApps.forEach((a) => a.show && out.push({ key: webKey(a.id), kind: 'plugin', needy: false, node: <WebTile app={a} /> }))
     return out
   }, [sessions, members, settings, focused, openAgent, state.open])
 
@@ -81,8 +79,8 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
   // The tile that was just dropped: its column scrolls it into view once it is drawn in its new place.
   const [landed, setLanded] = useState<{ key: string; n: number } | null>(null)
   const onDrop = (key: string, side: GridSide, target: string | null, after: boolean) => {
-    if (key === target) return
-    save(moved(full, key, side, target, after))
+    if (key === target || homeSide(key) !== side) return
+    save(moved(full, key, target, after))
     setLanded((l) => ({ key, n: (l?.n ?? 0) + 1 }))
   }
 
@@ -103,12 +101,12 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
             const web = webAppOf(k)
             if (web !== null) {
               const apps: WebApp[] = add ? [...settings.webApps, add] : settings.webApps
-              return save(moved(full, k, side, null), { webApps: apps.map((a) => (a.id === web ? { ...a, show: true } : a)) })
+              return save(moved(full, k, null), { webApps: apps.map((a) => (a.id === web ? { ...a, show: true } : a)) })
             }
             // The Molecule pill while one is already showing = ANOTHER Molecule tile, at the foot of this column.
             const n = k === 'mol' && settings.showMol ? nextMolTile(settings.molTiles) : null
-            if (n !== null) save(moved(full, molKey(n), side, null), { molTiles: [...settings.molTiles, n] })
-            else save(moved(full, k === 'mol' ? molKey(settings.molTiles[0]) : k, side, null), { [PLUGINS.find((p) => p.key === k)!.setting]: true } as Partial<DeckSettings>)
+            if (n !== null) save(moved(full, molKey(n), null), { molTiles: [...settings.molTiles, n] })
+            else save(moved(full, k === 'mol' ? molKey(settings.molTiles[0]) : k, null), { [PLUGINS.find((p) => p.key === k)!.setting]: true } as Partial<DeckSettings>)
           }}
         />
       ))}
@@ -119,8 +117,6 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
 interface Item {
   key: string
   kind: 'session' | 'member' | 'plugin'
-  /** The column it takes while `gridOrder` does not name it. */
-  prefer: GridSide
   needy: boolean
   node: ReactNode
 }
@@ -183,7 +179,7 @@ function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace 
   }, [stopScroll])
   const onDragOver = (e: React.DragEvent) => {
     const el = box.current
-    if (!el || !e.dataTransfer.types.includes(MIME)) return
+    if (!el || !e.dataTransfer.types.includes(mimeOf(side))) return
     if (!dragging) setDragging(true)
     const r = el.getBoundingClientRect()
     const up = r.top + EDGE - e.clientY
@@ -217,7 +213,7 @@ function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace 
             <GridCell key={c.key} cell={c} side={side} across={settings.gridColumns > 1} onDrop={onDrop} />
           ))}
           <GridCell cell={null} side={side} across={false} onDrop={onDrop}>
-            <PlusTile state={state} onPlace={onPlace} canAdd={canAdd} />
+            <PlusTile side={side} state={state} onPlace={onPlace} canAdd={canAdd} />
           </GridCell>
         </div>
       </div>
@@ -258,6 +254,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
 }
 
 const MIME = 'application/x-deck-tile'
+/** A second type on every drag names the column the tile belongs to: a dragover cannot read the key, only the types. */
+const mimeOf = (side: GridSide): string => `${MIME}-${side}`
 /** Autoscroll during a drag: how close to a column's edge it starts (px), and its top speed (px a frame). */
 const EDGE = 72
 const MAX_SPEED = 18
@@ -306,7 +304,7 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
       data-needy={cell?.needy ? '1' : undefined}
       data-key={cell?.key}
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(MIME)) return
+        if (!e.dataTransfer.types.includes(mimeOf(side))) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
         const h = half(e)
@@ -355,12 +353,13 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
         <span
           className="grip"
           draggable
-          title="Drag to anywhere in either column"
+          title="Drag to anywhere in this column"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => {
             e.stopPropagation()
             e.dataTransfer.setData(MIME, cell.key)
+            e.dataTransfer.setData(mimeOf(homeSide(cell.key)), '1')
             e.dataTransfer.effectAllowed = 'move'
             const ghost = dragGhost(el.current, plugin?.label ?? webApp?.name ?? cell.key)
             e.dataTransfer.setDragImage(ghost, ghost.offsetWidth - 14, 12)

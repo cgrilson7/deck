@@ -1,15 +1,13 @@
 // Foxtrot's log as the renderer sees it: what main kept (main/foxtrot.ts), plus each entry as
-// he makes it. `live` is the newest entry that arrived while we were listening — never one
-// loaded at boot or after a UI refresh — which is what makes the head in the top bar bark.
+// he makes it.
 
 import { useEffect, useState } from 'react'
 import type { FoxEntry } from '@shared/types'
 
 const KEEP = 1000
 
-export function useFoxLog(): { entries: FoxEntry[]; live: FoxEntry | null } {
+export function useFoxLog(): FoxEntry[] {
   const [entries, setEntries] = useState<FoxEntry[]>([])
-  const [live, setLive] = useState<FoxEntry | null>(null)
 
   useEffect(() => {
     let on = true
@@ -23,7 +21,6 @@ export function useFoxLog(): { entries: FoxEntry[]; live: FoxEntry | null } {
     })
     const off = window.deck.onFoxEntry((e) => {
       setEntries((cur) => (cur.some((x) => x.id === e.id) ? cur : [...cur, e].slice(-KEEP)))
-      setLive(e)
     })
     return () => {
       on = false
@@ -31,5 +28,5 @@ export function useFoxLog(): { entries: FoxEntry[]; live: FoxEntry | null } {
     }
   }, [])
 
-  return { entries, live }
+  return entries
 }

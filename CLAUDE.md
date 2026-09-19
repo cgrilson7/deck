@@ -56,6 +56,8 @@ src/main/hooks.ts          local HTTP server + the --settings hooks file for ins
                              and POST /studio, the Studio's,
                              and POST /gameboy + POST /mol, the doors to the renderer's Game Boy and molecule viewer (main/index.ts relays both),
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
+src/main/usage.ts          USAGE for the header: every session's status line POSTs the CLI's status JSON to /status → the account's 5-hour / weekly
+                             windows + each session's context % (`usage:update`; windows kept in userData/usage.json)
 src/main/agents.ts         subagents as tiles + THE LEASH: SubagentStart/Stop hooks → the list, names off the parent's Agent call, transcripts
                              handed to the tailer; pause / resume / cancel of any member (subagent or beta), the alpha told in its terminal
 src/main/pack.ts           beta SESSIONS: an alpha (a session inside the deck) spawns / asks after / talks to / dismisses Opus sessions of its own
@@ -112,15 +114,16 @@ src/renderer/src/3dmol.d.ts         the slice of 3Dmol lib/mol.ts uses, for the 
 src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
-src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live) and the newest live one, which makes him bark
+src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live), for his log
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
+src/renderer/src/lib/usage.ts       useUsage() (one store for the header's meters and the tiles' context badges), the 70 / 90 thresholds, left()
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
 src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two scrolling side columns + drag anywhere), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     PackTile (a session's subagents as one cell: a roster of miniature foxes), AgentPane (a subagent full size in the center column), AgentStatus (pip + word + clock),
                                     LeashButtons (⏸ ▶ ✕ on a member's head),
                                     LeashDialog (the reason for a cancel, a note for a pause),
-                                    DocPane (the file preview over the grid), FoxHead (Foxtrot + his last barks, top bar), FoxLog (his whole log),
+                                    DocPane (the file preview over the grid), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
@@ -128,7 +131,9 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
                                     WebTile (a web app as a plugin cell: its last snapshot, a door), WebLayer (the ALWAYS-MOUNTED webviews in the center column),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
-                                    PhonePair (the top-bar phone button: QR + link + the serve switch)
+                                    PhonePair (the top-bar phone button: QR + link + the serve switch),
+                                    HeaderStatus (the top bar's chips: working · need you · held · unattended, each a way to what it counts),
+                                    UsageMeter (the top bar's 5h / 7d windows + the focused session's context), ContextBadge (a tile head's `ctx 78%`, from 50%)
 ad/                        THE AD, a film of the deck made FROM the deck: its own Vite root that mounts the real `App` against a scripted fake
                              `window.deck` (src/world.ts, the phone's trick; src/tui.ts fakes Claude Code's TUI as bytes into the real xterm),
                              src/script.ts = the storyboard in seconds (sessions' beats, camera, Foxtrot-the-cursor, captions),
@@ -172,6 +177,40 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   grid's columns then. A saved record whose slot
   is above the cap is parked on load. Betas (below) sit at `BETA_SLOT_BASE` (100) and up: sticky
   too, never in the ⌘ range, never counted.
+- **THE COLUMNS HAVE JOBS** (`homeSide` in `shared/gridorder.ts`): the LEFT column is where work
+  gets done in the background — every session, beta and pack, and NOTHING ELSE; the RIGHT column
+  is entertainment — the mini apps (Changes included: it is a plugin cell) and the web apps; the
+  CENTER is whatever you are on now, work or play. A key's column is a fact about the key, so
+  this OVERRIDES what the grid rule below still says about tiles dragging to "either column",
+  per-tile default sides (odd / even slots, a pack on its alpha's side, mini apps alternating)
+  and a `+` that offers everything: a tile drags anywhere WITHIN its column (a drag carries a
+  second MIME type naming its column, so the other one shows no drop bar and takes no drop),
+  `arrange()` moves a key saved on the wrong side (an order from before this) to the foot of its
+  own, `moved()` takes no side, the LEFT `+` opens the session form + parked list only and the
+  RIGHT `+` the mini-app and web-app pills only.
+- **The top bar beside Foxtrot** (`HeaderStatus`, `UsageMeter`, `lib/usage.ts`, `main/usage.ts`):
+  ONE ROW that never wraps (`.topbar-tools` is `nowrap`; the chips clip first). The CHIPS are the
+  deck in a few words — `3 working · 2 need you · 1 held · 2 unattended` — each only there above
+  zero and each NAVIGATION ONLY: working / unattended step focus through the sessions they count,
+  need-you is `jumpAttention` (it skips the focused session), held opens the held agent in the
+  center; nothing in the header stops or kills. `unattended` = top-level sessions whose
+  `permissionMode` is `risky` in `PERMISSION_MODES`. USAGE is Claude Code's own numbers, never an
+  estimate of ours: the hooks `--settings` file carries a `statusLine` whose command is
+  `userData/statusline.sh` (written at boot by `HooksServer.writeStatusScript`), which POSTs the
+  CLI's status JSON to `/status` in the background and THEN RUNS THE USER'S OWN statusLine
+  command (read from `<CLAUDE_CONFIG_DIR|~/.claude>/settings.json` at that moment; `statusLine`
+  is one object, so ours replaces theirs rather than merging — hence the pass-through; a
+  project-level statusLine is not seen) on the same stdin, so the line under the prompt is
+  unchanged. `/status` is not logged (it arrives with every message) and reaches
+  `hooks.onStatus`, a FIELD set after construction, not a constructor argument. `UsageTracker`
+  keeps `rate_limits.five_hour / seven_day` (subscribers only, after a session's first reply;
+  `used_percentage`, `resets_at` in epoch seconds) as ONE pair for the account — each session
+  knows them only as of its own last response, so the later window wins and within a window the
+  higher percentage — persisted to `userData/usage.json`, dropped once `resets_at` passes; and
+  `context_window.used_percentage` per deck session, in memory. The meters show % USED and time
+  LEFT ("⟳ 2h 14m"), a dash when nobody has reported; amber from 70, red from 90 (`USAGE_WARN` /
+  `USAGE_HOT`), the level in the tooltip's words too. A tile's head shows `ctx n%` from 50%.
+  Sessions started before this existed report nothing until restarted. Not on the phone.
 - **The grid** (`Grid.tsx`, `shared/gridorder.ts`): TWO columns of tiles either side of the focus
   pane (`.main` is tiles · focus · tiles; `focusWidth` sets the center's share), EACH ITS OWN
   ENDLESS SCROLL — no pages, no arrows, no dots. `gridRows` (4) is how many tiles fill a column's
@@ -648,12 +687,13 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Entries append to `userData/foxtrot.jsonl` (compacted to the last 2000 past 5000; 1000 kept in
   memory), pushed as `fox:entry`, fetched with `fox:log`.
   The top bar is TALL for him (88px, 52px compact; main's `lightsAt()` centers the traffic lights
-  to match): the fox at 4× (2× compact), posed for the whole deck (alert when something is blocked
-  or for a minute after a bark, looking around while any session works, asleep with none open,
-  else the tail wag), a speech bubble with his last THREE barks (newest on top, "4m" ages, faded
-  past 30 min), and `.topbar-tools` on the right, a wrapping row that is where new buttons and
-  dropdowns go. A bark that arrives live makes him bark (`foxBark`); loaded ones never do. The fox,
-  the bubble, or ⌘J (View ▸ Foxtrot's Log) opens the whole log in the `.doc` pane over the grid —
+  to match): the fox at 4× (2× compact) AND NOTHING ELSE — no speech bubble, and the big fox NEVER
+  BARKS or sits up alert: he is not a voice addressing the user, only the sessions' foxes summed
+  up (`FoxHead`). Any session busy = he trots (`run`); every open session resting (idle, no
+  attention) or none open = asleep; anything else (starting, needing you, dead) = he stands
+  looking back and forth (`look`). What needs you is told by that session's own fox. Then
+  `.topbar-tools` on the right, a wrapping row that is where new buttons and dropdowns go. The
+  fox or ⌘J (View ▸ Foxtrot's Log) opens the whole log in the `.doc` pane over the grid —
   a day at a time, "barks only" toggle, session chips that focus, path chips that preview. The log
   and the file preview are one pane at a time.
 - **Tiles are conversations, not terminals** (`ChatView`, `main/transcript.ts`): a grid tile
@@ -843,6 +883,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
+- `usage.json` — the account's rate-limit windows as last reported (see the top bar rule); delete freely
+- `statusline.sh` — the status-line command of every deck session, rewritten at each boot (posts to `/status`, then runs the user's own)
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect

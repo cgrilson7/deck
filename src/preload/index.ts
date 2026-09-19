@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, AgentView, DeckApi, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -92,6 +92,12 @@ const api: DeckApi = {
   },
   chooseDefaultCwd: () => ipcRenderer.invoke('settings:chooseDefaultCwd') as Promise<string>,
   chooseDir: (title?: string) => ipcRenderer.invoke('deck:chooseDir', title) as Promise<string>,
+  usage: () => ipcRenderer.invoke('usage:get') as Promise<DeckUsage>,
+  onUsage: (cb) => {
+    const h = (_e: unknown, u: DeckUsage) => cb(u)
+    ipcRenderer.on('usage:update', h)
+    return () => ipcRenderer.removeListener('usage:update', h)
+  },
   agents: () => ipcRenderer.invoke('agents:list') as Promise<AgentView[]>,
   onAgents: (cb) => {
     const h = (_e: unknown, list: AgentView[]) => cb(list)

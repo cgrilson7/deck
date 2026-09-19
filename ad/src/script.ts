@@ -224,7 +224,7 @@ export function film(d: Director, wide: boolean): void {
     { status: 'idle' }
   ])
 
-  /* D — one needs you: Foxtrot barks, a click brings it to the center. */
+  /* D — one needs you: its fox barks, a click brings it to the center. */
   d.cam(13.2, 1.3, tile(3), { w: 0.95, h: 0.5, dy: -40 })
   d.at(14.0, () => {
     world.push('flaky', { kind: 'tool', id: 'push', name: 'Bash', label: 'git push --force-with-lease origin fix/cache-race', ts: Date.now(), done: false, error: false })
@@ -233,7 +233,6 @@ export function film(d: Director, wide: boolean): void {
     world.bark('“flaky test hunt” wants permission: git push --force-with-lease', ['flaky'])
   })
   d.caption(14.2, 4.4, 'Foxtrot barks', 'the moment a session needs you')
-  d.cam(15.3, 1.0, '.fox-head', { w: 1.7, h: 0.5, ax: 0.3 })
   d.cam(16.9, 1.0, tile(3), { w: 0.95, h: 0.5, dy: -40 })
   d.fox(16.7, 1.1, tile(3), 0.5, 0.45)
   d.click(17.9, inside(tile(3), '.tile'))

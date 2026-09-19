@@ -4,6 +4,8 @@ import type { AgentView, DeckState } from '@shared/types'
 import { DocPane } from './components/DocPane'
 import { FocusPane } from './components/FocusPane'
 import { FoxHead } from './components/FoxHead'
+import { HeaderStatus } from './components/HeaderStatus'
+import { UsageMeter } from './components/UsageMeter'
 import { FoxLog } from './components/FoxLog'
 import { Grid, type Member } from './components/Grid'
 import { AgentPane } from './components/AgentPane'
@@ -245,16 +247,13 @@ export default function App() {
     for (const a of agents.filter((a) => a.parent === alpha.id)) members.push({ kind: 'agent', agent: a, parent: alpha })
   }
   const alphaOf = focused?.pack ? (top.find((a) => a.id === focused.pack!.alpha) ?? null) : null
-  const needy = state.open.filter((s) => s.attention && s.slot !== state.focusSlot).length
 
   return (
     <div className={`app ${settings.compact ? 'compact' : ''}`}>
-      {/* Tall on purpose: Foxtrot and his last barks on the left, a roomy tools area on the right. */}
+      {/* Tall on purpose: Foxtrot on the left, a roomy tools area on the right. */}
       <header className="topbar">
         <FoxHead
           state={state}
-          entries={fox.entries}
-          live={fox.live}
           open={foxOpen}
           onToggle={() => {
             setDoc(null)
@@ -263,14 +262,7 @@ export default function App() {
         />
         <div className="topbar-tools">
           <span className="wordmark">deck</span>
-          <span className="count">
-            {top.length} / {state.cap}
-          </span>
-          {needy > 0 && (
-            <button className="needy" onClick={() => window.deck.command({ type: 'jumpAttention' })} title="Jump to the next session that needs you (⌘↩)">
-              {needy} need{needy === 1 ? 's' : ''} you
-            </button>
-          )}
+          <HeaderStatus state={state} agents={agents} />
           {state.profile !== 'deck' && <span className="badge">{state.profile}</span>}
           <button
             className="bar-btn"
@@ -283,6 +275,7 @@ export default function App() {
           <PhonePair />
           <span className="spacer" />
           {error && <span className="error">{error}</span>}
+          <UsageMeter focusId={focused?.id ?? null} />
           <ThemeControls open={themeOpen} onOpenChange={setThemeOpen} />
         </div>
       </header>
@@ -309,7 +302,7 @@ export default function App() {
         <WebLayer apps={settings.webApps} open={openAgent ? null : openWeb} onClose={() => setWebOpen(null)} />
         {/* Over the right column, never over the terminal: read the file while the session keeps going. */}
         {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
-        {foxOpen && <FoxLog state={state} entries={fox.entries} onClose={() => setFoxOpen(false)} />}
+        {foxOpen && <FoxLog state={state} entries={fox} onClose={() => setFoxOpen(false)} />}
       </main>
       {leash && <LeashDialog ask={leash} onClose={() => setLeash(null)} />}
     </div>

@@ -8,6 +8,7 @@ import { useDropTarget } from './useDropTarget'
 import { leashOfBeta } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
+import { ContextBadge } from './ContextBadge'
 
 /**
  * A session's tile: its conversation and a prompt bar. A wolfpack's beta wears the gold coat and
@@ -46,6 +47,7 @@ export function Tile({ session: s }: { session: SessionView }) {
           </span>
         )}
         {s.paused && <span className="badge badge-state is-paused">paused</span>}
+        <ContextBadge id={s.id} />
         {beta && (
           <>
             <span className="spacer" />
