@@ -35,8 +35,49 @@ export function nextMolTile(tiles: number[]): number | null {
   while (tiles.includes(n)) n++
   return n
 }
-/** A grid key that belongs to a mini app: a plugin's own, or one more Molecule tile's. */
-export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null
+/**
+ * A WEB APP: a site registered by name + URL that gets a grid tile of its own (`web:<id>`) and
+ * opens in the CENTER column as a kept-alive <webview> (partition `persist:web`, so a sign-in
+ * lasts). Village is the first; anything that runs in a browser can be another.
+ */
+export interface WebApp {
+  /** A slug, unique among the apps: the grid key's tail and the snapshot's name. */
+  id: string
+  name: string
+  /** http(s) only; where the webview starts and what "home" goes back to. */
+  url: string
+  /** Whether its tile is in the grid (× puts it away; the registration stays). */
+  show: boolean
+}
+/** Each opened app is a renderer process of its own, kept until the window reloads. */
+export const WEB_APPS_MAX = 12
+export const WEB_APPS_DEFAULT: WebApp[] = [{ id: 'village', name: 'Village', url: 'https://villagenotes.app/dream', show: true }]
+const WEB_ID = /^[a-z0-9][a-z0-9-]{0,23}$/
+export const isWebAppId = (id: unknown): id is string => typeof id === 'string' && WEB_ID.test(id)
+export const webKey = (id: string): string => `web:${id}`
+/** The app id of a grid key, or null when it is not a web app's. */
+export const webAppOf = (key: string): string | null => (key.startsWith('web:') && isWebAppId(key.slice(4)) ? key.slice(4) : null)
+/** What was typed as a URL ("maptap.gg"), as one a webview may load: https:// when no scheme, http(s) only. */
+export function cleanWebUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  const t = raw.trim()
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `${/^(localhost|127\.0\.0\.1)(:|\/|$)/.test(t) ? 'http' : 'https'}://${t}`)
+    return (u.protocol === 'https:' || u.protocol === 'http:') && u.hostname ? u.href : null
+  } catch {
+    return null
+  }
+}
+/** A free id for an app of this name. */
+export function webAppId(name: string, taken: string[]): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20) || 'app'
+  let id = base
+  for (let n = 2; taken.includes(id); n++) id = `${base}-${n}`
+  return id
+}
+
+/** A grid key that belongs to a mini app: a plugin's own, one more Molecule tile's, or a web app's. */
+export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
 export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showMol'>): PluginKey[] {
@@ -495,6 +536,8 @@ export interface DeckSettings {
   showMol: boolean
   /** The Molecule tiles that exist, by number (a viewer and a scene each; `molKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   molTiles: number[]
+  /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
+  webApps: WebApp[]
   /** The Pokemon tile (Game Boy Color emulator: serverboy). */
   showPokemon: boolean
   /** Where to look for .gbc/.gb ROMs. */
@@ -550,6 +593,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   vocabCycleSeconds: 30,
   showMol: false,
   molTiles: [1],
+  webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
   pokemonRomDir: '~/Downloads',
   showGit: true,
@@ -768,7 +812,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleWeb'; id?: string }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -911,6 +955,8 @@ export interface DeckApi {
   pokemonLoadState(name: string, slot: number | string): Promise<Uint8Array | null>
   /** Write a screenshot's PNG bytes under userData/pokemon/trainer and return its path (a small rotation of files). */
   pokemonShot(bytes: Uint8Array): Promise<string>
+  /** A small JPEG (a data: URL) of a web app's webview as it looks now, for its tile; '' when there is nothing to take. */
+  webSnap(webContentsId: number): Promise<string>
   /** The trainer's door: main relays `POST /gameboy` here; the renderer answers with `gameboyReply`. */
   onGameboy(cb: (req: GameboyRequest) => void): () => void
   gameboyReply(id: string, result: unknown): void

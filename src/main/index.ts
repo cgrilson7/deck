@@ -23,6 +23,7 @@ import { Spotify, spotifyItems } from './spotify'
 import { SpotifyApi } from './spotifyapi'
 import { SpotifyAuth } from './spotifyauth'
 import { setupYoutubeSession } from './youtube'
+import { guardWebviews, setupWebSession, webSnap } from './webapps'
 import { keepDrop, type DroppedFile } from './drops'
 import { readDoc, resolveRef } from './files'
 import { gitChanges, gitDiff } from './git'
@@ -107,6 +108,7 @@ function createWindow(): void {
     void shell.openExternal(url)
     return { action: 'deny' }
   })
+  guardWebviews(win)
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
@@ -262,6 +264,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('pokemon:saveState', (_e, name: string, slot: number | string, data: Uint8Array) => pokemon.saveState(String(name ?? ''), slot ?? 0, data ?? new Uint8Array()))
   ipcMain.handle('pokemon:loadState', (_e, name: string, slot: number | string) => pokemon.loadState(String(name ?? ''), slot ?? 0))
   ipcMain.handle('pokemon:shot', (_e, bytes: Uint8Array) => pokemon.shot(bytes ?? new Uint8Array()))
+  // Web apps: a tile's snapshot of its own webview.
+  ipcMain.handle('web:snap', (_e, id: number) => webSnap(id))
   // The trainer's door: a POST /gameboy on the hooks server becomes a request to the renderer's
   // emulator (the one on the Pokemon tile) and its answer comes back on gameboy:reply.
   const gbPending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
@@ -537,6 +541,7 @@ app.whenReady().then(async () => {
   if (settings.get().remote) await remote.start()
 
   setupYoutubeSession()
+  setupWebSession()
   // Spotify.app over AppleScript, polled only while the music tile shows that face.
   const spotify = new Spotify(env, (state) => send('spotify:state', state))
   const spotifyWanted = (s: DeckSettings) => s.showMusic && !s.compact && s.music === 'spotify'

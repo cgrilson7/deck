@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, Gamepad2, Image as ImageIcon, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
+import { FolderOpen, Gamepad2, Globe, Image as ImageIcon, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
 import type { DeckSettings, DeckState, StudioInfo, StudioModel, StudioRatio, StudioSize } from '@shared/types'
 import { STUDIO_RATIOS, STUDIO_SIZES } from '@shared/types'
 import { MODELS } from '@shared/models'
@@ -8,6 +8,7 @@ import { plain } from '../lib/errors'
 import { shortPath } from '../lib/format'
 import { openStudio, useStudioJobs } from '../lib/studio'
 import { openPokemon } from '../lib/pokemon'
+import { openWebApp } from '../lib/webapps'
 import { patchSettings, systemDark } from '../lib/theme'
 import { Fox } from './Fox'
 import { PLUGINS } from './PlusTile'
@@ -52,6 +53,11 @@ export function Launcher({ state, settings }: { state: DeckState; settings: Deck
               <button className="lbtn" onClick={openPokemon} title="The Game Boy, full size in this column">
                 <Gamepad2 size={13} /> Pokemon <kbd>⌘⇧G</kbd>
               </button>
+              {settings.webApps.map((a, i) => (
+                <button key={a.id} className="lbtn" onClick={() => openWebApp(a.id)} title={`${a.url}, in this column; it stays signed in`}>
+                  <Globe size={13} /> {a.name} {i === 0 && <kbd>⌘⇧B</kbd>}
+                </button>
+              ))}
             </div>
           </div>
         </header>
@@ -199,6 +205,15 @@ function AppsCard({ settings }: { settings: DeckSettings }) {
             </label>
           )
         })}
+        {settings.webApps.map((a) => (
+          <label key={a.id} className={`lcheck ${a.show ? 'on' : ''}`}>
+            <input type="checkbox" checked={a.show} onChange={(e) => patchSettings({ webApps: settings.webApps.map((w) => (w.id === a.id ? { ...w, show: e.target.checked } : w)) })} />
+            <span>
+              <b>{a.name}</b>
+              <small>A web app: {a.url} in the center column (a + in the grid registers another)</small>
+            </span>
+          </label>
+        ))}
       </div>
       <div className="lset">
         <span className="lset-label">Music face</span>
@@ -463,6 +478,7 @@ const KEYS: [string, string][] = [
   ['⌘⇧I', 'the Studio'],
   ['⌘⇧G', 'Pokemon'],
   ['⌘⇧A', 'Molecule viewer'],
+  ['⌘⇧B', 'the first web app (Village)'],
   ['⌘J', "Foxtrot's log"],
   ['⌘,', 'theme'],
   ['⌘⇧L', 'light / dark'],

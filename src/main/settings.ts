@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DEFAULT_SETTINGS, MOL_TILES_MAX, WEATHER_PLACES_MAX, type DeckSettings, type WeatherPlace } from '@shared/types'
+import { DEFAULT_SETTINGS, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type WeatherPlace, type WebApp } from '@shared/types'
 import { THEMES } from '@shared/themes'
 import { cleanModel } from '@shared/models'
 import { GRID_ORDER_MAX, isGridKey } from '@shared/gridorder'
@@ -64,6 +64,18 @@ function orderSide(raw: unknown): string[] {
 function molTiles(raw: unknown): number[] {
   const ns = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 99))].slice(0, MOL_TILES_MAX) : []
   return ns.length ? ns : [1]
+}
+
+/** The web apps: a slug, a name and an http(s) URL each, ids distinct. An empty list is kept (none registered). */
+function webApps(raw: unknown, dflt: WebApp[]): WebApp[] {
+  if (!Array.isArray(raw)) return dflt
+  const out: WebApp[] = []
+  for (const a of raw as Partial<WebApp>[]) {
+    const url = cleanWebUrl(a?.url)
+    if (!a || !isWebAppId(a.id) || !url || out.some((o) => o.id === a.id)) continue
+    out.push({ id: a.id, name: typeof a.name === 'string' && a.name.trim() ? a.name.trim().slice(0, 40) : new URL(url).hostname, url, show: a.show !== false })
+  }
+  return out.slice(0, WEB_APPS_MAX)
 }
 
 /** The weather places: a name and real coordinates each, at most WEATHER_PLACES_MAX. An empty list is kept (no weather). */
@@ -129,6 +141,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     showStudio: bool(raw.showStudio, d.showStudio),
     showMol: bool(raw.showMol, d.showMol),
     molTiles: molTiles(raw.molTiles),
+    webApps: webApps(raw.webApps, d.webApps),
     showPokemon: bool(raw.showPokemon, d.showPokemon),
     pokemonRomDir: typeof raw.pokemonRomDir === 'string' && raw.pokemonRomDir.trim() ? raw.pokemonRomDir.trim() : d.pokemonRomDir,
     geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,

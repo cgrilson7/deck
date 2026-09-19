@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { PLUGIN_KEYS, molKey, molTileOf, nextMolTile, pluginCells, type AgentView, type DeckSettings, type DeckState, type PluginKey, type SessionView } from '@shared/types'
+import { PLUGIN_KEYS, molKey, molTileOf, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
 import { arrange, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
-import { PLUGINS, PlusTile } from './PlusTile'
+import { PLUGINS, PlusTile, type Placed } from './PlusTile'
 import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
@@ -12,6 +12,7 @@ import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
 import { PokemonTile } from './PokemonTile'
 import { MolTile } from './MolTile'
+import { WebTile } from './WebTile'
 import { PackTile } from './PackTile'
 import { patchSettings, useSettings } from '../lib/theme'
 
@@ -67,6 +68,8 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
       if (k === 'mol') for (const n of settings.molTiles) out.push({ key: molKey(n), kind: 'plugin', prefer: n % 2 === 1 ? prefer : prefer === 'left' ? 'right' : 'left', needy: false, node: <MolTile tile={n} /> })
       else out.push({ key: k, kind: 'plugin', prefer, needy: false, node: plugin(k, settings, focused) })
     }
+    // The web apps after them, a cell each, the sides taken in turn.
+    settings.webApps.forEach((a, i) => a.show && out.push({ key: webKey(a.id), kind: 'plugin', prefer: i % 2 === 0 ? 'right' : 'left', needy: false, node: <WebTile app={a} /> }))
     return out
   }, [sessions, members, settings, focused, openAgent, state.open])
 
@@ -95,7 +98,13 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
           canAdd={canAdd}
           landed={landed}
           onDrop={onDrop}
-          onPlace={(k) => {
+          onPlace={(k, add) => {
+            // A web app: its tile shown (a new one registered first), at the foot of this column.
+            const web = webAppOf(k)
+            if (web !== null) {
+              const apps: WebApp[] = add ? [...settings.webApps, add] : settings.webApps
+              return save(moved(full, k, side, null), { webApps: apps.map((a) => (a.id === web ? { ...a, show: true } : a)) })
+            }
             // The Molecule pill while one is already showing = ANOTHER Molecule tile, at the foot of this column.
             const n = k === 'mol' && settings.showMol ? nextMolTile(settings.molTiles) : null
             if (n !== null) save(moved(full, molKey(n), side, null), { molTiles: [...settings.molTiles, n] })
@@ -117,7 +126,7 @@ interface Item {
 }
 
 /** One side: the scroller, its cells, the + at its foot, and the chips for needy tiles out of sight. */
-function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace }: { side: GridSide; cells: Item[]; state: DeckState; settings: DeckSettings; canAdd: boolean; landed: { key: string; n: number } | null; onDrop: (key: string, side: GridSide, target: string | null, after: boolean) => void; onPlace: (k: PluginKey) => void }) {
+function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace }: { side: GridSide; cells: Item[]; state: DeckState; settings: DeckSettings; canAdd: boolean; landed: { key: string; n: number } | null; onDrop: (key: string, side: GridSide, target: string | null, after: boolean) => void; onPlace: (k: Placed, add?: WebApp) => void }) {
   const box = useRef<HTMLDivElement>(null)
   const [away, setAway] = useState({ above: 0, below: 0 })
   const needyKeys = cells.filter((c) => c.needy).map((c) => c.key).join(' ')
@@ -226,7 +235,7 @@ function Column({ side, cells, state, settings, canAdd, landed, onDrop, onPlace 
   )
 }
 
-function plugin(k: PluginKey, settings: DeckSettings, focused: SessionView | null): ReactNode {
+function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused: SessionView | null): ReactNode {
   switch (k) {
     case 'wiki':
       return <WikiTile />
@@ -282,7 +291,9 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
   const el = useRef<HTMLDivElement>(null)
   const molTile = cell?.kind === 'plugin' ? molTileOf(cell.key) : null
   const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === (molTile !== null ? 'mol' : cell.key)) : undefined
-  const { molTiles } = useSettings()
+  const web = cell?.kind === 'plugin' ? webAppOf(cell.key) : null
+  const { molTiles, webApps } = useSettings()
+  const webApp = web !== null ? webApps.find((a) => a.id === web) : undefined
   const half = (e: React.DragEvent): 'before' | 'after' => {
     if (!cell) return 'before'
     const r = e.currentTarget.getBoundingClientRect()
@@ -314,6 +325,18 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
       }}
     >
       {cell ? cell.node : children}
+      {webApp && (
+        <button
+          className="cell-x"
+          title={`Put ${webApp.name} away (a + brings it back; it stays signed in)`}
+          onClick={(e) => {
+            e.stopPropagation()
+            patchSettings({ webApps: webApps.map((a) => (a.id === webApp.id ? { ...a, show: false } : a)) })
+          }}
+        >
+          ×
+        </button>
+      )}
       {plugin && (
         <button
           className="cell-x"
@@ -339,7 +362,7 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
             e.stopPropagation()
             e.dataTransfer.setData(MIME, cell.key)
             e.dataTransfer.effectAllowed = 'move'
-            const ghost = dragGhost(el.current, plugin?.label ?? cell.key)
+            const ghost = dragGhost(el.current, plugin?.label ?? webApp?.name ?? cell.key)
             e.dataTransfer.setDragImage(ghost, ghost.offsetWidth - 14, 12)
             window.setTimeout(() => ghost.remove(), 0)
           }}

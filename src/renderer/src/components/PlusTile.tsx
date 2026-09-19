@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { PLUGIN_KEYS, nextMolTile, pluginCells, type DeckSettings, type DeckState, type PluginKey } from '@shared/types'
+import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import { patchSettings, useSettings } from '../lib/theme'
 import { ParkedCard, StartCard } from './SessionForm'
+
+/** What the picker hands the grid: a mini app's key, or a web app's grid key (`web:<id>`). */
+export type Placed = PluginKey | `web:${string}`
 
 /** The mini apps an empty cell can hold, with the setting that shows each. */
 export const PLUGINS: {
@@ -69,7 +72,7 @@ export const PLUGINS: {
  * a folder dialog or a new project, worktree / model / permission mode, a name, a first prompt)
  * and its parked sessions (`ParkedCard`). ⌘N in the menu bar is the no-questions path.
  */
-export function PlusTile({ state, onPlace, canAdd }: { state: DeckState; /** A mini app picked: the grid puts it at the foot of this +'s column. */ onPlace: (key: PluginKey) => void; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
+export function PlusTile({ state, onPlace, canAdd }: { state: DeckState; /** A mini app picked: the grid puts it at the foot of this +'s column (`add` = a web app registered just now). */ onPlace: (key: Placed, add?: WebApp) => void; /** False at the session cap: only mini apps are offered. */ canAdd: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -82,7 +85,7 @@ export function PlusTile({ state, onPlace, canAdd }: { state: DeckState; /** A m
   )
 }
 
-function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace: (key: PluginKey) => void; canAdd: boolean; onClose: () => void }) {
+function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace: (key: Placed, add?: WebApp) => void; canAdd: boolean; onClose: () => void }) {
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
   const shown = new Set(pluginCells(settings))
@@ -90,6 +93,19 @@ function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace
   const place = (p: (typeof PLUGINS)[number]) => {
     onClose()
     onPlace(p.key)
+  }
+
+  // A web app: any site, by a name and a URL. Registered and placed in one step.
+  const [webName, setWebName] = useState('')
+  const [webUrl, setWebUrl] = useState('')
+  const url = cleanWebUrl(webUrl)
+  const full = settings.webApps.length >= WEB_APPS_MAX
+  const addWeb = () => {
+    if (!url || full) return
+    const name = webName.trim() || new URL(url).hostname.replace(/^www\./, '')
+    const id = webAppId(name, settings.webApps.map((a) => a.id))
+    onClose()
+    onPlace(`web:${id}`, { id, name: name.slice(0, 40), url, show: true })
   }
 
   useEffect(() => {
@@ -118,6 +134,38 @@ function Picker({ state, onPlace, canAdd, onClose }: { state: DeckState; onPlace
                 {shown.has(p.key) && <small>{p.key === 'mol' && nextMolTile(settings.molTiles) !== null ? 'another here' : 'move here'}</small>}
               </button>
             ))}
+          </div>
+        </section>
+        <section className="picker-row">
+          <h4>Web app</h4>
+          <div className="pills">
+            {settings.webApps.map((a) => (
+              <button
+                key={a.id}
+                className="pill"
+                title={a.url}
+                onClick={() => {
+                  onClose()
+                  onPlace(webKey(a.id) as Placed)
+                }}
+              >
+                {a.name}
+                {a.show && <small>move here</small>}
+              </button>
+            ))}
+            <form
+              className="web-add"
+              onSubmit={(e) => {
+                e.preventDefault()
+                addWeb()
+              }}
+            >
+              <input value={webName} onChange={(e) => setWebName(e.target.value)} placeholder="name" maxLength={40} spellCheck={false} />
+              <input className="web-add-url" value={webUrl} onChange={(e) => setWebUrl(e.target.value)} placeholder="maptap.gg" spellCheck={false} />
+              <button className="pill" type="submit" disabled={!url || full} title={full ? `${WEB_APPS_MAX} web apps at most` : 'A tile for this site; it opens in the center column and stays signed in'}>
+                add
+              </button>
+            </form>
           </div>
         </section>
         {canAdd && (

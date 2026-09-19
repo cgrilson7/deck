@@ -5,6 +5,7 @@ as a real terminal; everything else lives in two columns of tiles either side of
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
 plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Molecule),
+the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
 pause and a cancel-with-reason on every one. Click a tile to
@@ -87,6 +88,8 @@ src/main/spotify.ts        the music tile's Spotify face: Spotify.app over Apple
 src/main/spotifyauth.ts    a Spotify account: PKCE OAuth (loopback redirect, no secret), tokens in userData/spotify.json
 src/main/spotifyapi.ts     the account's playlists, recent contexts and search over the Web API
 src/main/youtube.ts        rewrites embed request headers on the persist:youtube partition
+src/main/webapps.ts        the web apps' main side: the `persist:web` partition (plain-Chrome UA, a permission allowlist), every webview guarded
+                             (no preload / node, http(s) only, popups to the browser, a context menu), `web:snap` = a tile's snapshot
 src/main/settings.ts       SettingsStore: userData/config.json merged over DEFAULT_SETTINGS, sanitized, broadcast
 src/shared/themes.ts       theme families (light + dark variant each): CSS chrome colors + xterm palette
 src/main/env.ts            resolves the login-shell env so claude/tmux are found from Finder
@@ -100,6 +103,7 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
+src/renderer/src/lib/webapps.ts     openWebApp()/closeWebApp() (the same window event) + the tiles' snapshots (localStorage, useWebSnap())
 src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
 src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
 src/renderer/src/serverboy.d.ts     serverboy ships no types
@@ -122,6 +126,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
+                                    WebTile (a web app as a plugin cell: its last snapshot, a door), WebLayer (the ALWAYS-MOUNTED webviews in the center column),
                                     ThemeControls (top-bar theme popover + light/dark toggle), Fox (the sprite as a React element),
                                     PhonePair (the top-bar phone button: QR + link + the serve switch)
 ad/                        THE AD, a film of the deck made FROM the deck: its own Vite root that mounts the real `App` against a scripted fake
@@ -500,6 +505,29 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   scroll is left alone. A pinch arrives as a ctrlKey wheel: that one is `preventDefault`ed and
   zooms by `exp(−deltaY × ZOOM_PER_DELTA)`, capped per event, so the same gesture always zooms
   the same amount and spreading the fingers draws the molecule nearer. Not on the phone.
+- **Web apps** (`shared/types.ts` `WebApp`, `main/webapps.ts`, `WebLayer`, `WebTile`, `lib/webapps.ts`; the `webApps`
+  setting): ANY SITE AS A MINI APP — registered by a name + URL (`{ id, name, url, show }`, `WEB_APPS_MAX` 12;
+  Village, `https://villagenotes.app/dream`, is the default entry; the `+` picker's "Web app" row registers
+  another: "maptap.gg" → `cleanWebUrl` adds https, http(s) only, http for localhost), a grid cell each (`web:<id>`,
+  `webKey` / `webAppOf`; `isPluginKey` and `isGridKey` take them, sides in turn after the mini apps; × sets `show`
+  false, the registration stays). The page is an Electron `<webview>` on ONE partition, `persist:web`, so a sign-in
+  survives quitting (Village signs in by OTP, no OAuth popup; `X-Frame-Options: DENY` does not touch a webview, which
+  is a top-level context). THE LAYER IS ALWAYS MOUNTED: a webview that leaves the DOM loses its page, so `WebLayer`
+  sits in `.main` for good (the center's grid area), makes an app's webview the FIRST time it is opened (a process
+  each) and from then on only HIDES it — `visibility: hidden` (`.web-off`), never `display: none` — while anything
+  else has the center; App renders nothing in the center while one shows (`openWeb`), and it takes turns with the
+  Studio / Game Boy / Molecule / agent panes like they do (a tile click, a focus change, Esc FROM THE DECK'S CHROME
+  — inside the page Esc is the page's — or × gives the center back). Hidden = muted (`setAudioMuted`). ⌘R reloads
+  the renderer and with it the pages (still signed in). There is ONE webview per app, so THE TILE IS A DOOR, not a
+  second copy: its face is the page's last SNAPSHOT — main's `web:snap` (`capturePage` of that webContents id, only
+  ever a webview of the web partition, 560px JPEG data: URL) taken 1.2s after each load and every 15s while in view,
+  kept in localStorage (`deck.web.snap.<id>`). The pane's head: back / forward / reload-stop / home, the current
+  URL, ↗ the browser, a two-click remove, ×; a rail of chips with more than one app. MAIN KEEPS GUESTS IN A BOX
+  (`guardWebviews`, for EVERY webview incl. YouTube's: preload stripped, no node; for the web partition: http(s)
+  only, `window.open` → the browser, a context menu since Electron gives guests none — spelling, cut/copy/paste,
+  a link's way out) and the partition answers permission requests from an allowlist (clipboard, fullscreen,
+  notifications; camera / mic / geolocation refused) with a plain-Chrome user agent (some sites refuse "Electron/").
+  ⌘⇧B / View ▸ Web Apps opens the first (`toggleWeb`); the launcher has a button and a checkbox per app. Not on the phone.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -801,7 +829,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -812,6 +840,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `foxtrot.jsonl` — Foxtrot's log, one entry per line (see the head rule above)
 - `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
+- `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
@@ -820,7 +849,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showPokemon, pokemonRomDir, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, webApps, showPokemon, pokemonRomDir, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

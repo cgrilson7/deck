@@ -130,6 +130,7 @@ const api: DeckApi = {
   pokemonSaveState: (name: string, slot: number | string, data: Uint8Array) => ipcRenderer.invoke('pokemon:saveState', name, slot, data) as Promise<void>,
   pokemonLoadState: (name: string, slot: number | string) => ipcRenderer.invoke('pokemon:loadState', name, slot) as Promise<Uint8Array | null>,
   pokemonShot: (bytes: Uint8Array) => ipcRenderer.invoke('pokemon:shot', bytes) as Promise<string>,
+  webSnap: (webContentsId: number) => ipcRenderer.invoke('web:snap', webContentsId) as Promise<string>,
   onGameboy: (cb) => {
     const h = (_e: unknown, req: GameboyRequest) => cb(req)
     ipcRenderer.on('gameboy:req', h)

@@ -396,6 +396,7 @@ class World {
       pokemonSaveState: async () => {},
       pokemonLoadState: async () => null,
       pokemonShot: no,
+      webSnap: () => Promise.resolve(''),
       onGameboy: nothing,
       gameboyReply: noop,
       molResolve: async (t) => this.resolveMol(t),

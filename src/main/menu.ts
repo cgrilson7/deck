@@ -142,6 +142,15 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
             { label: 'Show Pokemon Tile', type: 'checkbox', checked: s.showPokemon, click: () => patch({ showPokemon: !settings().showPokemon }) }
           ]
         },
+        {
+          label: 'Web Apps',
+          submenu: s.webApps.length
+            ? s.webApps.flatMap((a, i): MenuItemConstructorOptions[] => [
+                { label: `Open ${a.name}`, accelerator: i === 0 ? 'CmdOrCtrl+Shift+B' : undefined, click: () => ui({ type: 'toggleWeb', id: a.id }) },
+                { label: `Show ${a.name} Tile`, type: 'checkbox', checked: a.show, click: () => patch({ webApps: settings().webApps.map((w) => (w.id === a.id ? { ...w, show: !w.show } : w)) }) }
+              ])
+            : [{ label: 'None registered (a + in the grid adds one)', enabled: false }]
+        },
         { type: 'separator' },
         { label: 'Theme', submenu: themeItems },
         {

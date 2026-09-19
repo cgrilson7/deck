@@ -22,6 +22,8 @@ import { PokemonPane } from './components/PokemonPane'
 import { installGameboy } from './lib/gameboy'
 import { installMol, onMolPane, rethemeMol, syncMolTiles } from './lib/mol'
 import { MolPane } from './components/MolPane'
+import { onWebApp } from './lib/webapps'
+import { WebLayer } from './components/WebLayer'
 import { useSettings } from './lib/theme'
 
 /** Three columns: tiles, the focus pane, tiles. The setting is how much of the width the center takes. */
@@ -50,6 +52,8 @@ export default function App() {
   const [pokemonOpen, setPokemonOpen] = useState(false)
   // A molecule viewer, the same way (the Molecule tile it belongs to): the three of them and an open agent take turns.
   const [molOpen, setMolOpen] = useState<number | null>(null)
+  // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
+  const [webOpen, setWebOpen] = useState<string | null>(null)
   // The session the Studio is talking to ("Ask Claude for help" starts one): shown INSIDE the Studio
   // pane while it is open, so it leaves the grid then, the way the focused session does.
   const [studioChat, setStudioChatState] = useState<string | null>(readStudioChat)
@@ -61,6 +65,8 @@ export default function App() {
   const settings = useSettings()
   const molTiles = useRef<number[]>([1])
   molTiles.current = settings.molTiles
+  const webApps = useRef(settings.webApps)
+  webApps.current = settings.webApps
   // Subagents of every open session (SubagentStart / SubagentStop hooks), each a tile of its own.
   const [agents, setAgents] = useState<AgentView[]>([])
   // Finished agents put themselves away after 15s unless held (lib/agents.ts).
@@ -82,6 +88,7 @@ export default function App() {
         setDoc(null)
         setFoxOpen(false)
         setAgentOpen(null)
+        setWebOpen(null)
         setLeash(null)
       }
       if (ev.type === 'toggleFoxLog') {
@@ -89,18 +96,29 @@ export default function App() {
         setFoxOpen((v) => !v)
       }
       if (ev.type === 'toggleMol') {
+        setWebOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
         setAgentOpen(null)
         setMolOpen((v) => (v === null ? (molTiles.current[0] ?? 1) : null))
       }
       if (ev.type === 'toggleStudio') {
+        setWebOpen(null)
         setMolOpen(null)
         setPokemonOpen(false)
         setAgentOpen(null)
         setStudioOpen((v) => !v)
       }
+      if (ev.type === 'toggleWeb') {
+        const id = ev.id ?? webApps.current[0]?.id ?? null
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+        setWebOpen((v) => (v === id ? null : id))
+      }
       if (ev.type === 'togglePokemon') {
+        setWebOpen(null)
         setMolOpen(null)
         setStudioOpen(false)
         setAgentOpen(null)
@@ -108,22 +126,35 @@ export default function App() {
       }
     })
     const offMol = onMolPane((want) => {
+      setWebOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
       setAgentOpen(null)
       setMolOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? molTiles.current[0] ?? 1)))
     })
     const offStudio = onStudio((want) => {
+      setWebOpen(null)
       setMolOpen(null)
       setPokemonOpen(false)
       setAgentOpen(null)
       setStudioOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offPokemon = onPokemon((want) => {
+      setWebOpen(null)
       setMolOpen(null)
       setStudioOpen(false)
       setAgentOpen(null)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offWeb = onWebApp((want) => {
+      const id = want.id ?? webApps.current[0]?.id ?? null
+      if (want.want !== false) {
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+      }
+      setWebOpen((v) => (want.want === false || (want.want === 'toggle' && v === id) ? null : id))
     })
     void window.deck.agents().then(setAgents).catch(() => {})
     const offAgents = window.deck.onAgents(setAgents)
@@ -136,6 +167,7 @@ export default function App() {
         setStudioOpen(false)
         setPokemonOpen(false)
         setMolOpen(null)
+        setWebOpen(null)
       }
       setAgentOpen(id)
     })
@@ -151,6 +183,7 @@ export default function App() {
       offStudio()
       offPokemon()
       offMol()
+      offWeb()
       window.clearTimeout(t)
     }
   }, [])
@@ -162,6 +195,7 @@ export default function App() {
     setPokemonOpen(false)
     setMolOpen(null)
     setAgentOpen(null)
+    setWebOpen(null)
   }, [focusSlot])
 
   // The Game Boy answers the trainer's door from boot when its tile is on, whichever cell it is in.
@@ -198,8 +232,10 @@ export default function App() {
   const betas = state.open.filter((s) => s.pack)
   // A dismissed agent is gone from the list: the center goes back to the session.
   const openAgent = agentOpen ? (agents.find((a) => a.id === agentOpen) ?? null) : null
+  // A web app that was removed while showing gives the center back.
+  const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || openAgent ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -253,7 +289,7 @@ export default function App() {
       <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
         {openAgent ? (
           <AgentPane agent={openAgent} parent={top.find((s) => s.id === openAgent.parent) ?? null} pack={agents.filter((a) => a.parent === openAgent.parent)} onClose={() => setAgentOpen(null)} />
-        ) : pokemonOpen ? (
+        ) : openWeb !== null ? null : pokemonOpen ? (
           <PokemonPane onClose={() => setPokemonOpen(false)} />
         ) : molOpen !== null ? (
           <MolPane tile={molOpen} onClose={() => setMolOpen(null)} />
@@ -269,6 +305,8 @@ export default function App() {
           settings={settings}
           openAgent={openAgent?.id ?? null}
         />
+        {/* Always mounted: a web app's page lives on while something else has the center. */}
+        <WebLayer apps={settings.webApps} open={openAgent ? null : openWeb} onClose={() => setWebOpen(null)} />
         {/* Over the right column, never over the terminal: read the file while the session keeps going. */}
         {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
         {foxOpen && <FoxLog state={state} entries={fox.entries} onClose={() => setFoxOpen(false)} />}
