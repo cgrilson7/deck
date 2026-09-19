@@ -247,7 +247,9 @@ export interface WikiPicture {
   /** "Photo: …" credit line, '' when the feed has none. */
   credit: string
   imageUrl: string
-  /** The file page, opened in the browser on click. */
+  /** The same picture at viewer size: the tile's copy would be upscaled full screen. */
+  largeUrl: string
+  /** The file page on Commons. */
   url: string
 }
 

@@ -58,7 +58,7 @@ function strip(html: string | undefined | null): string {
  * number off that list. The search endpoint hands out protocol-relative 60px ones with a
  * tracking query string; both are dropped.
  */
-function thumb(url: string, width: 250 | 960): string {
+function thumb(url: string, width: 250 | 960 | 1920): string {
   return url
     .replace(/^\/\//, 'https://')
     .replace(/\?.*$/, '')
@@ -81,6 +81,7 @@ async function pictureOn(date: string): Promise<WikiPicture | null> {
       title: strip(img.description?.text) || name,
       credit: img.artist?.text ? strip(img.artist.text) : '',
       imageUrl: thumb(img.thumbnail.source, 960),
+      largeUrl: thumb(img.thumbnail.source, 1920),
       url: img.file_page
     }
   }

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 import { plain } from '../lib/errors'
 import { WeatherPlaces, WeatherStrip } from './Weather'
@@ -34,12 +36,62 @@ function Clock() {
 }
 
 /**
+ * The picture large, over the whole window: the image at 90% of the width with everything the
+ * feed already handed us under it — what it is, who took it, and which day it was the picture of.
+ * Nothing here is fetched; it is the tile's own picture, at a size worth looking at. A click
+ * anywhere outside the frame, Esc, or the × closes it; the link opens the file page on Commons.
+ */
+function Viewer({ pic, onClose }: { pic: WikiPicture; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    // A portal bubbles through the REACT tree, so without these the tile's own onClick sees every
+    // click in here and re-opens the viewer the instant it closes.
+    <div
+      className="wikibox-scrim"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose()
+      }}
+    >
+      <figure className="wikibox" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={pic.title}>
+        <img className="wikibox-img" src={pic.largeUrl || pic.imageUrl} alt={pic.title} draggable={false} />
+        <figcaption className="wikibox-text">
+          <span className="wikibox-tag">picture of the day · {pic.today ? 'today' : dayLabel(pic.date)}</span>
+          <h3 className="wikibox-title">{pic.title}</h3>
+          {pic.credit && <p className="wikibox-credit">{pic.credit}</p>}
+          <button className="wikibox-link" onClick={() => window.deck.openExternal(pic.url)} title={pic.url}>
+            on Wikimedia Commons ↗
+          </button>
+        </figcaption>
+        <button
+          className="wikibox-close"
+          title="Close (Esc)"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+        >
+          <X size={18} />
+        </button>
+      </figure>
+    </div>
+  )
+}
+
+/**
  * Wikipedia's picture of the day, full bleed, with a transparent search box in the top right and
  * a clock top left. The picture rotates: every CYCLE_MS a random day's picture from the archive
  * takes over, and every TODAY_EVERY-th one is today's again; ‹ › beside the caption's tag step
  * by hand (back through what was shown, forward to a new one) and start the clock over. A search takes over the tile: the
- * hits list over a darkened picture, a hit opens its lead section in place, and the title (or the
- * picture) opens Wikipedia in the browser. Esc or the × brings the picture back. Under the clock
+ * hits list over a darkened picture, a hit opens its lead section in place, and the title opens
+ * Wikipedia in the browser. A CLICK ON THE PICTURE opens it large over the whole window
+ * (`Viewer`), with its title and credit. Esc or the × brings the picture back. Under the clock
  * is the weather (`Weather.tsx`), and a click on it lays the places editor over the picture.
  */
 export function WikiTile() {
@@ -50,6 +102,8 @@ export function WikiTile() {
   const [searching, setSearching] = useState(false)
   const [article, setArticle] = useState<WikiSummary | null>(null)
   const [places, setPlaces] = useState(false)
+  /** The picture being looked at full size, over the whole window. */
+  const [viewing, setViewing] = useState<WikiPicture | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const seq = useRef(0)
 
@@ -139,6 +193,7 @@ export function WikiTile() {
     setArticle(null)
     setSearching(false)
     setPlaces(false)
+    setViewing(null)
     input.current?.blur()
   }
 
@@ -154,7 +209,11 @@ export function WikiTile() {
   const bg = article?.imageUrl ?? pic?.imageUrl ?? null
 
   return (
-    <div className={`tile tile-plugin wiki wiki-${overlay}`} onClick={() => overlay === 'picture' && pic && window.deck.openExternal(pic.url)} title={overlay === 'picture' && pic ? 'Open on Wikipedia' : undefined}>
+    <div
+      className={`tile tile-plugin wiki wiki-${overlay}`}
+      onClick={() => overlay === 'picture' && pic && setViewing(pic)}
+      title={overlay === 'picture' && pic ? 'See it full size' : undefined}
+    >
       {bg && <img key={bg} className="wiki-img" src={bg} alt="" draggable={false} />}
       <div className="wiki-scrim" />
       <div className="wiki-corner">
@@ -245,6 +304,9 @@ export function WikiTile() {
           </button>
         )}
       </form>
+
+      {/* Over the whole window, so the grid column's scroller never clips it. */}
+      {viewing && createPortal(<Viewer pic={viewing} onClose={() => setViewing(null)} />, document.body)}
     </div>
   )
 }
