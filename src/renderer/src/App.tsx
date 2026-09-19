@@ -7,7 +7,7 @@ import { FoxHead } from './components/FoxHead'
 import { HeaderStatus } from './components/HeaderStatus'
 import { UsageMeter } from './components/UsageMeter'
 import { FoxLog } from './components/FoxLog'
-import { Grid, type Member } from './components/Grid'
+import { Grid, byRecency, type Member } from './components/Grid'
 import { AgentPane } from './components/AgentPane'
 import { LeashDialog } from './components/LeashDialog'
 import { PhonePair } from './components/PhonePair'
@@ -280,7 +280,7 @@ export default function App() {
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
     .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
-    .sort((a, b) => (settings.attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || a.slot! - b.slot!)
+    .sort(byRecency(settings.attentionFirst))
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
   for (const alpha of [...top].sort((a, b) => a.slot! - b.slot!)) {

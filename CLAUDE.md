@@ -198,6 +198,21 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `arrange()` moves a key saved on the wrong side (an order from before this) to the foot of its
   own, `moved()` takes no side, the LEFT `+` opens the session form + parked list only and the
   RIGHT `+` the mini-app and web-app pills only.
+- **THE LEFT COLUMN IS THE SESSION BROWSER and orders itself** (`byRecency` in `Grid.tsx`,
+  `SessionRecord.activeAt`): the session active most recently is on top. `activeAt` is set in
+  `main/sessions.ts` when a session starts or resumes, on every Notification / Stop /
+  UserPromptSubmit hook, and on an `input()` that carries a `\r` (a submit — not a keystroke, not
+  xterm answering a query) — NEVER on a transcript tick, or working sessions would trade places
+  all day. With `attentionFirst` the ones needing you sit above that. Each alpha's betas and pack
+  come right under where its tile is (or would be, while it is focused). So NOTHING IN THE LEFT
+  COLUMN DRAGS (no grip) and `gridOrder.left` is written empty: the saved order, drag and Reset
+  Layout are the RIGHT column's. This too overrides the grid rule below.
+- **The preview pane and Foxtrot's log open in the CENTER** (`.doc` is `grid-area: 1 / 2 / 2 / 3`):
+  what you are reading is what you are on now, so it covers the focus pane (which lives on
+  underneath) and leaves both columns alone; ⤢ is still the whole window. This overrides every
+  older line here that says they open "over the grid" / "over the RIGHT column" / "never the
+  terminal". Because it covers the terminal, `DocPane` takes keyboard focus when it opens, so
+  typing cannot land in a terminal you cannot see and Esc closes it.
 - **The top bar beside Foxtrot** (`HeaderStatus`, `UsageMeter`, `lib/usage.ts`, `main/usage.ts`):
   ONE ROW that never wraps (`.topbar-tools` is `nowrap`; the chips clip first). The CHIPS are the
   deck in a few words — `3 working · 2 need you · 1 held · 2 unattended` — each only there above

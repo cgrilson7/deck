@@ -173,6 +173,12 @@ export interface SessionRecord {
   /** What was handed to `--permission-mode` (see PERMISSION_MODES in shared/models.ts). Absent / '' = the CLI's default. Repeated on a dead resume, like the model. */
   permissionMode?: string
   createdAt: number
+  /**
+   * When it last DID something worth a place at the top of the session browser (ms): started or
+   * resumed, prompted (typed or from a tile), finished a turn, asked for you. Never a transcript
+   * tick, or the working sessions would trade places all day. Absent in an older record = createdAt.
+   */
+  activeAt?: number
   /** 1..CAP while open (BETA_SLOT_BASE+ for a beta), null while parked (detached or exited). Sticky while open. */
   slot: number | null
   /** Last known name: fleet listing name, else terminal title, else a placeholder. */

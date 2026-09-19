@@ -6,8 +6,9 @@ import { renderMarkdown } from '../lib/markdown'
 import type { DocRef } from '../lib/paths'
 
 /**
- * The preview pane: a referenced file, laid over the grid (the right two thirds), so the
- * terminal in the focus pane stays visible and usable while you read. Opened by clicking a
+ * The preview pane: a referenced file, laid over the CENTER column — what you are reading is
+ * what you are on now, so it takes the place of the focus pane (which lives on underneath)
+ * and both side columns stay as they are. Opened by clicking a
  * path anywhere it shows — a tool line, Claude's prose, your own prompt, or the terminal
  * itself (lib/paths.ts carries the click here). Text and markdown are drawn here, images and
  * PDFs are framed from a blob URL of the bytes main read, a directory is a list you can walk
@@ -27,6 +28,9 @@ export function DocPane({ target, onClose }: { target: DocRef; onClose: () => vo
   const [problem, setProblem] = useState('')
   const [wide, setWide] = useState(() => localStorage.getItem('deck:docWide') === '1')
   const body = useRef<HTMLDivElement>(null)
+  // It covers the terminal, so it takes the keyboard from it: typing must not land in a pane you cannot see, and Esc closes.
+  const root = useRef<HTMLElement>(null)
+  useEffect(() => root.current?.focus(), [])
   const cur = stack[stack.length - 1]
 
   // A fresh reference (a new click) starts a new walk, even for the file already showing.
@@ -87,7 +91,7 @@ export function DocPane({ target, onClose }: { target: DocRef; onClose: () => vo
   const parent = doc && doc.path.includes('/') ? doc.path.slice(0, doc.path.lastIndexOf('/')) || '/' : null
 
   return (
-    <section className={`doc ${wide ? 'is-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+    <section ref={root} tabIndex={-1} className={`doc ${wide ? 'is-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <div className="doc-scrim" onClick={onClose} />
       <div className="doc-panel">
         <header className="doc-head">

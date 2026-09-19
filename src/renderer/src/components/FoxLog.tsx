@@ -7,8 +7,8 @@ import { clock } from '../lib/format'
 
 /**
  * Everything Foxtrot has seen (main/foxtrot.ts), newest first, a day at a time: the barks
- * that made the top bar and the running notes between them. Laid over the grid the same way
- * as the file preview (the `.doc` pane), so the terminal stays in view. A session chip
+ * that made the top bar and the running notes between them. Laid over the center column the
+ * same way as the file preview (the `.doc` pane). A session chip
  * focuses that session while it is open; a path chip opens the file. "barks only" is kept
  * per machine. Esc closes, except from inside a terminal.
  */

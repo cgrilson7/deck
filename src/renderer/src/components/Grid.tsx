@@ -17,6 +17,11 @@ import { WebTile } from './WebTile'
 import { PackTile } from './PackTile'
 import { patchSettings, useSettings } from '../lib/theme'
 
+/** The session browser's order: needing you first (when asked for), then the most recently active, the slot as the tie-break. */
+export function byRecency(attentionFirst: boolean): (a: SessionView, b: SessionView) => number {
+  return (a, b) => (attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || (b.activeAt ?? b.createdAt) - (a.activeAt ?? a.createdAt) || a.slot! - b.slot!
+}
+
 /** A wolfpack's members: a beta session (a real tile of its own) or a subagent (a row of its alpha's pack tile; the agent pane in the center on click). */
 export type Member = { kind: 'agent'; agent: AgentView; parent: SessionView | null } | { kind: 'beta'; session: SessionView }
 
@@ -25,6 +30,11 @@ export type Member = { kind: 'agent'; agent: AgentView; parent: SessionView | nu
  * and each with a job (`homeSide`): the LEFT is work in the background — every session, beta and
  * pack, nothing else — the RIGHT is entertainment, the mini apps and web apps. A tile drags
  * anywhere WITHIN its column; the other column does not take it (no drop bar shows there).
+ * THE LEFT COLUMN IS THE SESSION BROWSER and orders ITSELF: the session active most recently on
+ * top (`activeAt`: started, prompted, finished a turn, asked for you — `byRecency`; with
+ * `attentionFirst`, the ones needing you above that), each alpha's betas and pack right under
+ * where its own tile is or would be. So nothing in it drags (no grip) and `gridOrder.left` is
+ * written empty; the saved order is the RIGHT column's.
  * `gridRows` is how many tiles fill a column's height (so it sets the tile height) and
  * `gridColumns` how many sit side by side in one; past that the column scrolls, snapping
  * loosely to tile tops. No pages. EVERY tile can be dragged anywhere in its column by its
@@ -53,14 +63,14 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
     const seen = new Set<string>()
     for (const m of members) {
       if (m.kind === 'beta') {
-        out.push({ key: `beta:${m.session.id}`, kind: 'member', needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
+        out.push({ key: `beta:${m.session.id}`, kind: 'member', alpha: m.session.pack!.alpha, needy: m.session.attention || m.session.status === 'blocked', node: <Tile session={m.session} /> })
         continue
       }
       const alpha = m.agent.parent
       if (seen.has(alpha)) continue
       seen.add(alpha)
       const pack = members.flatMap((x) => (x.kind === 'agent' && x.agent.parent === alpha ? [x.agent] : []))
-      out.push({ key: `pack:${alpha}`, kind: 'member', needy: pack.some((a) => a.held), node: <PackTile alpha={m.parent} agents={pack} openId={openAgent} /> })
+      out.push({ key: `pack:${alpha}`, kind: 'member', alpha, needy: pack.some((a) => a.held), node: <PackTile alpha={m.parent} agents={pack} openId={openAgent} /> })
     }
     for (const k of pluginCells(settings)) {
       // The Molecule plugin is as many cells as there are Molecule tiles.
@@ -75,10 +85,19 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
   }, [sessions, members, settings, focused, openAgent, state.open])
 
   // The columns in full (keys that are not showing keep their place), and what is drawn of them.
-  const full = useMemo(() => arrange(items, settings.gridOrder), [items, settings.gridOrder])
+  // The left column is not arranged, it is SORTED: every top-level session by recency (the focused
+  // one too — its tile is out of the grid, but its members keep its place), its betas and pack under it.
+  const full = useMemo(() => {
+    const left: string[] = []
+    const mine = (alpha: string) => items.filter((i) => i.alpha === alpha).map((i) => i.key)
+    for (const s of state.open.filter((s) => !s.pack).sort(byRecency(settings.attentionFirst))) left.push(`slot:${s.slot}`, ...mine(s.id))
+    // A member whose alpha is not open any more still shows, at the foot.
+    for (const i of items) if (i.kind !== 'plugin' && !left.includes(i.key)) left.push(i.key)
+    return { left, right: arrange(items, settings.gridOrder).right }
+  }, [items, settings.gridOrder, settings.attentionFirst, state.open])
   const byKey = useMemo(() => new Map(items.map((i) => [i.key, i])), [items])
 
-  const save = (next: GridOrder, extra?: Partial<DeckSettings>) => patchSettings({ ...extra, gridOrder: pruned(next, new Set(byKey.keys())) })
+  const save = (next: GridOrder, extra?: Partial<DeckSettings>) => patchSettings({ ...extra, gridOrder: { left: [], right: pruned(next, new Set(byKey.keys())).right } })
   // The tile that was just dropped: its column scrolls it into view once it is drawn in its new place.
   const [landed, setLanded] = useState<{ key: string; n: number } | null>(null)
   const onDrop = (key: string, side: GridSide, target: string | null, after: boolean) => {
@@ -123,6 +142,8 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
 interface Item {
   key: string
   kind: 'session' | 'member' | 'plugin'
+  /** A member's alpha (a deck session id): it sits under that session in the browser. */
+  alpha?: string
   needy: boolean
   node: ReactNode
 }
@@ -358,7 +379,7 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
           ×
         </button>
       )}
-      {cell && (
+      {cell?.kind === 'plugin' && (
         <span
           className="grip"
           draggable

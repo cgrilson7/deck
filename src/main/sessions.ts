@@ -185,6 +185,7 @@ export class SessionManager {
     if (permissionMode) args.push('--permission-mode', permissionMode)
     if (opts.prompt) args.push(opts.prompt)
     await this.o.tmux.newSession({ name: rec.tmuxName, cwd, command: this.claudeCommand(args), cols: SPAWN_COLS, rows: SPAWN_ROWS })
+    rec.activeAt = Date.now()
     this.records.push(rec)
     if (!opts.pack) this.touchRecent(cwd)
     this.rt.set(id, { status: 'starting', attention: false, tmuxAlive: true, title: '', userDetached: false })
@@ -238,6 +239,7 @@ export class SessionManager {
       r.status = 'starting'
     }
     if (!rec.pack) this.touchRecent(rec.cwd)
+    rec.activeAt = Date.now()
     rec.slot = slot
     this.attach(id)
     if (!rec.pack) this.focusSlot = slot
@@ -318,6 +320,11 @@ export class SessionManager {
     const r = this.rt.get(id)
     if (!r?.pty) return
     r.pty.write(data)
+    // A submit (not a keystroke, and not xterm answering a query) counts as activity.
+    if (data.includes('\r')) {
+      const rec = this.records.find((x) => x.id === id)
+      if (rec) rec.activeAt = Date.now()
+    }
     if (r.attention) {
       r.attention = false
       this.broadcast()
@@ -409,6 +416,8 @@ export class SessionManager {
     if (!rec) return
     const r = this.rt.get(rec.id)
     if (!r) return
+    // A prompt, a finished turn, a question: each takes it to the top of the session browser.
+    rec.activeAt = Date.now()
     switch (event) {
       case 'Notification':
         r.attention = true
