@@ -429,6 +429,8 @@ interface Hilite {
 }
 
 const css = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+/** Under the glass theme the viewer's own background is clear: the tile behind it is the glass. */
+const bgAlpha = (): number => (document.documentElement.dataset.theme === 'glass' ? 0 : 1)
 
 /**
  * How far one step of a PINCH zooms. Exponential in the raw deltaY, so the gesture reads as one
@@ -627,7 +629,7 @@ class MolViewer {
       this.lib = lib
       lib.setSyncSurface(true)
       if (!this.host.parentElement) this.place()
-      this.viewer = lib.createViewer(this.host, { backgroundColor: css('--panel', '#ffffff'), antialias: true })
+      this.viewer = lib.createViewer(this.host, { backgroundColor: css('--panel', '#ffffff'), backgroundAlpha: bgAlpha(), antialias: true })
       this.viewer.setHoverDuration(120)
       this.emit()
     })
@@ -637,7 +639,7 @@ class MolViewer {
   /** Theme change: the background and every label are the theme's, so paint again. */
   retheme(): void {
     if (!this.viewer) return
-    this.viewer.setBackgroundColor(css('--panel', '#ffffff'))
+    this.viewer.setBackgroundColor(css('--panel', '#ffffff'), bgAlpha())
     void this.redraw()
   }
 
@@ -830,8 +832,14 @@ class MolViewer {
         return this.brief()
       }
       case 'look': {
+        // The session's eye gets a solid frame even when the theme's is clear (glass).
+        this.viewer!.setBackgroundColor(css('--panel', '#ffffff'), 1)
         this.viewer!.render()
         const uri = this.viewer!.pngURI()
+        if (bgAlpha() < 1) {
+          this.viewer!.setBackgroundColor(css('--panel', '#ffffff'), bgAlpha())
+          this.viewer!.render()
+        }
         const bytes = Uint8Array.from(atob(uri.slice(uri.indexOf(',') + 1)), (c) => c.charCodeAt(0))
         const image = await window.deck.molShot(bytes, this.tile)
         return { tile: this.tile, ...this.describe(), image, imageNote: this.state.holder ? undefined : 'the tile is not on screen: this is the viewer’s off-screen frame' }
@@ -1454,6 +1462,8 @@ export function rethemeMol(): void {
   for (const v of viewers.values()) v.retheme()
 }
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => window.setTimeout(rethemeMol, 50))
+// The glass theme's colors move with its picture (lib/theme.ts says when).
+window.addEventListener('deck:glass', () => rethemeMol())
 
 /** One tile's viewer status, live. */
 export function useMol(tile = 1): MolState {

@@ -244,6 +244,7 @@ export const api: DeckApi = {
   onTranscript: (cb) => remote.on('transcript', cb),
   keepDroppedFile: () => Promise.resolve(null),
   wikiPicture: notHere,
+  wikiBackdrop: notHere,
   wikiSearch: notHere,
   wikiSummary: notHere,
   weather: notHere,

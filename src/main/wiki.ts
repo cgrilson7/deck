@@ -3,7 +3,9 @@
 // for good, they never change), full-text search (the REST v1 search endpoint) and page
 // summaries for the in-tile article view.
 
-import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { WikiBackdrop, WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 
 const UA = 'deck/0.1 (https://github.com/cgrilson7/deck)'
 const TTL_MS = 60 * 60 * 1000
@@ -114,6 +116,40 @@ export async function wikiPicture(when: 'today' | 'past' = 'today'): Promise<Wik
     }
   }
   return pictureOn(ymd(new Date()))
+}
+
+/**
+ * The glass theme's backdrop: a day's picture ('' = today's) at the SMALLEST width Wikimedia
+ * serves (250px — it is only ever seen blurred, so more would be wasted), as a data: URL, since
+ * the renderer has to read its pixels for the colors. Kept in `dir` for good (a day's picture
+ * never changes), so a pinned day costs one request ever, and with no network today's falls
+ * back to the newest one kept.
+ */
+export async function wikiBackdrop(date: string, dir: string): Promise<WikiBackdrop | null> {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ymd(new Date())
+  const file = join(dir, `${day}.json`)
+  try {
+    return JSON.parse(await readFile(file, 'utf8')) as WikiBackdrop
+  } catch {
+    // not kept yet
+  }
+  try {
+    const pic = await pictureOn(day)
+    if (!pic) return null
+    const res = await fetch(thumb(pic.imageUrl, 250), { headers: { 'User-Agent': UA } })
+    if (!res.ok) throw new Error(`wikipedia backdrop: HTTP ${res.status}`)
+    const mime = (res.headers.get('content-type') ?? 'image/jpeg').split(';')[0]
+    if (!mime.startsWith('image/')) throw new Error(`wikipedia backdrop: ${mime}`)
+    const item: WikiBackdrop = { date: day, title: pic.title, dataUrl: `data:${mime};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}` }
+    await mkdir(dir, { recursive: true })
+    await writeFile(file, JSON.stringify(item))
+    return item
+  } catch (err) {
+    if (date) throw err
+    const kept = (await readdir(dir).catch(() => [])).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort()
+    if (kept.length === 0) throw err
+    return JSON.parse(await readFile(join(dir, kept[kept.length - 1]), 'utf8')) as WikiBackdrop
+  }
 }
 
 export async function wikiSearch(q: string): Promise<WikiHit[]> {

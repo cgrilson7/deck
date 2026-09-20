@@ -499,7 +499,72 @@ const graphite: ThemeFamily = {
   })
 }
 
-export const THEMES: ThemeFamily[] = [cream, solarized, gruvbox, catppuccin, nord, graphite]
+/**
+ * What lib/glass.ts reads off the backdrop picture: the hue the picture leans to and how strongly
+ * (0..1), and the hue of its most vivid patch, for the accent. Hues in degrees.
+ */
+export interface GlassTint {
+  hue: number
+  sat: number
+  accentHue: number
+}
+
+export const GLASS_ID = 'glass'
+
+function hsl(h: number, s: number, l: number): string {
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number): string => {
+    const k = (n + h / 30) % 12
+    const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    return Math.round(c * 255).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+/**
+ * The glass theme's variant for a picture: the chrome is the picture's own hue, held to
+ * lightnesses that keep the text readable THROUGH the panes. styles.css lays a veil of `panel`
+ * over the blurred picture (50% dark / 55% light) and each pane a tint of it (58% / 68%), so
+ * under the worst picture there is — pure white in dark, pure black in light — a pane still
+ * comes out at about 0.29 / 0.82 sRGB, where `ink` holds 7:1 or better and `muted` 4.5:1. Change
+ * those alphas and these lightnesses together. The status colors and the ANSI palette are
+ * Cream's: they mean something, so the picture does not get to repaint them. The terminal's
+ * own background is clear (the pane behind it is the glass). `null` = no picture yet: neutral.
+ */
+export function glassVariant(dark: boolean, tint: GlassTint | null): ThemeVariant {
+  const base = dark ? cream.dark : cream.light
+  const h = tint?.hue ?? 30
+  const s = tint ? 0.08 + 0.3 * Math.min(1, tint.sat * 1.6) : 0.06
+  const panel = dark ? hsl(h, s, 0.1) : hsl(h, s * 0.8, 0.96)
+  const ink = dark ? hsl(h, 0.2, 0.95) : hsl(h, 0.25, 0.11)
+  const accent = tint ? (dark ? hsl(tint.accentHue, 0.78, 0.7) : hsl(tint.accentHue, 0.7, 0.38)) : base.accent
+  return {
+    ...base,
+    bg: dark ? hsl(h, s, 0.07) : hsl(h, s * 0.8, 0.9),
+    panel,
+    ink,
+    muted: dark ? hsl(h, 0.14, 0.75) : hsl(h, 0.14, 0.3),
+    line: dark ? hsl(h, s * 0.8, 0.3) : hsl(h, s * 0.6, 0.72),
+    accent,
+    term: {
+      ...base.term,
+      background: `${panel}00`,
+      cursorAccent: panel,
+      foreground: ink,
+      selectionForeground: ink,
+      cursor: accent,
+      selectionBackground: `${accent}59`,
+      black: dark ? base.term.black : ink,
+      white: dark ? hsl(h, 0.12, 0.82) : base.term.white,
+      brightBlack: dark ? hsl(h, 0.1, 0.62) : hsl(h, 0.1, 0.38)
+    }
+  }
+}
+
+/** Glass in the catalog: the neutral variants, which is all main ever needs (the window color). */
+const glass: ThemeFamily = { id: GLASS_ID, name: 'Glass', light: glassVariant(false, null), dark: glassVariant(true, null) }
+
+export const THEMES: ThemeFamily[] = [cream, solarized, gruvbox, catppuccin, nord, graphite, glass]
 export const DEFAULT_THEME_ID = cream.id
 
 export function themeById(id: string): ThemeFamily {

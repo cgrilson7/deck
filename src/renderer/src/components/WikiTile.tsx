@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { Wallpaper, X } from 'lucide-react'
+import { GLASS_ID } from '@shared/themes'
 import type { WikiHit, WikiPicture, WikiSummary } from '@shared/types'
 import { plain } from '../lib/errors'
+import { patchSettings, useSettings } from '../lib/theme'
 import { WeatherPlaces, WeatherStrip } from './Weather'
 
 /** A new picture every so often: today's, then two from the archive, then today's again. */
@@ -148,6 +150,14 @@ export function WikiTile() {
     return () => window.clearInterval(t)
   }, [stepped])
 
+  // This picture as the glass theme's backdrop (today's follows the day; an archive one is pinned).
+  const settings = useSettings()
+  const isWall = (p: WikiPicture) => settings.theme === GLASS_ID && settings.glassDate === (p.today ? '' : p.date)
+  const hang = (p: WikiPicture) => (e: MouseEvent) => {
+    e.stopPropagation()
+    patchSettings({ theme: GLASS_ID, glassDate: p.today ? '' : p.date })
+  }
+
   const manual = (go: () => void) => (e: MouseEvent) => {
     e.stopPropagation()
     go()
@@ -226,6 +236,9 @@ export function WikiTile() {
           <span className="wiki-tagline">
             <span className="wiki-tag">{pic.today ? 'picture of the day' : `picture of the day · ${dayLabel(pic.date)}`}</span>
             <span className="wiki-steps">
+              <button className={isWall(pic) ? 'on' : ''} onClick={hang(pic)} disabled={isWall(pic)} title={isWall(pic) ? 'This is the glass theme’s backdrop' : 'Use as the backdrop (the glass theme)'}>
+                <Wallpaper size={12} />
+              </button>
               <button onClick={manual(prev)} disabled={at.current <= 0} title="The picture before">
                 ‹
               </button>

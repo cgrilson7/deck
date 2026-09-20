@@ -109,6 +109,7 @@ src/renderer/src/lib/paste.ts       pasteText(): xterm's paste when a terminal e
 src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (window.deck over the socket), Phone.tsx (chips, swipe pages, prompt bar, sheets),
                                     ScreenView.tsx (tmux's screen + the key strip), ansi.tsx (SGR → spans), palette.ts (--ansi-N from the theme)
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
+src/renderer/src/lib/glass.ts       THE GLASS THEME's wall: the blurred picture of the day behind the window, the tint read off it, kept in localStorage for boot
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
 src/renderer/src/lib/webapps.ts     openWebApp()/closeWebApp() (the same window event) + the tiles' snapshots (localStorage, useWebSnap())
@@ -905,7 +906,39 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   CSS variables on `<html>` and the palette into every xterm (`lib/theme.ts`); main uses the same
   resolver for the window background and `nativeTheme.themeSource`. A variant's `panel` IS the
   xterm background (`variant()` enforces it) or tiles show a seam. Never hard-code a color in
-  styles.css; use the variables (`color-mix` for tints).
+  styles.css; use the variables (`color-mix` for tints). A BACKGROUND SAYS WHAT IT IS FOR:
+  `--surface` (a pane or tile's own face), `--fill` (what an inset shade is mixed into:
+  `color-mix(in srgb, var(--ink) 8%, var(--fill))`; also what sits INSIDE a surface, like
+  `.termhost`), `--overlay` (a popover or modal). All three are `var(--panel)` except under
+  glass; `--panel` itself is always a solid color, for text (`color: var(--panel)` on an accent
+  button), shadows and JS. New CSS uses these three, never `background: var(--panel)`.
+- **Glass** (the `glass` family, `GLASS_ID`; `glassVariant` in `shared/themes.ts`, `lib/glass.ts`,
+  the glass block at the end of styles.css, `wikiBackdrop` in `main/wiki.ts`): a Wikipedia
+  picture of the day BLURRED behind the whole window, the chrome colors read off it, every pane
+  a tinted sheet over it. The picture is the 250px thumbnail, the smallest Wikimedia serves (it
+  is only seen blurred), fetched by main as a data: URL (the renderer must read its pixels) and
+  kept for good in `userData/glass/<date>.json`; offline, today's falls back to the newest kept.
+  WHICH picture is the `glassDate` setting: '' = today's (asked again every 30 min, so the wall
+  follows the day), a date = pinned — the Wikipedia tile's caption has a button (beside ‹ ›)
+  that hangs the picture it is showing and switches to glass; the theme popover says which is
+  up and offers "follow today's". `.glass-wall` (fixed, z-index −1, two layers that crossfade)
+  is blurred ONCE by CSS, so panes carry no backdrop-filter (only `--overlay` things do). The
+  TINT (`tintOf`: a 40×40 copy; the saturation-weighted mean hue, and the fullest of 24 hue
+  bins weighted by vividness for the accent) → `glassVariant(dark, tint)`: panel / ink / muted /
+  line in the picture's hue at FIXED lightnesses, the accent in its most vivid hue, the status
+  colors and ANSI palette Cream's (they mean something), the xterm background clear
+  (`<panel>00`; `allowTransparency` is therefore always on). CONTRAST is arithmetic, not hope:
+  the wall wears a veil of `panel` (50% dark / 55% light) and a surface is `panel` at 58% / 68%,
+  so under a pure-white (dark) or pure-black (light) picture a pane is still ~0.29 / ~0.82 sRGB:
+  ink ≥ 7:1, muted ≥ 4.5:1 — change the alphas and the lightnesses together. "Glass" is a lit
+  top edge (`--glass-edge`), a hairline and a drop shadow on `.focus` / `.tile`, at ONE class's
+  weight (`:where()`), so attention / drop-over / hover borders still win. `--bg` under glass is
+  see-through ink (every use of it is an inset or a hover). `liveVariant` is the one resolver
+  in the renderer; a new picture re-applies the theme and fires the `deck:glass` window event
+  (the molecule viewers retheme: clear background under glass, a solid one for `look`'s PNG).
+  The last picture + tint live in localStorage (`glass:last`), so boot paints glass before main
+  answers. Main only ever needs the catalog's neutral glass variants (the window color). On
+  the phone `wikiBackdrop` rejects and the wall is the plain panel color.
 - **Refresh UI** (⌘R, top bar): reloads the renderer, then main kills every pty client so
   `handlePtyExit` reattaches and tmux repaints. Sessions and conversations are untouched; a plain
   reload without the reattach leaves the terminals blank until something redraws.
@@ -958,13 +991,14 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
+- `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `usage.json` — the account's rate-limit windows as last reported (see the top bar rule); delete freely
 - `statusline.sh` — the status-line command of every deck session, rewritten at each boot (posts to `/status`, then runs the user's own)
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
-- `config.json` — `DeckSettings` (theme, appearance, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
+- `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
   showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, foxBark, remote…);

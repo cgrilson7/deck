@@ -104,7 +104,9 @@ export function ensureTerminal(id: string): Entry {
     scrollback: prefs.scrollback,
     allowProposedApi: true,
     macOptionIsMeta: false,
-    allowTransparency: false
+    // The glass theme's terminal background is clear. This cannot change after open(), so it is
+    // always on; an opaque background draws the same with it (macOS has no subpixel text to lose).
+    allowTransparency: true
   })
   term.open(el)
 

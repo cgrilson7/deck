@@ -17,7 +17,7 @@ import { translate } from './translate'
 import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
 import { VocabStore } from './store'
-import { wikiPicture, wikiSearch, wikiSummary } from './wiki'
+import { wikiBackdrop, wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { weatherNow, weatherSearch } from './weather'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
@@ -567,6 +567,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('wiki:picture', (_e, when: unknown) => wikiPicture(when === 'past' ? 'past' : 'today'))
+  ipcMain.handle('wiki:backdrop', (_e, date: unknown) => wikiBackdrop(typeof date === 'string' ? date : '', join(app.getPath('userData'), 'glass')))
   ipcMain.handle('wiki:search', (_e, q: string) => wikiSearch(String(q ?? '')))
   ipcMain.handle('wiki:summary', (_e, key: string) => wikiSummary(String(key ?? '')))
   ipcMain.handle('weather:now', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))

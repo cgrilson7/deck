@@ -13,6 +13,12 @@
   --starting: #3a7bd5;
   --dead: #8a2f1c;
   --radius: 10px;
+  /* What a background is FOR, so the glass theme can see through the right ones: --surface is a
+     pane or tile's own face, --fill what an inset shade is mixed into (nothing, under glass),
+     --overlay a popover or modal. --panel itself stays a solid color: text and shadows use it. */
+  --surface: var(--panel);
+  --fill: var(--panel);
+  --overlay: var(--panel);
 }
 
 * {
@@ -86,7 +92,7 @@ button {
 }
 .bar-btn:hover,
 .bar-btn.on {
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--line);
 }
@@ -105,7 +111,7 @@ button {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: var(--panel);
+  background: var(--overlay);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18);
@@ -134,6 +140,28 @@ button {
   padding: 5px 8px;
   border-radius: 7px;
   text-align: left;
+}
+.glass-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.glass-row .what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.glass-row button {
+  flex: none;
+  color: var(--accent);
+}
+.glass-row button:hover {
+  text-decoration: underline;
 }
 .theme-row:hover {
   background: var(--bg);
@@ -181,7 +209,7 @@ button {
   color: var(--ink);
 }
 .seg.on {
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
@@ -236,7 +264,7 @@ button {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  background: var(--panel);
+  background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
@@ -359,7 +387,7 @@ button {
   padding: 4px 10px;
   border: 1.5px solid var(--accent);
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--overlay);
   color: var(--ink);
   font-size: 12px;
   font-weight: 600;
@@ -1072,7 +1100,7 @@ button {
   padding: 5px 9px;
   border-radius: 9px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  background: color-mix(in srgb, var(--accent) 9%, var(--fill));
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1159,7 +1187,7 @@ button {
 .chat-text code {
   padding: 0 3px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
 }
@@ -1175,7 +1203,7 @@ button {
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--ink) 5%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 5%, var(--fill));
   overflow-x: auto;
   white-space: pre;
 }
@@ -1381,7 +1409,7 @@ button {
   min-height: 0;
   min-width: 0;
   padding: 6px 4px 4px 8px;
-  background: var(--panel);
+  background: var(--fill);
 }
 .deck-term {
   width: 100%;
@@ -1394,7 +1422,7 @@ button {
    to hide all of it; now the row remainder sits above the screen as padding (fitBox in
    terminals.ts), so the viewport must be the panel color or that strip shows black. */
 .deck-term .xterm .xterm-viewport {
-  background-color: var(--panel);
+  background-color: var(--fill);
 }
 .termhost-tile .xterm .xterm-cursor-layer,
 .termhost-tile .xterm-cursor {
@@ -1428,7 +1456,7 @@ button {
   flex-direction: column;
   gap: 14px;
   padding: 12px 16px 16px;
-  background: var(--panel);
+  background: var(--overlay);
   border: 1.5px solid var(--accent);
   border-radius: var(--radius);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
@@ -1564,7 +1592,7 @@ button {
   position: absolute;
   inset: 8px;
   overflow: auto;
-  background: var(--panel);
+  background: var(--overlay);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
@@ -1826,7 +1854,7 @@ button {
   font-size: 11px;
   color: var(--muted);
   border: 1px solid transparent;
-  background: var(--panel);
+  background: var(--surface);
 }
 .music-swap:hover {
   color: var(--ink);
@@ -1979,6 +2007,14 @@ button {
 }
 .wiki-steps button:disabled {
   opacity: 0.35;
+}
+.wiki-steps button.on:disabled {
+  opacity: 1;
+  background: var(--accent);
+}
+.wiki-steps button svg {
+  display: block;
+  margin: auto;
 }
 .wiki-title {
   margin: 0;
@@ -2367,7 +2403,7 @@ button {
   gap: 3px;
   border-radius: 6px;
   padding: 6px 8px;
-  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  background: color-mix(in srgb, var(--bg) 55%, var(--fill));
   border: 1px solid transparent;
   transition: border-color 120ms ease;
 }
@@ -2456,7 +2492,7 @@ button {
   padding: 3px 4px 3px 8px;
   border-radius: 6px;
   color: var(--muted);
-  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  background: color-mix(in srgb, var(--bg) 55%, var(--fill));
   border: 1px solid transparent;
 }
 .vb-search:focus-within {
@@ -2732,10 +2768,10 @@ button {
   overflow-y: auto;
   border-radius: 8px;
   text-align: center;
-  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+  background: color-mix(in srgb, var(--bg) 40%, var(--fill));
 }
 .vb-flash:not(.shown):hover {
-  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  background: color-mix(in srgb, var(--accent) 7%, var(--fill));
 }
 .vb-flash-front {
   font-weight: 700;
@@ -3207,7 +3243,7 @@ button {
   font: inherit;
   font-size: 12px;
   color: var(--ink);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 5px 8px;
@@ -3236,7 +3272,7 @@ button {
   padding: 5px 10px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
   font-size: 12px;
   white-space: nowrap;
@@ -3262,10 +3298,10 @@ button {
 }
 .lgo {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  background: color-mix(in srgb, var(--accent) 14%, var(--fill));
 }
 .lgo:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 26%, var(--panel));
+  background: color-mix(in srgb, var(--accent) 26%, var(--fill));
 }
 .lactions {
   margin-top: 2px;
@@ -3304,7 +3340,7 @@ button {
   padding: 0;
 }
 .launcher .pill {
-  background: var(--panel);
+  background: var(--surface);
 }
 .launcher .pill.on {
   border-color: var(--accent);
@@ -3317,7 +3353,7 @@ button {
   padding: 0;
 }
 .launcher .segmented {
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--line);
 }
 .launcher .seg.on {
@@ -3335,7 +3371,7 @@ button {
   flex-wrap: nowrap;
 }
 .lparked:hover {
-  background: var(--panel);
+  background: var(--surface);
 }
 .lcheck {
   display: flex;
@@ -3347,7 +3383,7 @@ button {
   cursor: pointer;
 }
 .lcheck:hover {
-  background: var(--panel);
+  background: var(--surface);
 }
 .lcheck input {
   margin: 2px 0 0;
@@ -3389,7 +3425,7 @@ button {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--surface);
   color: var(--muted);
   cursor: pointer;
 }
@@ -3512,7 +3548,7 @@ button {
 .fileref.is-code {
   padding: 0 3px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
 }
@@ -3550,7 +3586,7 @@ button {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
+  background: var(--overlay);
   border: 1.5px solid var(--accent);
   border-radius: var(--radius);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
@@ -4172,7 +4208,7 @@ button.foxlog-chip:hover {
   border-radius: 5px;
 }
 .gt-file.open {
-  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  background: color-mix(in srgb, var(--bg) 55%, var(--fill));
 }
 .gt-row {
   display: flex;
@@ -4307,7 +4343,7 @@ button.foxlog-chip:hover {
   color: var(--accent);
 }
 .studio-blank {
-  background: color-mix(in srgb, var(--ink) 6%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 6%, var(--fill));
 }
 
 /* the tile: the newest image full bleed, a thumbnail strip over its foot, a prompt bar below */
@@ -4344,7 +4380,7 @@ button.foxlog-chip:hover {
   right: 0;
   top: 0;
   padding: 3px 8px;
-  background: color-mix(in srgb, var(--red) 18%, var(--panel));
+  background: color-mix(in srgb, var(--red) 18%, var(--fill));
   color: var(--red);
   font-size: 11px;
   white-space: nowrap;
@@ -4498,7 +4534,7 @@ button.foxlog-chip:hover {
   padding: 2px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
   font: inherit;
   font-size: 11px;
@@ -4572,7 +4608,7 @@ button.foxlog-chip:hover {
   max-height: 55vh;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--ink) 5%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 5%, var(--fill));
   overflow: hidden;
 }
 .studio-stage .plugin-empty {
@@ -4660,7 +4696,7 @@ button.foxlog-chip:hover {
   padding: 0;
   border-radius: 7px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--ink) 6%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 6%, var(--fill));
   box-shadow: 0 0 0 1px var(--line);
 }
 .studio-cell.on {
@@ -4727,7 +4763,7 @@ button.foxlog-chip:hover {
   display: flex;
   overflow: hidden;
   cursor: pointer;
-  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
 }
 .pokemon-pane {
   min-height: 0;
@@ -4740,7 +4776,7 @@ button.foxlog-chip:hover {
   align-items: center;
   justify-content: center;
   padding: 10px;
-  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
 }
 .pokemon-pick {
   display: flex;
@@ -4795,7 +4831,7 @@ button.foxlog-chip:hover {
   font: inherit;
   font-size: 12px;
   color: var(--ink);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 2px 6px;
@@ -4877,7 +4913,7 @@ button.foxlog-chip:hover {
   padding: 10px;
   text-align: center;
   font-size: 12px;
-  background: var(--panel);
+  background: var(--fill);
 }
 .mol-chips {
   display: flex;
@@ -5111,7 +5147,7 @@ button.foxlog-chip:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--panel);
+  background: var(--overlay);
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
@@ -5193,7 +5229,7 @@ button.foxlog-chip:hover {
   display: flex;
   overflow: hidden;
   cursor: pointer;
-  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
 }
 /* The page's top-left corner, at the tile's width: where a note's title is. */
 .webapp-snap {
@@ -5252,7 +5288,7 @@ button.foxlog-chip:hover {
 .web-failed {
   position: absolute;
   inset: 0;
-  background: var(--panel);
+  background: var(--fill);
   text-align: center;
   padding: 16px;
 }
@@ -5336,7 +5372,7 @@ button.foxlog-chip:hover {
   padding: 7px 10px;
   border-radius: 8px;
   border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  background: color-mix(in srgb, var(--accent) 10%, var(--fill));
 }
 .lesson-dad {
   padding: 6px 0 6px 12px;
@@ -5752,4 +5788,100 @@ button.foxlog-chip:hover {
 .lesson-pane .lesson-sources,
 .lesson-pane .lesson-error {
   font-size: 12px;
+}
+
+
+/* ---- glass (the `glass` theme; lib/glass.ts): a blurred Wikipedia picture of the day behind the
+   whole window, the chrome colors taken from it, and every pane a tinted sheet of glass over it.
+   The picture is blurred ONCE, here, so no pane needs a backdrop-filter of its own (only the
+   popovers and modals, a few at a time, do). Contrast is kept by the wall's own veil plus the
+   tint: see glassVariant in shared/themes.ts for the numbers. ---- */
+.glass-wall {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--panel);
+}
+.glass-wall > div {
+  position: absolute;
+  inset: -24px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px) saturate(1.35);
+  opacity: 0;
+  transition: opacity 1200ms ease;
+}
+.glass-wall > div.on {
+  opacity: 1;
+}
+/* The veil: pulls any picture toward the panel color, so the worst photo still reads. */
+.glass-wall::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--panel) 50%, transparent);
+}
+:root[data-dark='false'] .glass-wall::after {
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+}
+:root[data-theme='glass'] {
+  --surface: color-mix(in srgb, var(--panel) 58%, transparent);
+  --fill: transparent;
+  --overlay: color-mix(in srgb, var(--panel) 80%, transparent);
+  --glass-edge: color-mix(in srgb, white 22%, transparent);
+}
+:root[data-theme='glass'][data-dark='false'] {
+  --surface: color-mix(in srgb, var(--panel) 68%, transparent);
+  --glass-edge: color-mix(in srgb, white 70%, transparent);
+}
+:root[data-theme='glass'] body {
+  background: transparent;
+}
+/* The glass itself: a lit top edge, a hairline all round, a soft drop under the sheet. */
+/* :where() keeps these at one class's weight, so .attention / .drop-over / :hover still win. */
+:where(:root[data-theme='glass']) .focus,
+:where(:root[data-theme='glass']) .tile {
+  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 0 0 0 1px color-mix(in srgb, white 6%, transparent),
+    0 8px 24px -12px color-mix(in srgb, black 55%, transparent);
+}
+:where(:root[data-theme='glass']) .tile-plugin {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, var(--accent) 55%, transparent),
+    0 8px 24px -12px color-mix(in srgb, black 55%, transparent);
+}
+:root[data-theme='glass'] .topbar {
+  background: color-mix(in srgb, var(--panel) 34%, transparent);
+  box-shadow: inset 0 -1px 0 var(--glass-edge);
+}
+:root[data-theme='glass'] .popover,
+:root[data-theme='glass'] .picker,
+:root[data-theme='glass'] .menu,
+:root[data-theme='glass'] .doc-panel,
+:root[data-theme='glass'] .wikibox {
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 18px 50px -16px color-mix(in srgb, black 60%, transparent);
+}
+:root[data-theme='glass'] .picker-scrim,
+:root[data-theme='glass'] .doc-scrim,
+:root[data-theme='glass'] .wikibox-scrim {
+  background: color-mix(in srgb, var(--panel) 45%, transparent);
+}
+:root[data-theme='glass'] .tile-prompt,
+:root[data-theme='glass'] .studio-text {
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+}
+/* Prose straight on glass: a hair of shadow in the panel color lifts it off a busy patch. */
+:root[data-theme='glass'] .chat,
+:root[data-theme='glass'] .pane-head,
+:root[data-theme='glass'] .tile-head {
+  text-shadow: 0 0 6px color-mix(in srgb, var(--panel) 70%, transparent);
 }

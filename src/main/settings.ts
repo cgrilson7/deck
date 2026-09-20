@@ -110,6 +110,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
       d.theme
     ),
     appearance: oneOf(raw.appearance, ['system', 'light', 'dark'] as const, d.appearance),
+    glassDate: typeof raw.glassDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.glassDate) ? raw.glassDate : d.glassDate,
     compact: bool(raw.compact, d.compact),
     // A file from before the two-sided grid had `gridColumns` meaning the whole grid's; start it over.
     gridColumns: raw.gridRows === undefined ? d.gridColumns : clampInt(raw.gridColumns, 1, 2, d.gridColumns),

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -45,6 +45,7 @@ const api: DeckApi = {
     return ipcRenderer.invoke('drop:keep', { name: file.name, path, bytes }) as Promise<string | null>
   },
   wikiPicture: (when?: 'today' | 'past') => ipcRenderer.invoke('wiki:picture', when ?? 'today') as Promise<WikiPicture | null>,
+  wikiBackdrop: (date: string) => ipcRenderer.invoke('wiki:backdrop', date) as Promise<WikiBackdrop | null>,
   wikiSearch: (q: string) => ipcRenderer.invoke('wiki:search', q) as Promise<WikiHit[]>,
   wikiSummary: (key: string) => ipcRenderer.invoke('wiki:summary', key) as Promise<WikiSummary>,
   weather: () => ipcRenderer.invoke('weather:now') as Promise<WeatherNow[]>,

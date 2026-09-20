@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from 'react'
 import { DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
-import { resolveVariant, type TermPalette, type ThemeVariant } from '@shared/themes'
+import { GLASS_ID, glassVariant, resolveVariant, type TermPalette, type ThemeVariant } from '@shared/themes'
+import { glassTint, setGlassListener, syncGlass } from './glass'
 
 /**
  * Whoever owns the terminals (lib/terminals.ts) registers here to get every theme change with
@@ -23,21 +24,26 @@ export function systemDark(): boolean {
   return mq.matches
 }
 
-export function liveVariant(s: DeckSettings): ThemeVariant {
-  return resolveVariant(s.theme, s.appearance, mq.matches)
-}
-
 /** Is the app showing a dark variant right now? */
 export function isDark(s: DeckSettings): boolean {
   return s.appearance === 'dark' || (s.appearance === 'system' && mq.matches)
 }
 
+/** The glass theme's variant is made from the picture on the wall (lib/glass.ts), not read from the catalog. */
+export function liveVariant(s: DeckSettings): ThemeVariant {
+  if (s.theme === GLASS_ID) return glassVariant(isDark(s), glassTint())
+  return resolveVariant(s.theme, s.appearance, mq.matches)
+}
+
 const CSS_VARS: (keyof Omit<ThemeVariant, 'term'>)[] = ['bg', 'panel', 'ink', 'muted', 'line', 'accent', 'busy', 'idle', 'blocked', 'starting', 'dead']
 
 export function applyTheme(s: DeckSettings): void {
+  syncGlass(s)
   const v = liveVariant(s)
   const root = document.documentElement
   for (const k of CSS_VARS) root.style.setProperty(`--${k}`, v[k])
+  // Under glass the gutter is the picture, and --bg (every use of it is an inset or a hover) a shade of see-through ink.
+  if (s.theme === GLASS_ID) root.style.setProperty('--bg', 'color-mix(in srgb, var(--ink) 9%, transparent)')
   // The diff colors in the changes tile are the terminal palette's green and red, so they sit with the theme.
   root.style.setProperty('--green', v.term.green)
   root.style.setProperty('--red', v.term.red)
@@ -57,6 +63,12 @@ function set(s: DeckSettings): void {
   applyTheme(s)
   for (const l of listeners) l(s)
 }
+
+// A new picture on the wall = new colors: apply again, and tell whoever draws from the settings.
+setGlassListener(() => {
+  set({ ...current })
+  window.dispatchEvent(new Event('deck:glass'))
+})
 
 /** Load settings and apply the theme once, before anything renders (no cream flash on a dark theme). */
 export async function bootSettings(): Promise<DeckSettings> {

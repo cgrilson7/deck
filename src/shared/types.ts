@@ -258,6 +258,13 @@ export type DeckCommand =
   | { type: 'agentDismiss'; id: string; force?: boolean }
 
 /** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
+/** The glass theme's backdrop (main/wiki.ts `wikiBackdrop`): a picture of the day, small, as a data: URL. */
+export interface WikiBackdrop {
+  date: string
+  title: string
+  dataUrl: string
+}
+
 export interface WikiPicture {
   /** The day it was picture of the day, YYYY-MM-DD in local time. */
   date: string
@@ -491,6 +498,8 @@ export interface DeckSettings {
   theme: string
   /** Light, dark, or follow macOS. */
   appearance: Appearance
+  /** The glass theme's backdrop: the day (YYYY-MM-DD) whose picture of the day is pinned, '' = today's. */
+  glassDate: string
   /** Compact mode: tighter chrome, smaller headers, plugin row hidden. */
   compact: boolean
   /**
@@ -581,6 +590,7 @@ export interface DeckSettings {
 export const DEFAULT_SETTINGS: DeckSettings = {
   theme: 'cream',
   appearance: 'system',
+  glassDate: '',
   compact: false,
   gridColumns: 1,
   gridRows: 4,
@@ -884,6 +894,8 @@ export interface DeckApi {
    * random day of the archive (falls back to today's when the archive misses). Cached in main.
    */
   wikiPicture(when?: 'today' | 'past'): Promise<WikiPicture | null>
+  /** The glass backdrop for a day ('' = today's). */
+  wikiBackdrop(date: string): Promise<WikiBackdrop | null>
   /** Full-text search of English Wikipedia, up to a dozen hits. */
   wikiSearch(q: string): Promise<WikiHit[]>
   /** The lead section of one page, by key. */

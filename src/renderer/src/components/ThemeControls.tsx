@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Monitor, Moon, Palette, Sun } from 'lucide-react'
-import { THEMES, type Appearance } from '@shared/themes'
+import { GLASS_ID, THEMES, glassVariant, type Appearance } from '@shared/themes'
+import { glassBackdrop, glassTint } from '../lib/glass'
 import { isDark, patchSettings, systemDark, useSettings } from '../lib/theme'
 
 /**
@@ -49,7 +50,8 @@ export function ThemeControls({ open, onOpenChange }: { open: boolean; onOpenCha
           <div className="menu-title">Theme</div>
           <div className="theme-list">
             {THEMES.map((t) => {
-              const v = dark ? t.dark : t.light
+              // Glass has no colors of its own: its swatches are what the picture on the wall gives it.
+              const v = t.id === GLASS_ID ? glassVariant(dark, glassTint()) : dark ? t.dark : t.light
               return (
                 <button key={t.id} className={`theme-row ${t.id === s.theme ? 'on' : ''}`} onClick={() => patchSettings({ theme: t.id })}>
                   <span className="swatches" style={{ background: v.bg, borderColor: v.line }}>
@@ -65,6 +67,14 @@ export function ThemeControls({ open, onOpenChange }: { open: boolean; onOpenCha
               )
             })}
           </div>
+          {s.theme === GLASS_ID && (
+            <div className="glass-row">
+              <span className="what" title={glassBackdrop()?.title}>
+                {s.glassDate ? `backdrop: picture of ${s.glassDate}` : 'backdrop: today’s picture of the day'}
+              </span>
+              {s.glassDate ? <button onClick={() => patchSettings({ glassDate: '' })}>follow today’s</button> : <span>pin one from the Wikipedia tile</span>}
+            </div>
+          )}
           <div className="menu-title">Appearance</div>
           <div className="segmented">
             {appearance('Light', 'light', Sun)}
