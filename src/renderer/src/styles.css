@@ -5138,6 +5138,9 @@ button.foxlog-chip:hover {
   place-items: center;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   backdrop-filter: blur(4px);
+  /* It lies over the top bar, which is a window DRAG region — and a drag region takes the mouse
+     whatever is stacked above it: the part of the × that overlapped the bar was dead. */
+  -webkit-app-region: no-drag;
 }
 .wikibox {
   position: relative;
@@ -5211,6 +5214,8 @@ button.foxlog-chip:hover {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
   transition: background 120ms ease, transform 120ms ease;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .wikibox-close:hover {
   background: rgba(0, 0, 0, 0.78);
