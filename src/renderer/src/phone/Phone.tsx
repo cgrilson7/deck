@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { agentName, type AgentView, type DeckState, type SessionView } from '@shared/types'
+import { agentKind, agentName, type AgentView, type DeckState, type SessionView } from '@shared/types'
 import { MODELS, modelLabel } from '@shared/models'
 import { ChatView } from '../components/ChatView'
 import { DocPane } from '../components/DocPane'
@@ -195,7 +195,7 @@ export function Phone() {
       {page?.kind === 'agent' && (
         <div className="ph-bar ph-bar-agent">
           <span className="ph-agent-who">
-            {page.a.type}
+            {agentKind(page.a)}
             {page.a.model ? ` · ${modelLabel(page.a.model)}` : ''} · {page.a.cancelled ? 'cancelled' : page.a.endedAt !== null ? 'done' : page.a.paused ? 'paused' : 'working'}
           </span>
           <span className="spacer" />
@@ -335,7 +335,7 @@ function AgentSheet({ a, parent, onClose }: { a: AgentView; parent: SessionView 
     <Sheet onClose={onClose}>
       <h3>β · {agentName(a)}</h3>
       <p className="ph-hint">
-        {a.type}
+        {agentKind(a)}
         {a.model ? ` · ${modelLabel(a.model)}` : ''}
         {a.task && a.description ? ` · ${a.task}` : ''}
       </p>

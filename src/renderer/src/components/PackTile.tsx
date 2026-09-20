@@ -1,5 +1,5 @@
 import type { AgentView, SessionView } from '@shared/types'
-import { agentName } from '@shared/types'
+import { agentKind, agentName } from '@shared/types'
 import { modelLabel } from '@shared/models'
 import { Pause, Play } from 'lucide-react'
 import { Fox } from './Fox'
@@ -101,7 +101,7 @@ function PackRow({ agent: a, now, open }: { agent: AgentView; now: number; open:
         <div className="pack-row-top">
           <span className="pack-name">{name}</span>
           <span className="pack-type">
-            {a.type}
+            {agentKind(a)}
             {a.model ? ` · ${modelLabel(a.model)}` : ''}
           </span>
         </div>

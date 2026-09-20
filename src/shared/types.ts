@@ -128,12 +128,14 @@ export interface AgentView {
   parent: string
   /** The agent type (`Explore`, `general-purpose`, a custom one). */
   type: string
-  /** The Agent tool's short description (the tile's name), '' when none was seen. */
+  /** The tile's name: the Agent tool's short description, or a Workflow agent's `label` (from its meta.json sidecar); '' when none was seen. */
   description: string
   /** The task it was given: the prompt's first line, '' until the transcript shows it. */
   task: string
-  /** What the Agent call asked for as `model`, '' when unsaid. */
+  /** What the Agent call (or the Workflow script, per the sidecar) asked for as `model`, '' when unsaid. */
   model: string
+  /** A Workflow agent's phase (the sidecar's `workflowPhase`), '' for any other agent. */
+  phase: string
   /** Started with `run_in_background` (the parent goes on working; a cancel can also TaskStop it). */
   background: boolean
   startedAt: number
@@ -152,6 +154,11 @@ export interface AgentView {
 /** How an agent is named in a head or a sentence: the Agent call's description, else the task's first line, else its type. */
 export function agentName(a: Pick<AgentView, 'description' | 'task' | 'type'>): string {
   return a.description || a.task || a.type || 'agent'
+}
+
+/** What kind of agent it is, for the line under its name: the type, or for a Workflow's agent (whose type says nothing) its phase. */
+export function agentKind(a: Pick<AgentView, 'type' | 'phase'>): string {
+  return a.phase ? `workflow · ${a.phase}` : a.type
 }
 
 /** Session status as best we know it: fleet poll (`claude agents --json`) + hook events. */

@@ -231,7 +231,7 @@ class World {
 
   agent(a: Partial<AgentView> & { id: string; parent: string }): void {
     const i = this.agents.findIndex((x) => x.id === a.id)
-    const base: AgentView = { type: 'general-purpose', description: '', task: '', model: 'opus', background: true, startedAt: Date.now(), endedAt: null, lastText: null, paused: false, held: false, cancelled: null, ...a }
+    const base: AgentView = { type: 'general-purpose', description: '', task: '', model: 'opus', phase: '', background: true, startedAt: Date.now(), endedAt: null, lastText: null, paused: false, held: false, cancelled: null, ...a }
     if (i === -1) this.agents = [...this.agents, base]
     else this.agents = this.agents.map((x, j) => (j === i ? { ...x, ...a } : x))
     this.agentsEv.emit(this.agents)

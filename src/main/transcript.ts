@@ -40,7 +40,7 @@ export class TranscriptWatcher {
   }
 
   private sessions: { id: string; claudeSessionId: string }[] = []
-  private agents: { id: string; path: string }[] = []
+  private agents: { id: string; path: string | null }[] = []
 
   /** Keep exactly these sessions (deck id → claude session id) under watch. */
   sync(open: { id: string; claudeSessionId: string }[]): void {
@@ -49,7 +49,7 @@ export class TranscriptWatcher {
   }
 
   /** And these subagent transcripts (`agent:<id>` → its jsonl), alongside the sessions. */
-  syncAgents(agents: { id: string; path: string }[]): void {
+  syncAgents(agents: { id: string; path: string | null }[]): void {
     this.agents = agents
     this.rebuild()
   }
@@ -62,7 +62,8 @@ export class TranscriptWatcher {
       this.tails.set(s.id, { id: s.id, sessionId: s.claudeSessionId, sidechain: false, path: null, offset: 0, rest: '', transcript: { id: s.id, blocks: [], title: null, found: false }, dirty: false })
     }
     for (const a of this.agents) {
-      if (this.tails.has(a.id)) continue
+      // The tracker finds an agent's file after the fact (and the stop hook may correct it): a tail whose path moved starts over.
+      if (this.tails.get(a.id)?.path === a.path) continue
       this.tails.set(a.id, { id: a.id, sessionId: '', sidechain: true, path: a.path, offset: 0, rest: '', transcript: { id: a.id, blocks: [], title: null, found: false }, dirty: false })
     }
     if (this.tails.size > 0 && !this.timer) this.timer = setInterval(() => this.poll(), POLL_MS)

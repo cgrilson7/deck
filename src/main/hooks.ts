@@ -122,7 +122,7 @@ export class HooksServer {
   private log(path: string, payload: unknown): void {
     const p = (payload ?? {}) as HookPayload
     try {
-      appendFileSync(this.logPath, `${new Date().toISOString()} ${path} session=${p.session_id ?? '-'} agent=${p.agent_id ?? '-'} ${p.hook_event_name ?? ''}\n`)
+      appendFileSync(this.logPath, `${new Date().toISOString()} ${path} session=${p.session_id ?? '-'} agent=${p.agent_id ?? '-'} ${p.hook_event_name ?? ''}${p.agent_transcript_path ? ` transcript=${p.agent_transcript_path}` : ''}\n`)
     } catch {
       /* not worth a word */
     }

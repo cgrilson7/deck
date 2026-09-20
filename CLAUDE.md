@@ -299,15 +299,27 @@ github.com/cgrilson7/casa, private) and will run on the mini.
     `SubagentStop` hooks (payload: `agent_id`, `agent_type`; the stop adds
     `agent_transcript_path` + `last_assistant_message` — NO description or task, whatever
     older notes said) are in our `--settings` hooks file and POST to the hooks server; the
-    tracker keeps the list and hands each agent's transcript
-    (`<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl`, the documented place, the same
-    JSONL as a session's — its lines are all `isSidechain`, which the tailer accepts for these)
-    to the TranscriptWatcher under `agent:<id>`, so `ChatView` shows it unchanged. NAMES: the
+    tracker keeps the list and hands each agent's transcript (the same JSONL as a session's —
+    its lines are all `isSidechain`, which the tailer accepts for these) to the
+    TranscriptWatcher under `agent:<id>`, so `ChatView` shows it unchanged. WHERE IT IS DEPENDS
+    ON WHO STARTED IT, under `<projects>/<cwd>/<sessionId>/subagents/`: `agent-<id>.jsonl` for
+    an Agent-tool subagent, `workflows/wf_<runId>/agent-<id>.jsonl` for a Workflow's (type
+    `workflow-subagent`), each with an `agent-<id>.meta.json` sidecar (`agentType`,
+    `description`, `model`, and a Workflow's `workflowPhase`). Neither the file nor the run's
+    folder need exist at SubagentStart, so NOTHING IS GUESSED: an agent's `path` is null until
+    `resolve()` has seen the file (looked for every `RESOLVE_MS` and on its every tool call,
+    `RESOLVE_DEPTH` folders down), `syncAgents` takes a null path and restarts a tail whose
+    path moved, and the stop hook's `agent_transcript_path` wins whenever it names a file that
+    exists (hooks.log keeps it on the stop's line). A guessed path is what left Workflow tiles
+    on "starting…" forever. NAMES: the
     parent's own `PreToolUse` for the `Agent` tool carries `description`, `prompt`, `model`
     and `run_in_background`; the tracker queues those per session and matches the next
     `SubagentStart` of the same type to the oldest (the CLI starts them in order), so the tile
     is named by the Agent call's description; a Workflow's agents (no Agent call) take the
-    prompt's first line once the transcript shows it, else the type. A stop (or a tool call)
+    sidecar's `description` — the script's `label` — with `AgentView.phase` from
+    `workflowPhase` and the model (`agentKind()` writes "workflow · Build" where a type would
+    go; the agent pane adds a phase badge); failing both a tile takes the prompt's first line
+    once the transcript shows it (a Workflow agent's is the harness's preamble), else the type. A stop (or a tool call)
     for an agent never seen to start still makes a tile. No terminal, nothing to type into:
     it is the parent's. A roster row (or a solo pack tile) = the AGENT PANE in the CENTER
     column, the way the Studio takes it (`.focus.agent-pane`; it, the Studio and the Game Boy

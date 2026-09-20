@@ -83,6 +83,11 @@ export function AgentPane({ agent: a, parent, pack, onClose }: { agent: AgentVie
             <span className="badge" title="Agent type">
               {a.type}
             </span>
+            {a.phase && (
+              <span className="badge" title="The Workflow phase this agent belongs to">
+                {a.phase}
+              </span>
+            )}
             {a.model && (
               <span className="badge" title={`model: ${a.model}`}>
                 {modelLabel(a.model)}

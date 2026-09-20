@@ -1,16 +1,26 @@
 // Subagents as tiles, and the leash on the pack. A session's Agent-tool calls (and the agents a
 // Workflow runs) are reported by the CLI's SubagentStart / SubagentStop hooks (agent_id,
 // agent_type; the stop adds agent_transcript_path + last_assistant_message), and each one's
-// transcript is written to `<projects>/<cwd>/<sessionId>/subagents/agent-<id>.jsonl` — the same
-// JSONL as a session's own. So a running subagent is a conversation the deck can tail like any
-// tile: this tracker keeps the list, hands the files to the TranscriptWatcher under `agent:<id>`,
-// and broadcasts the list; every agent is a grid cell of its own.
+// transcript is the same JSONL as a session's own, under `<projects>/<cwd>/<sessionId>/subagents/`:
+//   agent-<id>.jsonl                          an Agent-tool subagent
+//   workflows/wf_<runId>/agent-<id>.jsonl     an agent a Workflow runs (type `workflow-subagent`)
+// each with a sidecar `agent-<id>.meta.json` (agentType, description, model; a Workflow's also
+// workflowPhase). So a running subagent is a conversation the deck can tail like any tile: this
+// tracker keeps the list, hands the files to the TranscriptWatcher under `agent:<id>`, and
+// broadcasts the list; every agent is a grid cell of its own.
+//
+// WHERE the file is cannot be known at SubagentStart — neither it nor (for a Workflow) its run's
+// folder need exist yet — so nothing is guessed: an agent's `path` stays null and `resolve()` looks
+// again (RESOLVE_MS, and on its every tool call) until the file is there; the stop hook's
+// agent_transcript_path wins whenever it names a file that exists.
 //
 // Names: SubagentStart says only the type. The parent's own PreToolUse for the `Agent` tool
 // carries the call's description, prompt and model, and the SubagentStart that follows is that
 // agent — so those are queued per session and matched to the next start of the same type. A
-// Workflow's agents have no such call; their tile takes the prompt's first line once the
-// transcript shows it. A stop for an agent never seen to start (the session began before the
+// Workflow's agents have no such call: their name is the sidecar's `description` (the script's
+// `label` for that agent), read when the transcript is found, with the phase and model beside it.
+// Failing both, a tile takes the prompt's first line once the transcript shows it (a Workflow
+// agent's is the harness's preamble, which is why the sidecar matters). A stop for an agent never seen to start (the session began before the
 // hooks file had SubagentStart) still gets a tile, finished.
 //
 // The LEASH: every tool call of every session comes through PreToolUse (hooks.ts) with the
@@ -24,7 +34,7 @@
 // back through UserPromptSubmit too, as a `<task-notification>`, and that one must not count),
 // or FINISHED_KEEP_MS, or a × on the tile.
 
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { agentName, type AgentView, type DeckState, type Transcript } from '@shared/types'
 import type { HookEvent, HookPayload, PreToolDecision } from './hooks'
@@ -32,7 +42,13 @@ import type { SessionManager } from './sessions'
 import type { TranscriptWatcher } from './transcript'
 
 interface Agent extends AgentView {
-  path: string
+  /** The transcript, null until `resolve()` has SEEN the file (never a guess). */
+  path: string | null
+  /** The parent's Claude session id and transcript path (when the hook said), which is where to look. */
+  sessionId: string
+  parentTranscript: string | null
+  /** The sidecar has been read (it can land a beat after the transcript). */
+  meta: boolean
   /** A pause note was typed into the alpha, so the resume is told too. */
   told: boolean
 }
@@ -64,6 +80,14 @@ const PER_PARENT = 12
 /** An `Agent` call unmatched to a start after this long is forgotten. */
 const PENDING_MS = 5 * 60_000
 const REASON_MAX = 2000
+/** How often an agent whose transcript has not been found yet is looked for again. */
+const RESOLVE_MS = 500
+/** A finished agent whose transcript never turned up is given up on this long after its stop. */
+const RESOLVE_GIVE_UP_MS = 30_000
+/** A sidecar not there when the transcript was found is looked for this long after the agent's start. */
+const META_WAIT_MS = 10_000
+/** How deep under `subagents/` a transcript is looked for (`workflows/wf_<run>/` is two). */
+const RESOLVE_DEPTH = 3
 
 export class AgentTracker {
   private agents = new Map<string, Agent>()
@@ -72,6 +96,7 @@ export class AgentTracker {
   /** Held tool calls, per member key (`agent:<id>` or `session:<claudeSessionId>`). */
   private holds = new Map<string, Set<Release>>()
   private betas = new Map<string, BetaLeash>()
+  private resolver: ReturnType<typeof setInterval> | null = null
 
   constructor(
     private readonly manager: SessionManager,
@@ -81,14 +106,13 @@ export class AgentTracker {
   ) {}
 
   list(): AgentView[] {
-    return [...this.agents.values()].map(({ path: _p, told: _t, ...a }) => a).sort((a, b) => a.startedAt - b.startedAt)
+    return [...this.agents.values()].map(view).sort((a, b) => a.startedAt - b.startedAt)
   }
 
   get(id: string): AgentView | null {
     const a = this.agents.get(id)
     if (!a) return null
-    const { path: _p, told: _t, ...view } = a
-    return view
+    return view(a)
   }
 
   // ---- hooks ---------------------------------------------------------------
@@ -100,9 +124,9 @@ export class AgentTracker {
       case 'SubagentStart': {
         const id = String(p.agent_id ?? '')
         if (!id || this.agents.has(id)) return
-        const path = this.locate(p, id)
-        if (!path) return
-        this.agents.set(id, this.fresh(id, rec.id, String(p.agent_type ?? ''), path, this.takePending(p.session_id!, String(p.agent_type ?? ''))))
+        const a = this.fresh(id, rec.id, String(p.agent_type ?? ''), p, this.takePending(p.session_id!, String(p.agent_type ?? '')))
+        this.agents.set(id, a)
+        this.resolve(a)
         break
       }
       case 'SubagentStop': {
@@ -111,11 +135,12 @@ export class AgentTracker {
         let a = this.agents.get(id)
         if (!a) {
           // Never seen to start: a tile all the same, already finished.
-          const path = p.agent_transcript_path || this.locate(p, id)
-          if (!path) return
-          a = this.fresh(id, rec.id, String(p.agent_type ?? ''), path, null)
+          a = this.fresh(id, rec.id, String(p.agent_type ?? ''), p, null)
           this.agents.set(id, a)
         }
+        // The CLI says where the transcript is: that beats whatever was found (or not) before.
+        if (p.agent_transcript_path && p.agent_transcript_path !== a.path && existsSync(p.agent_transcript_path)) this.found(a, p.agent_transcript_path)
+        else this.resolve(a)
         a.endedAt = Date.now()
         a.lastText = typeof p.last_assistant_message === 'string' ? p.last_assistant_message : null
         this.release(`agent:${id}`, null)
@@ -160,12 +185,11 @@ export class AgentTracker {
     }
     let a = this.agents.get(agentId)
     if (!a) {
-      const path = this.locate(p, agentId)
-      if (!path) return Promise.resolve(null)
-      a = this.fresh(agentId, rec.id, String(p.agent_type ?? ''), path, this.takePending(p.session_id!, String(p.agent_type ?? '')))
+      a = this.fresh(agentId, rec.id, String(p.agent_type ?? ''), p, this.takePending(p.session_id!, String(p.agent_type ?? '')))
       this.agents.set(agentId, a)
+      this.resolve(a)
       this.changed()
-    }
+    } else if (!a.path && this.resolve(a)) this.changed()
     if (a.cancelled) return Promise.resolve(deny(a.cancelled.reason))
     if (a.paused) {
       a.held = true
@@ -184,7 +208,7 @@ export class AgentTracker {
   onTranscript(t: Transcript): void {
     if (!t.id.startsWith('agent:')) return
     const a = this.agents.get(t.id.slice(6))
-    if (!a || a.task) return
+    if (!a || a.task || a.description) return
     const first = t.blocks.find((b) => b.kind === 'user')
     if (!first) return
     a.task = firstLine(first.text)
@@ -375,11 +399,12 @@ export class AgentTracker {
   }
 
   private changed(): void {
+    this.watchUnresolved()
     this.transcripts()?.syncAgents([...this.agents.values()].map((a) => ({ id: `agent:${a.id}`, path: a.path })))
     this.emit(this.list())
   }
 
-  private fresh(id: string, parent: string, type: string, path: string, call: PendingCall | null): Agent {
+  private fresh(id: string, parent: string, type: string, p: HookPayload, call: PendingCall | null): Agent {
     return {
       id,
       parent,
@@ -394,7 +419,11 @@ export class AgentTracker {
       paused: false,
       held: false,
       cancelled: null,
-      path,
+      phase: '',
+      path: null,
+      sessionId: p.session_id ?? '',
+      parentTranscript: p.transcript_path ?? null,
+      meta: false,
       told: false
     }
   }
@@ -424,21 +453,97 @@ export class AgentTracker {
     return call
   }
 
-  /** The agent's transcript: next to the parent's (the hook says where that is), else found under the projects folder. */
-  private locate(p: HookPayload, agentId: string): string | null {
-    const file = `agent-${agentId}.jsonl`
-    if (p.transcript_path && p.session_id) return join(dirname(p.transcript_path), p.session_id, 'subagents', file)
-    if (!p.session_id) return null
-    try {
-      for (const d of readdirSync(this.projectsDir)) {
-        const dir = join(this.projectsDir, d, p.session_id, 'subagents')
-        if (existsSync(dir)) return join(dir, file)
-      }
-    } catch {
-      /* no projects folder yet */
+  // ---- the transcript ------------------------------------------------------------
+
+  /** Look for the agent's transcript; true when this call found it. Never commits to a file it has not seen. */
+  private resolve(a: Agent): boolean {
+    if (a.path) return false
+    const file = `agent-${a.id}.jsonl`
+    for (const base of this.bases(a)) {
+      const path = findUnder(base, file, RESOLVE_DEPTH)
+      if (!path) continue
+      this.found(a, path)
+      return true
     }
-    return null
+    return false
   }
+
+  /** The transcript is at `path`: tail it, and take what its sidecar knows that the hooks did not. */
+  private found(a: Agent, path: string): void {
+    a.path = path
+    a.meta = false
+    this.readMeta(a)
+  }
+
+  /** `agent-<id>.meta.json`, beside the transcript; true when this call read it. */
+  private readMeta(a: Agent): boolean {
+    if (!a.path || a.meta) return false
+    try {
+      const meta = JSON.parse(readFileSync(a.path.replace(/\.jsonl$/, '.meta.json'), 'utf8')) as Record<string, unknown>
+      const str = (k: string) => (typeof meta[k] === 'string' ? (meta[k] as string).trim() : '')
+      a.type ||= str('agentType')
+      a.description ||= str('description').slice(0, 80)
+      a.model ||= str('model')
+      a.phase ||= str('workflowPhase').slice(0, 80)
+      a.meta = true
+      return true
+    } catch {
+      return false // no sidecar (an older CLI), or not written yet: the hooks' word stands
+    }
+  }
+
+  /** The `subagents` folders the transcript can be under: beside the parent's transcript (the hook says where that is), else under every project folder. */
+  private bases(a: Agent): string[] {
+    if (!a.sessionId) return []
+    if (a.parentTranscript) return [join(dirname(a.parentTranscript), a.sessionId, 'subagents')]
+    try {
+      return readdirSync(this.projectsDir).map((d) => join(this.projectsDir, d, a.sessionId, 'subagents'))
+    } catch {
+      return [] // no projects folder yet
+    }
+  }
+
+  /** Runs only while some agent's transcript is still to be found. */
+  private watchUnresolved(): void {
+    const now = Date.now()
+    const waiting = [...this.agents.values()].some((a) =>
+      a.path ? !a.meta && now - a.startedAt < META_WAIT_MS : a.endedAt === null || now - a.endedAt < RESOLVE_GIVE_UP_MS
+    )
+    if (waiting && !this.resolver) {
+      this.resolver = setInterval(() => {
+        let any = false
+        for (const a of this.agents.values()) if (this.resolve(a) || this.readMeta(a)) any = true
+        // Either way this timer stops itself once nothing is waiting.
+        if (any) this.changed()
+        else this.watchUnresolved()
+      }, RESOLVE_MS)
+    } else if (!waiting && this.resolver) {
+      clearInterval(this.resolver)
+      this.resolver = null
+    }
+  }
+}
+
+function view({ path: _p, sessionId: _s, parentTranscript: _pt, meta: _m, told: _t, ...a }: Agent): AgentView {
+  return a
+}
+
+/** `file` in `dir` or, failing that, in a folder under it, `depth` levels down at most. */
+function findUnder(dir: string, file: string, depth: number): string | null {
+  const direct = join(dir, file)
+  if (existsSync(direct)) return direct
+  if (depth <= 0) return null
+  let subs: string[]
+  try {
+    subs = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+  } catch {
+    return null // not there yet
+  }
+  for (const sub of subs) {
+    const hit = findUnder(join(dir, sub), file, depth - 1)
+    if (hit) return hit
+  }
+  return null
 }
 
 function deny(reason: string): PreToolDecision {
