@@ -5811,10 +5811,10 @@ button.foxlog-chip:hover {
 }
 .glass-wall > div {
   position: absolute;
-  inset: -24px;
+  inset: -48px;
   background-size: cover;
   background-position: center;
-  filter: blur(8px) saturate(1.35);
+  filter: blur(18px) saturate(1.35);
   opacity: 0;
   transition: opacity 1200ms ease;
 }
