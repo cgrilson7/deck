@@ -531,15 +531,40 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   it, so the watch renews it as each battle starts); NEVER `wPartyMonNicks` or anything else an in-game SAVE includes, never the ROM
   file, never a save file. The text: bank $27's "Wild @ … appeared!" at $9fb65 is reached by a text_far at $f40c7; "A boring @" is
   longer, so it is written into the bank's zero padding at $9fb97 and the pointer turned to it — hence a front name of NINE characters
-  at most (`FRONT_NAME_MAX`: nine + "A boring " fill the line). THE QUIZ (`quizPatch` / `quizMoves`): your FIRST party mon's four
-  moves read A, B, C, ALL THE ABOVE — each a SOLAR BEAM (a turn to take in sunlight, the enemy's turn, then the beam) — and the enemy's
-  mon knows only SPLASH. Four DONOR moves nobody carries (BIDE, CONSTRICT, BARRAGE, SUBSTITUTE; never Splash) get Solar Beam's
-  six-byte record in the loaded ROM's move table (found in the cartridge FILE by POUND's record; the first byte is the animation and
-  the "used …" name — so it reads "used ALL THE ABOVE" only because the menu names come from the slot ids) and their names in the name
-  table rewritten IN PLACE, space-padded to the old length — a longer name shifts every name after it, which is why the 13-letter
-  "ALL THE ABOVE" (the move box's width; no Gen 1 name is over 12) takes SUBSTITUTE, second to last, with STRUGGLE moved into the
-  zero padding after the table; "used ALL THE ABOVE" fills the text line and the "!" lands on the border. Then wBattleMon / wEnemyMon
-  get the moves at each send-out and the PP topped up every poll (63/63: a PP field is six bits, and the records say 63) — the
+  at most (`FRONT_NAME_MAX`: nine + "A boring " fill the line). THE MOVESET (`quizPatch` / `quizMoves`; `plugin/data/sprites/movesets.json`,
+  `--moves <name>`, the first set by default): your FIRST party mon's four moves read e.g. NOTES, WITH, FRIENDS, VERSION 2.0 — each
+  HYPER BEAM'S ANIMATION AND POWER ON SOLAR BEAM'S CHARGE EFFECT (record 63 39 150 6 255 10: never misses), of the unused BIRD type
+  renamed APP (the box says TYPE/ APP; BIRD is in no type-chart row, so nothing resists it), 10/10 PP ("VILLAGE is updating!" for a turn — Solar Beam's charge line rewritten in place — the enemy's turn, then the beam) — and the enemy's
+  mon knows only SPLASH. Four DONOR moves nobody carries (BIDE, CONSTRICT, BARRAGE, SUBSTITUTE; never Splash) get that record in the
+  loaded ROM's move table (found in the cartridge FILE by POUND's record; the first byte is the animation and the charge-line selector,
+  whose `cp SOLARBEAM` byte in the battle bank is turned to HYPER_BEAM so "took in sunlight!" — rewritten "is updating!" — still prints) and THE WHOLE NAME TABLE
+  REBUILT with the donors' names swapped (an @-terminated name per move, so a longer name shifts every name after it; 2.5K of zero
+  padding follows the table and takes the growth); 13 letters is the move box's width (`MOVE_NAME_MAX`). THE FIRED LINE is always "VILLAGE used THE POWER OF
+  FRIENDSHIP!": the used text's asm in the battle bank loads the PLAYER's move then `jr z` past the enemy's (8 bytes after
+  `text_far _MonName1Text; text_asm; ldh a,[hWhoseTurn]; and a`), and those become `jr nz,+4; ld hl,STUB; ret` — the enemy's turn as
+  before, the player's returning a 5-byte home-bank text (the home bank's last 17 bytes are zero) whose text_far prints "used THE POWER
+  OF" <SCROLL> "FRIENDSHIP!" from the bank $27 padding after the boring text. (A long NAME cannot do it: a 23-letter move name
+  overruns the game's name buffer — party moves and level went to garbage in the simulation — and the menu draws before any swap.)
+  FOXTROT IS RED — ONLY WITH `--foxtrot` (off by default: Red and Pikachu stay themselves). In a battle's intro he stands in Red's back slot (`fox` in `apply`, `backFrames`; `data/sprites/fox-back.png`,
+  the idle frames with rows at 3× and the 22 columns over the 56, on the floor) wagging at 280ms while the block is Red's (whole,
+  no HUD of yours), IN HIS OWN COLOURS — Red's block is BG palette 2 (white, yellow, red, dark; the text box shares it but uses only
+  white and dark), read through BCPS/BCPD ($FF68/$FF69) and replaced with his coat once the fade-in has left Red's finished red in
+  it (a poke mid-fade would be overwritten, so it waits); the game restores its own at the send-out — and Village takes the slot. IN THE OVERWORLD (`overworld`, `foxFrames`; `fox-idle.png` / `fox-run.png`, strips of 16×16 frames from the
+  deck's own sheet, rows at 1:1 and the 22 columns SQUEEZED into 16 by a vote per cell — the whole fox, tail tip and all; shrinking
+  both ways was unreadable and a 1:1 crop lost the tail — mirrored to face left) he is Red's walking sprite, which CANNOT BE BIGGER without the game's code: four 8×8 hardware sprites the game re-lays
+  every frame (8×16 mode doubles the same column; extra OAM entries are wiped; Pikachu's four trail a step behind): Red is four 8×8 hardware sprites, row-major tiles, standing
+  frames at OBJ $00–$0B (down, up, left; right = left flipped) and walking at $80–$8B, Pikachu the same shape right after. The game
+  alternates the two frames as you step, so BOTH are kept equal to the CURRENT frame of Foxtrot's own animation — the run cycle
+  (8 frames, 69ms) while `wWalkCounter` runs, the idle tail-wag (5, 280ms) otherwise, every direction the same side view — and
+  Pikachu's 24 tiles are blanked (he follows, unseen). A map change reloads the tiles; the watch repaints when they are not ours.
+  Never in a battle ($8000 is the battle's sprites then). HIS COAT is OBJ palette 0 (Red's) in the CGB palette RAM, written through
+  OCPS/OCPD ($FF6A/$FF6B: white, Village's orange, the outline) with every paint and once a second, since map loads and fades
+  rewrite it. A converter cell with no source pixels under it is CLEAR (it once voted outline: a black bar over his head).
+  THE LINES THAT NAME YOUR MON FROM THE PARTY — "gained … EXP. Points!", "grew to level",
+  "fainted!" — print a scratch buffer (text_ram wcd6d) the game fills from wPartyMonNicks, which is never written: their pointers
+  are turned to wBattleMonNick, so they say VILLAGE (any party mon's, while the watch runs). Then wBattleMon / wEnemyMon
+  get the moves at each send-out and the PP topped up every poll (10/10; a PP field is six bits, 63 at most; PP is at +$19 of
+  the battle struct — +$1c was a bug that wrote into wTrainerClass and the enemy's base stats) — the
   BATTLE-ONLY copies the menu and the AI read; the party keeps its real moves (the game copies PP back per slot, nothing else), so an in-game
   SAVE never sees it. The map (read off `wTileMap`, Yellow UE): front pic = tiles $00–$30 at tile map columns 12–18 rows 0–6 →
   VRAM $9000; back pic = tiles $31–$61 at columns 1–7 rows 5–11 → VRAM $9310; both a full 7×7 laid COLUMN-major (id = first + col × 7
@@ -554,9 +579,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   pictures at every send-out and after the party / bag screens, and the move list restores a saved copy of the screen (old names
   and all) — hence `sprite watch`, every 250ms. THE CATCH: this core drops VRAM writes and reads $FF while STAT is in mode 3, and a
   poke lands wherever the last 8ms step ended — so an all-$FF read is retried a keyless step later and a write is read back and
-  retried (24 tries), all through the existing ops: `lib/gameboy.ts` needed no change. The pictures wear the PALETTE OF THE SPECIES
-  in that slot (the Notes header is Caterpie-green against a Caterpie); poking the CGB BG palettes ($FF68 / $FF69) would fix that and
-  is not done. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
+  retried (24 tries), all through the existing ops: `lib/gameboy.ts` needed no change. Village wears the PALETTE OF THE SPECIES in your slot
+  (the dithered disc reads yellow→salmon in Pikachu's); NOTES WEARS ITS OWN: the enemy's picture is BG palette 3 (the HUD is 1, the
+  text box 2), read and written through BCPS/BCPD ($FF68/$FF69) — paper, yellow, brownish-yellow rules, outline — once the fade-in
+  has brought colour 0 up to white, and again whenever a flash or a send-out puts the species' palette back. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
   min(r,g,b)-white pixels per cell) as shade 0 over a disc dithered shade 1 → 2 (the icon's own gradient), one cell of shade 3 outside
   the ring; Notes = boxed down, header 1, rules and perforation 2, paper 0, a shade-3 outline where opaque meets transparent.
 - **Molecule** (`lib/mol.ts`, `MolTile`, `MolPane`, `main/mol.ts`, `main/data/molLibrary.ts`, `plugin/skills/mol/`,

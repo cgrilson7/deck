@@ -31,16 +31,21 @@
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
 //   trainer.mjs badges [all|none]  |  money <n>
 //   trainer.mjs learnset <pokemon> [level]                 what it knows by then
-//   trainer.mjs sprite [watch] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+//   trainer.mjs sprite [watch] [--moves SET] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
 //                                                          THE SPRITE GAG, in a battle: the enemy mon's picture becomes the Notes
 //                                                          icon named NOTES APP, the mon you send out the Village logo named
 //                                                          VILLAGE (56×56 four-grey PNGs, plugin/data/sprites/), "Wild X
 //                                                          appeared!" reads "A boring X appeared!", your first party mon's moves
-//                                                          are A, B, C, ALL THE ABOVE — Solar Beams all, a turn to charge — and the
+//                                                          are a MOVESET of plugin/data/sprites/movesets.json (--moves, "update" =
+//                                                          NOTES, WITH, FRIENDS, VERSION 2.0) — Solar Beams all, TYPE/ APP, 10/10,
+//                                                          "is updating!" a turn — and the
 //                                                          enemy knows only SPLASH. VRAM, the battle-only copies of names and
 //                                                          moves, and the LOADED ROM's text and move table, so no save or file
 //                                                          ever holds it; the game redraws its own at every send-out —
-//                                                          `sprite watch` repaints every 20ms until ^C
+//                                                          With --foxtrot (off by default) Red is FOXTROT: on the map (idle wagging,
+//                                                          trotting as you walk; Pikachu follows unseen) and in a battle's intro,
+//                                                          his back slot, until VILLAGE goes out — `sprite watch`
+//                                                          repaints every 20ms until ^C
 //
 // Add --json for the state as JSON instead of text.
 
@@ -59,7 +64,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a.startsWith('--')) {
     const k = a.slice(2)
-    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'add') flags[k] = true
+    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'add' || k === 'foxtrot') flags[k] = true
     else flags[k] = argv[++i]
   } else args.push(a)
 }
@@ -82,7 +87,8 @@ const HELP = `trainer.mjs — play Pokémon Yellow on the deck's Game Boy
   goto TARGET     talk TARGET     fight SLOT     save NAME | load NAME     shot
   speed 1|2|4 | pause | resume    rom [path]     intro     where [TARGET]     map     cut
   party "Name Lvl: move, move; Name Lvl; …"    elite [--level N]    warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
-  sprite [watch] [--front PNG] [--back PNG] [--front-name N] [--back-name N]    in a battle: NOTES APP (Splash only) vs VILLAGE (A, B, C, ALL THE ABOVE = Solar Beam)
+  sprite [watch] [--moves SET] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+                  in a battle: NOTES APP (Splash only) vs VILLAGE (a moveset of data/sprites/movesets.json: ${Object.keys(S.MOVESETS).join(" | ")}; Solar Beams, TYPE/ APP); --foxtrot = Red is Foxtrot
 Targets: ${Object.keys(Y.LANDMARKS).join(', ')}; or MAP_CONST@x,y, door:MAP_CONST, MAP_CONST.`
 
 if (!cmd || cmd === 'help' || cmd === '--help') {
@@ -325,34 +331,52 @@ try {
         name: flags[`${flag}-name`] ?? name
       })
       const want = { front: art('front', 'notes.png', 'NOTES APP'), back: art('back', 'village.png', 'VILLAGE') }
+      // Foxtrot only when asked: Red and Pikachu stay themselves otherwise.
+      const foxtrot = !!flags.foxtrot
+      if (foxtrot) want.fox = S.backFrames(S.decodePng(readFileSync(new URL('../data/sprites/fox-back.png', import.meta.url))))
+      const fox = foxtrot ? Object.fromEntries(['idle', 'run'].map((k) => [k, S.foxFrames(S.decodePng(readFileSync(new URL(`../data/sprites/fox-${k}.png`, import.meta.url))))])) : null
       S.encodeName(want.back.name)
       if ([...S.encodeName(want.front.name)].filter((b) => b !== 0x50).length > S.FRONT_NAME_MAX) die(`the front name is at most ${S.FRONT_NAME_MAX} characters: "A boring " goes before it`)
       const told = (r) => (r.battle ? ['front', 'back'].map((k) => `${k}: picture ${r[k].pic}, name ${r[k].name}`).join(' · ') : 'not in a battle')
       // The text patch first: it is in the loaded ROM, which a state load resets, so the watch renews it as each battle starts.
-      const boring = async () => ((await S.boring(door)) + (await S.quizPatch(door)) ? 'text patched' : 'text on')
+      const set = flags.moves ?? Object.keys(S.MOVESETS)[0]
+      S.moveset(set)
+      const boring = async () => ((await S.boring(door)) + (await S.quizPatch(door, { set })) ? `text patched (moves: ${set})` : `text on (moves: ${set})`)
       const quiz = (q) => `moves ${q.mine}${q.enemy !== 'none' ? `, enemy ${q.enemy}` : ''}`
       if (rest[0] !== 'watch') {
         const text = await boring()
         const r = await S.apply(door, want)
         const q = await S.quizMoves(door)
-        await finish(`sprite — ${told(r)} · ${text}${r.battle ? ` · ${quiz(q)}` : ''}`)
+        const o = fox ? await S.overworld(door, fox) : null
+        await finish(`sprite — ${told(r)} · ${text}${r.battle ? ` · ${quiz(q)}` : o ? ` · Foxtrot ${o.pic}` : ''}`)
         break
       }
       console.error(`watching: repainting the battle pictures and names every ${SPRITE_POLL_MS}ms (^C to stop) · ${await boring()}`)
       let last = ''
       let inBattle = false
+      let foxLast = ''
+      let last2 = {}
       let patchedAt = Date.now()
       for (;;) {
         const r = await S.apply(door, want).catch((err) => ({ error: err.message }))
         if (!r.error && r.battle && (!inBattle || Date.now() - patchedAt > 2000)) {
           patchedAt = Date.now()
-          if (await S.boring(door).catch(() => 0)) console.error('  · text patched')
+          // A state load restores the whole ROM: renew EVERY patch, not just the wild text, or the donor ids in wBattleMon are the real moves.
+          const n = (await S.boring(door).catch(() => 0)) + (await S.quizPatch(door, { set }).catch(() => 0))
+          if (n) console.error('  · text patched')
         }
         inBattle = !!r.battle
         const q = r.battle ? await S.quizMoves(door).catch((err) => ({ mine: err.message, enemy: 'none' })) : null
         if (q && (q.mine === 'set' || q.enemy === 'set')) console.error(`  · ${quiz(q)}`)
+        if (fox && !r.error && !r.battle) {
+          const o = await S.overworld(door, fox).catch((err) => ({ pic: err.message }))
+          if (o.pic !== 'kept' && o.pic !== 'painted' && o.pic !== foxLast) console.error(`  · Foxtrot ${o.pic}`)
+          if (o.pic === 'painted' && foxLast !== 'painted') console.error('  · Foxtrot is on the map')
+          foxLast = o.pic
+        }
         const idle = r.error ?? (r.battle ? '' : 'not in a battle')
-        const did = r.battle && ['front', 'back'].some((k) => r[k].pic === 'painted' || r[k].pic === 'missed' || r[k].name === 'written')
+        const did = r.battle && ['front', 'back'].some((k) => r[k].pic === 'painted' || r[k].pic === 'missed' || r[k].name === 'written' || (r[k].pic === 'Foxtrot painted' && r[k].pic !== last2[k]))
+        last2 = { front: r.front?.pic, back: r.back?.pic }
         if (did || (idle && idle !== last)) console.error(`  · ${idle || told(r)}`)
         last = idle
         await new Promise((done) => setTimeout(done, SPRITE_POLL_MS))

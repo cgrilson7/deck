@@ -66,9 +66,14 @@ TACKLE!"), while Red's back and a trainer's face stay their own. It is paint, no
 VRAM, the two battle-only name copies, and the wild-encounter text in the LOADED ROM image, so the
 party, the ROM file and every save are untouched; the game redraws its own pictures at every
 send-out and after the party / bag screens. `sprite watch` keeps repainting (every 20ms, until ^C)
-and is what the user runs in a terminal of their own; outside a battle both do nothing. THE QUIZ: your FIRST party mon's four moves read A, B, C and ALL THE ABOVE — every one a Solar Beam
-("VILLAGE took in sunlight!", the enemy's turn, then "VILLAGE used ALL THE ABOVE!" and the beam) —
-and the enemy's mon knows only SPLASH ("No effect!"). Battle copies only: the party screen shows the
+and is what the user runs in a terminal of their own; outside a battle both do nothing. THE MOVESET: your FIRST party mon's four moves come from `plugin/data/sprites/movesets.json`
+(`--moves <name>`; the first set, "update", is NOTES, WITH, FRIENDS, VERSION 2.0; four names of up to 13
+letters each) — every one Hyper Beam's animation and power on Solar Beam's charge, TYPE/ APP, 10/10 PP, never
+missing ("VILLAGE is updating!", the enemy's turn, then "VILLAGE used THE POWER OF FRIENDSHIP!" and the
+beam, whatever the move was called) — and the enemy's mon knows only SPLASH ("No
+effect!"). The EXP, level-up and fainted lines say VILLAGE too. With `--foxtrot` (off by default) Red is FOXTROT: on
+the map (wagging his tail standing, trotting as you walk; Pikachu follows unseen) and in a battle's intro,
+where he stands in Red's back slot wagging until VILLAGE is sent out. Battle copies only: the party screen shows the
 real moves, and `look` in a battle lists the quiz ones. `--front
 <png>` / `--back <png>` (56×56, four greys) and `--front-name` (nine characters, "A boring " goes
 before it) / `--back-name` (ten) swap the art. `look` and `fight` read the names from the same

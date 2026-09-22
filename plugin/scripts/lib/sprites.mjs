@@ -133,6 +133,18 @@ export function shadesOf(png) {
   return out
 }
 
+/** A strip of 56×56 frames (data/sprites/fox-back.png) → one tile block per frame. */
+export function backFrames(png) {
+  if (png.h !== PIC || png.w % PIC) throw new Error(`a back strip is ${PIC}px tall, frames ${PIC}px apart`)
+  const frames = []
+  for (let f = 0; f < png.w / PIC; f++) {
+    const one = { w: PIC, h: PIC, rgba: new Uint8Array(PIC * PIC * 4) }
+    for (let y = 0; y < PIC; y++) one.rgba.set(png.rgba.subarray((y * png.w + f * PIC) * 4, (y * png.w + f * PIC + PIC) * 4), y * PIC * 4)
+    frames.push(tilesOf(shadesOf(one)))
+  }
+  return frames
+}
+
 /** Shades → 784 bytes of 2bpp, the 49 tiles in the order the game numbers them: column-major. */
 export function tilesOf(shades) {
   const out = Buffer.alloc(TILES * TILES * 16)
@@ -192,7 +204,7 @@ export function boringText() {
   return Buffer.concat([
     Buffer.from([0x00]), words, Buffer.from([END]), // text "A boring @"
     Buffer.from([0x01, A.wEnemyMonNick & 0xff, A.wEnemyMonNick >> 8]), // text_ram wEnemyMonNick
-    Buffer.from([0x00, 0x4f]), encodeName('appeared')?.subarray(0, 8), Buffer.from([0xe7, 0x58]) // text "" line "appeared!" prompt
+    Buffer.from([0x00, 0x4f]), letters('appeared'), Buffer.from([0xe7, 0x58]) // text "" line "appeared!" prompt
   ])
 }
 
@@ -205,45 +217,92 @@ export async function boring(door, on = true) {
   return r.changed ?? 0
 }
 
-// ---- the quiz: four Solar Beams, and a Splash for the other side --------------------------------
+// ---- the update: four Solar Beams, and a Splash for the other side ------------------------------
 
-// Your FIRST party mon's four moves become A, B, C and ALL OF ABOVE, each a SOLAR BEAM: it takes in
-// sunlight for a turn (the enemy's turn — which it spends on Splash, the only move it has) and fires
-// the next. Transient throughout: (1) in the LOADED ROM, four DONOR moves' records in the move table
-// (six bytes: animation / move number, effect, power, type, accuracy, pp) become Solar Beam's — its
-// animation, "used SOLARBEAM!", "took in sunlight!", its power — and their names in the name table
-// are overwritten in place, padded with spaces to the old length (a longer name would shift every
-// name after it — except the LAST donor, SUBSTITUTE, whose 13-letter name spills into STRUGGLE's slot:
-// the table's tail is rewritten from there, STRUGGLE moving into the zero padding after the table);
+// Your FIRST party mon's four moves become a MOVESET from data/sprites/movesets.json — "update" is
+// NOTES, WITH, FRIENDS, VERSION 2.0 (Village's tagline down the menu, then the release); edit the
+// file for others, four names of up to 13 letters (the move box's width) — each HYPER BEAM'S
+// ANIMATION AND POWER ON SOLAR BEAM'S CHARGE, never missing, of the unused BIRD type renamed APP (so
+// the box says TYPE/ APP, and nothing resists it): "VILLAGE is updating!" for a turn (the enemy's
+// turn — which it spends on Splash, the only move it has) and "VILLAGE used THE POWER OF
+// FRIENDSHIP!" the next, WHATEVER THE MOVE WAS CALLED: the used line's code picks the move name on
+// the player's branch, and those 8 bytes become a jump to a text of ours (see FIRED below); the
+// enemy's branch, and its "used SPLASH!", are untouched. THE LINES THAT NAME YOUR MON from the party — "gained … EXP. Points!", "grew to level",
+// "fainted!" — print a scratch buffer the game fills from wPartyMonNicks, which is never written;
+// their text_ram pointers are turned to wBattleMonNick instead, so they say VILLAGE too. Transient throughout: (1) in the LOADED ROM, four DONOR moves' records in the move table
+// (six bytes: animation / move number, effect, power, type, accuracy, pp) become HYPER_BEAM,
+// CHARGE, 150, BIRD, 255, 10, and the one byte of the charge-line selector that says SOLARBEAM says
+// HYPER_BEAM, so the charge turn prints Solar Beam's line, rewritten "is updating!"; and THE WHOLE NAME TABLE is
+// rebuilt with the donors' names swapped (an @-terminated name per move, so a longer name shifts
+// every name after it; the table is followed by 2.5K of zero padding, which takes the growth);
 // (2) in WRAM, the moves and PP of wBattleMon and wEnemyMon, the BATTLE-ONLY copies the move menu and
-// the AI read: the moves at each send-out, the PP topped up every poll (63, all a six-bit PP field
-// holds; the records say 63 too, so the menu reads 63/63). The party keeps its real moves (the game
-// copies PP back per slot, nothing else), so an in-game SAVE never sees this. Donors are moves nobody
+// the AI read: the moves at each send-out, the PP topped up every poll (10; the records say 10 too,
+// so the menu reads 10/10). The party keeps its real moves — the game only docks 1 PP a turn off the
+// real move in that slot, which the party does keep — so an in-game SAVE never sees the moves. Donors are moves nobody
 // carries — never Splash. 13 letters is the move box's width; "used ALL THE ABOVE" fills the text
 // line, and the "!" the game adds lands on the box's border.
 const MOVE_RECORD = 6
-const SOLAR_BEAM = 76
+const HYPER_BEAM = 63
+const CHARGE = 39 // Solar Beam's effect
 const SPLASH = 150
-const QUIZ = [
-  { id: 117, was: 'BIDE', name: 'A' },
-  { id: 132, was: 'CONSTRICT', name: 'B' },
-  { id: 140, was: 'BARRAGE', name: 'C' },
-  { id: 164, was: 'SUBSTITUTE', name: 'ALL THE ABOVE' }
-]
+const RECORD = [HYPER_BEAM, CHARGE, 150, 0, 255, 0] // type and pp filled in below
+/** The charge-line selector's `cp SOLARBEAM`: cp RAZOR_WIND; ld hl,..; jr z; cp SOLARBEAM … — the byte after the second cp. */
+const SELECTOR = Buffer.from([0xfe, 0x0d, 0x21])
+const SOLAR_BEAM = 76
+// THE FIRED LINE. The used line is "<USER>" then, from a text_asm in the battle bank, "used " + the
+// move's name + "!": after `ldh a,[hWhoseTurn]; and a` it loads the PLAYER's move and hl (8 bytes:
+// fa d1 cf 21 f1 cc 28 06 — ld a,[wPlayerMoveNum]; ld hl,wPlayerUsedMove; jr z,+6) and falls into the
+// enemy's load when it is not the player's turn. Those 8 bytes become `jr nz,+4; ld hl,STUB; ret; nop;
+// nop`: the enemy's turn takes the same path as before, the player's returns STUB to the text
+// engine — a 5-byte home-bank text (text_far to the bank $27 padding, after the boring text) that
+// prints "used THE POWER OF" <SCROLL> "FRIENDSHIP!" and is done. The home bank has 17 spare bytes
+// at its very end. wPlayerUsedMove is left stale on the player's turn (only Mirror Move reads it).
+const USED_ASM = Buffer.from([0x17, 0x2a, 0x79, 0x27, 0x08, 0xf0, 0xf3, 0xa7]) // text_far _MonName1Text; text_asm; ldh a,[hWhoseTurn]; and a
+const USED_PLAYER = Buffer.from([0xfa, 0xd1, 0xcf, 0x21, 0xf1, 0xcc, 0x28, 0x06])
+const FIRED_LINE = ['used THE POWER OF', 'FRIENDSHIP!']
+const SCROLL = 0x4c
+const DONE = 0x57
+const LINE = 0x4f
+export function firedText() {
+  return Buffer.concat([Buffer.from([0x00, LINE]), letters(FIRED_LINE[0]), Buffer.from([SCROLL]), letters(FIRED_LINE[1]), Buffer.from([DONE])])
+}
+const DONORS = [140, 117, 132, 164] // BARRAGE, BIDE, CONSTRICT, SUBSTITUTE
+export const MOVESETS = JSON.parse(readFileSync(new URL('../../data/sprites/movesets.json', import.meta.url), 'utf8'))
+export const MOVE_NAME_MAX = 13
+const BIRD = 6
+const TYPE_NAME = { was: 'BIRD', now: 'APP' }
+/** Solar Beam's charge line, rewritten in place (space-padded to its length). */
+const CHARGE_LINE = { was: 'took in sunlight!', now: 'is updating!' }
+/** Lines that print the party name from the scratch buffer (text_ram wcd6d, bytes 01 6d cd), found by what follows: text (00) then the words, or a line break (4f) first. */
+const NAMED_LINES = [[0x00, ' gained'], [0x00, ' grew'], [0x00, 0x4f, 'fainted!']]
+const SCRATCH = Buffer.from([0x01, 0x6d, 0xcd])
 const LAST_MOVE = 165
 const BATTLE_MOVES = 8
-const BATTLE_PP = 0x1c
-const QUIZ_PP = 63
+/** battle_struct: species, hp(2), box level, status, types(2), catch, moves(4), DVs(2), level, maxhp(2), atk, def, spd, spc, PP(4) at +$19. +$1c was a bug — it is only the LAST PP slot, so the other three writes landed past the struct, in wTrainerClass on our side and the enemy's base stats on theirs. */
+const BATTLE_PP = 0x19
+const QUIZ_PP = 10
 const SPLASH_PP = 40
 
-/** A run of the game's letters (upper, lower, space) — no length rule; `encodeName` keeps the HUD's. */
-const letters = (s) => Buffer.from([...s].map((ch) => (ch === ' ' ? SPACE : ch >= 'a' && ch <= 'z' ? 0xa0 + ch.charCodeAt(0) - 97 : ch >= 'A' && ch <= 'Z' ? 0x80 + ch.charCodeAt(0) - 65 : encodeName(ch)[0])))
+/** A run of the game's letters (upper, lower, digits, space . ! -) — no length rule; `encodeName` keeps the HUD's. NEVER a control code: \x4c is the letter L. */
+const letters = (s) => Buffer.from([...s].map((ch) => (ch === ' ' ? SPACE : ch === '!' ? 0xe7 : ch === '.' ? 0xe8 : ch >= '0' && ch <= '9' ? 0xf6 + ch.charCodeAt(0) - 48 : ch >= 'a' && ch <= 'z' ? 0xa0 + ch.charCodeAt(0) - 97 : ch >= 'A' && ch <= 'Z' ? 0x80 + ch.charCodeAt(0) - 65 : encodeName(ch)[0])))
 
 /** The tables, found in the cartridge FILE (the pristine bytes) rather than assumed. */
 function findTables(rom) {
   const moves = rom.indexOf(Buffer.from([1, 0, 40, 0, 255, 35, 2, 0])) // POUND, KARATE CHOP
   const names = rom.indexOf(Buffer.concat([letters('POUND'), Buffer.from([END]), letters('KARATE CHOP'), Buffer.from([END])]))
-  if (moves < 0 || names < 0) throw new Error('this is not Pokémon Yellow (UE): the move tables were not found')
+  const bird = rom.indexOf(Buffer.concat([letters('ROCK'), Buffer.from([END]), letters(TYPE_NAME.was), Buffer.from([END])]))
+  const usedAsm = rom.indexOf(USED_ASM)
+  const used = usedAsm >= 0 && rom.subarray(usedAsm + USED_ASM.length, usedAsm + USED_ASM.length + 8).equals(USED_PLAYER) ? usedAsm + USED_ASM.length : -1
+  let stub = 0x4000 // the home bank's tail: at least five zero bytes
+  while (stub > 0 && rom[stub - 1] === 0) stub--
+  if (0x4000 - stub < 5) stub = -1
+  const fired = TEXT_AT + boringText().length // right after the boring text, in the same padding
+  if (rom.subarray(fired, fired + 40).some((b) => b !== 0)) throw new Error('no room after the boring text')
+  let selector = -1
+  for (let i = rom.indexOf(SELECTOR); i >= 0; i = rom.indexOf(SELECTOR, i + 1)) if (rom[i + 5] === 0x28 && rom[i + 7] === 0xfe && rom[i + 8] === SOLAR_BEAM && rom[i + 9] === 0x21 && rom[i + 12] === 0x28) { selector = i + 8; break }
+  const charge = rom.indexOf(letters(CHARGE_LINE.was))
+  const named = NAMED_LINES.map((parts) => rom.indexOf(Buffer.concat([SCRATCH, ...parts.map((p) => (typeof p === 'number' ? Buffer.from([p]) : letters(p)))])))
+  if (moves < 0 || names < 0 || bird < 0 || selector < 0 || used < 0 || stub < 0 || charge < 0 || named.some((i) => i < 0)) throw new Error('this is not Pokémon Yellow (UE): the move tables were not found')
   const at = []
   let p = names
   for (let id = 1; id <= LAST_MOVE; id++) {
@@ -251,36 +310,72 @@ function findTables(rom) {
     at[id] = [p, e - p]
     p = e + 1
   }
-  return { moves, at, end: p }
+  return { moves, names, at, end: p, bird: bird + 'ROCK'.length + 1, selector, used, stub, fired, charge, named }
 }
 
-/** Patch the loaded ROM: the donors' records and names. Returns how many bytes changed. */
-export async function quizPatch(door, on = true) {
+/** The four names of a moveset, checked: four of them, 1–${MOVE_NAME_MAX} letters, in the game's font. */
+export function moveset(name) {
+  const set = MOVESETS[name]
+  if (!set) throw new Error(`no moveset “${name}”: movesets.json has ${Object.keys(MOVESETS).join(', ')}`)
+  if (!Array.isArray(set) || set.length !== 4) throw new Error(`moveset “${name}” must be four names`)
+  for (const n of set) {
+    if (typeof n !== 'string' || !n.length || n.length > MOVE_NAME_MAX) throw new Error(`a move name is 1–${MOVE_NAME_MAX} letters (the move box): “${n}”`)
+    if (!/^[A-Z0-9 .!-]+$/.test(n)) throw new Error(`move names are capitals, digits, spaces, . - !: “${n}”`)
+  }
+  return set
+}
+
+/** The whole name table: every name as it was, the donors' swapped for the moveset's (null = as it was). */
+function nameTable(rom, t, names4) {
+  const parts = []
+  for (let id = 1; id <= LAST_MOVE; id++) {
+    const k = DONORS.indexOf(id)
+    parts.push(names4 && k >= 0 ? letters(names4[k]) : rom.subarray(t.at[id][0], t.at[id][0] + t.at[id][1]), Buffer.from([END]))
+  }
+  const table = Buffer.concat(parts)
+  const spill = t.names + table.length - t.end
+  if (spill > 0 && rom.subarray(t.end, t.end + spill).some((b) => b !== 0)) throw new Error('the move names would run past their table')
+  return table
+}
+
+/** The cartridge file and its tables, read once per process. */
+let cart
+async function cartridge(door) {
+  if (cart) return cart
   const info = await door.call({ op: 'info' })
   if (!info.rom) throw new Error('no cartridge loaded')
   const rom = readFileSync(info.rom)
-  const { moves, at, end } = findTables(rom)
-  const record = Buffer.from(rom.subarray(moves + (SOLAR_BEAM - 1) * MOVE_RECORD, moves + SOLAR_BEAM * MOVE_RECORD))
+  return (cart = { rom, t: findTables(rom) })
+}
+
+/** Patch the loaded ROM: the donors' records and names (the name table rebuilt), the type, the selector, the lines. Returns how many bytes changed. */
+export async function quizPatch(door, { set = 'update', on = true } = {}) {
+  const names4 = moveset(set)
+  const { rom, t } = await cartridge(door)
+  const { moves, names, bird, selector, used, stub, fired, charge, named } = t
+  const record = Buffer.from(RECORD)
+  record[3] = BIRD
   record[5] = QUIZ_PP
   const writes = []
-  for (const q of QUIZ) {
-    const [off, len] = at[q.id]
-    const name = on ? q.name : q.was
-    if (name.length <= len) {
-      const bytes = Buffer.alloc(len, SPACE)
-      letters(name).copy(bytes)
-      writes.push([off, b64(bytes)])
-    } else {
-      // The tail of the table from this name on, the names after it moved along; the file must have padding to take the spill.
-      const tail = [letters(name), ...Array.from({ length: LAST_MOVE - q.id }, (_, i) => rom.subarray(at[q.id + 1 + i][0], at[q.id + 1 + i][0] + at[q.id + 1 + i][1]))]
-      const bytes = Buffer.concat(tail.flatMap((n) => [n, Buffer.from([END])]))
-      const spill = off + bytes.length - end
-      if (spill > 0 && rom.subarray(end, end + spill).some((b) => b !== 0)) throw new Error(`“${name}” would run past the name table`)
-      writes.push([off, b64(on ? bytes : rom.subarray(off, off + bytes.length))])
-    }
-    const rec = moves + (q.id - 1) * MOVE_RECORD
+  writes.push([names, b64(nameTable(rom, t, on ? names4 : null))])
+  writes.push([selector, b64(Buffer.from([on ? HYPER_BEAM : SOLAR_BEAM]))])
+  const text = firedText()
+  const rel = (fired & 0x3fff) + 0x4000
+  writes.push([fired, b64(on ? text : Buffer.alloc(text.length))])
+  writes.push([stub, b64(on ? Buffer.from([0x17, rel & 0xff, rel >> 8, fired >> 14, END]) : Buffer.alloc(5))])
+  writes.push([used, b64(on ? Buffer.from([0x20, 0x04, 0x21, stub & 0xff, stub >> 8, 0xc9, 0x00, 0x00]) : USED_PLAYER)])
+  for (const id of DONORS) {
+    const rec = moves + (id - 1) * MOVE_RECORD
     writes.push([rec, b64(on ? record : rom.subarray(rec, rec + MOVE_RECORD))])
   }
+  const type = Buffer.alloc(TYPE_NAME.was.length + 1, END)
+  letters(on ? TYPE_NAME.now : TYPE_NAME.was).copy(type)
+  writes.push([bird, b64(type)])
+  const line = Buffer.alloc(CHARGE_LINE.was.length, SPACE)
+  letters(on ? CHARGE_LINE.now : CHARGE_LINE.was).copy(line)
+  writes.push([charge, b64(line)])
+  const nick = Buffer.from([0x01, A.wBattleMonNick & 0xff, A.wBattleMonNick >> 8])
+  for (const i of named) writes.push([i, b64(on ? nick : SCRATCH)])
   return (await door.call({ op: 'patch', writes })).changed ?? 0
 }
 
@@ -294,7 +389,7 @@ export async function quizMoves(door) {
   if (!inBattle[0]) return { mine: 'none', enemy: 'none' }
   const out = { mine: 'none', enemy: 'none' }
   const writes = []
-  const ours = Buffer.from(QUIZ.map((q) => q.id))
+  const ours = Buffer.from(DONORS)
   if (nick[0] === 0 || nick[0] === END) out.mine = 'none'
   else if (num[0] !== 0) out.mine = 'not first'
   else if (mine.equals(ours) && pp.every((b) => b === QUIZ_PP)) out.mine = 'kept'
@@ -311,6 +406,99 @@ export async function quizMoves(door) {
     out.enemy = 'set'
   }
   if (writes.length) await door.call({ op: 'poke', writes })
+  return out
+}
+
+// ---- Foxtrot in the overworld -------------------------------------------------------------------
+
+// Red is four 8×8 hardware sprites in a 2×2 block, tiles row-major (TL TR BL BR): standing frames at
+// OBJ tiles $00–$0B (down, up, left; right is left x-flipped by the game), walking frames at $80–$8B
+// — $8000 and $8800 in VRAM, 64 bytes a frame. Pikachu, who trails a step behind, is the same shape
+// right after ($0C–$17, $8C–$97). The game shows the standing frame and, as you step, alternates it
+// with the walking one; so BOTH are kept equal to the CURRENT frame of Foxtrot's own animation — the
+// run cycle while wWalkCounter runs, the idle cycle otherwise — and every direction gets the same
+// side-view fox (a fox trots sideways). Pikachu's tiles are blanked: he still follows, unseen. The
+// tiles are reloaded by the game on a map change, so a repaint follows whenever they are not ours.
+// Never in a battle: $8000 is the battle's sprites then.
+const FOX_CELL = 16
+const FOX_MS = { idle: 280, run: 69 } // lib/fox.ts: idle 5 frames in 1400ms, run 8 in 550ms
+const RED_STAND = 0x8000
+const RED_WALK = 0x8800
+const PIKA_STAND = 0x80c0
+const PIKA_WALK = 0x88c0
+const SPRITE_BYTES = 12 * 16 // three frames of four tiles
+// His coat: OBJ palette 0 (Red's; the OAM attribute's low bits) in the CGB's palette RAM, through
+// OCPS ($FF6A, index | $80 = auto-increment) and OCPD ($FF6B): 1 white, 2 Village's orange, 3 the
+// outline, as BGR555. The game rewrites palettes on map loads and fades, so it is set again with
+// every paint and once a second.
+const OCPS = 0xff6a
+const OCPD = 0xff6b
+const PALETTE_EVERY_MS = 1000
+let paletteAt = 0
+
+async function foxPalette(door) {
+  const writes = [[OCPS, b64(Buffer.from([0x80]))]]
+  for (const c of FOX_COAT) writes.push([OCPD, b64(Buffer.from([c & 0xff]))], [OCPD, b64(Buffer.from([c >> 8]))])
+  await door.call({ op: 'poke', writes })
+}
+
+/** A strip PNG (frames 16px apart) → an array of 64-byte frames, the four tiles row-major. */
+export function foxFrames(png) {
+  if (png.h !== FOX_CELL || png.w % FOX_CELL) throw new Error(`a fox strip is ${FOX_CELL}px tall, frames ${FOX_CELL}px apart`)
+  const shades = new Uint8Array(png.w * png.h)
+  for (let i = 0; i < shades.length; i++) {
+    const [r, g, b, a] = png.rgba.subarray(i * 4, i * 4 + 4)
+    shades[i] = a < 128 ? 0 : 3 - Math.min(3, Math.floor((0.299 * r + 0.587 * g + 0.114 * b) / 64))
+  }
+  const frames = []
+  for (let f = 0; f < png.w / FOX_CELL; f++) {
+    const out = Buffer.alloc(64)
+    let o = 0
+    for (const [ty, tx] of [[0, 0], [0, 1], [1, 0], [1, 1]])
+      for (let y = 0; y < 8; y++) {
+        let lo = 0
+        let hi = 0
+        for (let x = 0; x < 8; x++) {
+          const v = shades[(ty * 8 + y) * png.w + f * FOX_CELL + tx * 8 + x]
+          lo = (lo << 1) | (v & 1)
+          hi = (hi << 1) | (v >> 1)
+        }
+        out[o++] = lo
+        out[o++] = hi
+      }
+    frames.push(out)
+  }
+  return frames
+}
+
+/**
+ * Paint Foxtrot's current frame into Red's cells (both slots, all three directions) and blank
+ * Pikachu's, and set his coat. `fox` is { idle, run } from foxFrames; `now` picks the frame.
+ * Returns 'battle' | 'kept' | 'painted' | 'missed', with the frame shown.
+ */
+export async function overworld(door, fox, now = Date.now()) {
+  const [inBattle, walk] = await read(door, [[A.wIsInBattle, 1], [A.wWalkCounter, 1]])
+  if (inBattle[0]) return { pic: 'battle' }
+  const cycle = walk[0] ? 'run' : 'idle'
+  const frames = fox[cycle]
+  const frame = frames[Math.floor(now / FOX_MS[cycle]) % frames.length]
+  const block = Buffer.concat([frame, frame, frame])
+  const out = { pic: 'kept', cycle, frame: frames.indexOf(frame) }
+  for (const at of [RED_STAND, RED_WALK]) {
+    if ((await readVram(door, at, SPRITE_BYTES)).equals(block)) continue
+    out.pic = (await pokeVram(door, at, block)) ? 'painted' : 'missed'
+  }
+  const blank = Buffer.alloc(SPRITE_BYTES)
+  for (const at of [PIKA_STAND, PIKA_WALK]) {
+    const now_ = await readVram(door, at, SPRITE_BYTES)
+    if (now_.equals(blank)) continue
+    if (!(await pokeVram(door, at, blank))) out.pic = 'missed'
+    else if (out.pic === 'kept') out.pic = 'painted'
+  }
+  if (out.pic === 'painted' || now - paletteAt > PALETTE_EVERY_MS) {
+    await foxPalette(door)
+    paletteAt = now
+  }
   return out
 }
 
@@ -361,19 +549,63 @@ const sentOut = (map) => {
 
 /**
  * Paint what can be painted right now. `front` / `back` are { tiles, name } (either may be
- * absent). A slot's picture is written ONLY while the tile map shows that slot's 7×7 block
+ * absent); `fox` is Foxtrot's idle as back-slot frames (backFrames), painted in RED's place — the
+ * back block whole with no HUD of yours — cycling by `now`. A slot's picture is written ONLY while the tile map shows that slot's 7×7 block
  * whole AND it is a mon's — yours: your HUD is up; the enemy's: a wild battle, its HUD up, or
  * "sent out" in the text box — so never Red's back, a trainer's face, a menu, the party screen,
  * a send-out animation. Its name goes in whenever the slot's nick holds one; the HUD is rewritten
  * while its frame is up and the cells hold a name that is not ours. Returns, per slot, what was
  * done: { pic, name } where pic is 'painted' | 'kept' (already ours) | 'hidden' (not up) |
- * 'missed' (VRAM never took it), and name is 'written' | 'kept' | 'none'.
+ * 'missed' (VRAM never took it), and name is 'written' | 'kept' | 'none'; `map` is the tile map as read.
  */
-export async function apply(door, { front, back } = {}) {
+const FOX_BACK_MS = 280
+/** Foxtrot's colours as a Game Boy palette: clear, white, Village's orange, the outline (BGR555). */
+const bgr555 = ([r, g, b]) => ((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3)
+const FOX_COAT = [[255, 255, 255], [255, 255, 255], [214, 121, 65], [47, 47, 46]].map(bgr555)
+// Red's block is BG palette 2 (white, yellow, RED, dark — the tint), shared with the text box, which
+// only uses white and dark. Once the battle's fade-in has left Red's finished red in colour 2 (its
+// low byte $3f; ours is $fa), the palette becomes his coat's; the game restores its own at the send-out.
+// The enemy's picture is BG palette 3, its own (the HUD is 1, the text box 2): Notes wears the real
+// icon's colours — paper, yellow, brownish-yellow rules, the outline — set once the fade-in has
+// brought colour 0 up to white, and again whenever the game's own flashes and send-outs put the
+// species' palette back.
+const BCPS = 0xff68
+const BCPD = 0xff69
+const RED_PALETTE = 2
+const RED_LOW = 0x3f
+const ENEMY_PALETTE = 3
+const NOTES_COLOURS = [[255, 255, 255], [255, 228, 0], [184, 144, 56], [47, 47, 46]].map(bgr555) // the core renders warm, so the yellow is pushed pure
+
+/** One byte of the CGB BG palette RAM, by index. */
+async function bgByte(door, index) {
+  await door.call({ op: 'poke', writes: [[BCPS, b64(Buffer.from([index]))]] })
+  const [b] = await read(door, [[BCPD, 1]])
+  return b[0]
+}
+async function setBgPalette(door, index, colours) {
+  const writes = [[BCPS, b64(Buffer.from([0x80 | (index * 8)]))]]
+  for (const c of colours) writes.push([BCPD, b64(Buffer.from([c & 0xff]))], [BCPD, b64(Buffer.from([c >> 8]))])
+  await door.call({ op: 'poke', writes })
+}
+async function slotPalette(door) {
+  const low = await bgByte(door, RED_PALETTE * 8 + 4)
+  if (low === (FOX_COAT[2] & 0xff)) return 'coat'
+  if (low !== RED_LOW) return 'fading'
+  await setBgPalette(door, RED_PALETTE, FOX_COAT)
+  return 'set'
+}
+async function notesPalette(door) {
+  if ((await bgByte(door, ENEMY_PALETTE * 8 + 2)) === (NOTES_COLOURS[1] & 0xff)) return 'notes'
+  if ((await bgByte(door, ENEMY_PALETTE * 8)) !== 0xff) return 'fading' // colour 0 not yet white: mid-fade
+  await setBgPalette(door, ENEMY_PALETTE, NOTES_COLOURS)
+  return 'set'
+}
+
+export async function apply(door, { front, back, fox } = {}, now = Date.now()) {
   const [inBattle, map] = await read(door, [[A.wIsInBattle, 1], [A.wTileMap, COLS * 18]])
   const kind = inBattle[0]
   if (!kind) return { battle: false }
-  const out = { battle: true, kind: kind === 1 ? 'wild' : 'trainer' }
+  const out = { battle: true, kind: kind === 1 ? 'wild' : 'trainer', map }
   for (const [key, want] of [['front', front], ['back', back]]) {
     if (!want) continue
     const slot = SLOTS[key]
@@ -401,9 +633,16 @@ export async function apply(door, { front, back } = {}) {
 
     if (want.tiles && isWhole(slot, map)) {
       const mon = key === 'back' ? hudUp(slot, map) : kind === 1 || hudUp(slot, map) || sentOut(map)
-      if (!mon) done.pic = 'not a mon'
+      if (!mon && key === 'back' && fox?.length) {
+        // Red, waiting to send out: Foxtrot stands there instead, wagging.
+        const frame = fox[Math.floor(now / FOX_BACK_MS) % fox.length]
+        if ((await readVram(door, slot.vram, frame.length)).equals(frame)) done.pic = 'Foxtrot'
+        else done.pic = (await pokeVram(door, slot.vram, frame)) ? 'Foxtrot painted' : 'missed'
+        done.coat = await slotPalette(door)
+      } else if (!mon) done.pic = 'not a mon'
       else if ((await readVram(door, slot.vram, want.tiles.length)).equals(want.tiles)) done.pic = 'kept'
       else done.pic = (await pokeVram(door, slot.vram, want.tiles)) ? 'painted' : 'missed'
+      if (key === 'front' && done.pic !== 'missed') done.coat = await notesPalette(door)
     }
   }
   return out

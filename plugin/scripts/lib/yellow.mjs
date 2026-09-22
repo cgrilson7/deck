@@ -88,7 +88,7 @@ function decodeMon(b, o, { party }) {
     types: [...new Set([typeName(b[o + 5]), typeName(b[o + 6])])],
     moves: []
   }
-  const pp = party ? o + 0x1d : o + 0x1c
+  const pp = party ? o + 0x1d : o + 0x19 // battle_struct PP is at +$19 (four slots); +$1c was the last slot alone
   for (let i = 0; i < 4; i++) {
     const id = b[o + 8 + i]
     if (!id) continue
