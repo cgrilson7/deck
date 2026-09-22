@@ -5,6 +5,8 @@
 //   info                                      → { rom, name, speed, paused }
 //   ram   { ranges: [[addr, len], …] }        → { data: [base64, …] }
 //   poke  { writes: [[addr, base64], …] }      → write bytes (the party forge, the warp table)
+//   patch { writes: [[offset, base64], …] }    → { changed }   bytes into the LOADED ROM image, by file offset
+//         (the sprite gag's text); the file is never written, and a state load brings the original back
 //   hold  { keys, iterations, stop, every }   → { iterations, stopped, values }
 //         keys are held for up to `iterations` (8ms core steps); every `every` steps each
 //         `stop` — { addr, len, when: 'changed' | 'eq' | 'ne', value } — is tested, and the
@@ -157,6 +159,19 @@ export class HeadlessDoor {
           for (let i = 0; i < bytes.length; i++) this.core.memoryWrite(a + i, bytes[i])
         }
         return { ok: true }
+      case 'patch': {
+        let changed = 0
+        for (const [o, b64] of body.writes) {
+          const bytes = Buffer.from(b64, 'base64')
+          for (let i = 0; i < bytes.length; i++) {
+            if (o + i < 0 || o + i >= this.core.ROM.length) throw new Error(`patch: 0x${(o + i).toString(16)} is outside the cartridge`)
+            if (this.core.ROM[o + i] !== bytes[i]) changed++
+            this.core.ROM[o + i] = bytes[i]
+            if (o + i < 0x4000) this.core.memory[o + i] = bytes[i]
+          }
+        }
+        return { ok: true, changed }
+      }
       case 'hold':
         return { ok: true, ...this.hold(body) }
       case 'settle':

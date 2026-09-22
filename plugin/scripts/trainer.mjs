@@ -31,15 +31,26 @@
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
 //   trainer.mjs badges [all|none]  |  money <n>
 //   trainer.mjs learnset <pokemon> [level]                 what it knows by then
+//   trainer.mjs sprite [watch] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+//                                                          THE SPRITE GAG, in a battle: the enemy mon's picture becomes the Notes
+//                                                          icon named NOTES APP, the mon you send out the Village logo named
+//                                                          VILLAGE (56×56 four-grey PNGs, plugin/data/sprites/), "Wild X
+//                                                          appeared!" reads "A boring X appeared!", your first party mon's moves
+//                                                          are A, B, C, ALL THE ABOVE — Solar Beams all, a turn to charge — and the
+//                                                          enemy knows only SPLASH. VRAM, the battle-only copies of names and
+//                                                          moves, and the LOADED ROM's text and move table, so no save or file
+//                                                          ever holds it; the game redraws its own at every send-out —
+//                                                          `sprite watch` repaints every 20ms until ^C
 //
 // Add --json for the state as JSON instead of text.
 
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DeckDoor, HeadlessDoor } from './lib/door.mjs'
 import { Driver, describe } from './lib/drive.mjs'
 import * as Y from './lib/yellow.mjs'
 import * as F from './lib/forge.mjs'
+import * as S from './lib/sprites.mjs'
 
 const argv = process.argv.slice(2)
 const flags = {}
@@ -71,6 +82,7 @@ const HELP = `trainer.mjs — play Pokémon Yellow on the deck's Game Boy
   goto TARGET     talk TARGET     fight SLOT     save NAME | load NAME     shot
   speed 1|2|4 | pause | resume    rom [path]     intro     where [TARGET]     map     cut
   party "Name Lvl: move, move; Name Lvl; …"    elite [--level N]    warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
+  sprite [watch] [--front PNG] [--back PNG] [--front-name N] [--back-name N]    in a battle: NOTES APP (Splash only) vs VILLAGE (A, B, C, ALL THE ABOVE = Solar Beam)
 Targets: ${Object.keys(Y.LANDMARKS).join(', ')}; or MAP_CONST@x,y, door:MAP_CONST, MAP_CONST.`
 
 if (!cmd || cmd === 'help' || cmd === '--help') {
@@ -114,6 +126,8 @@ async function finish(note, st, extra = {}) {
 }
 
 const KEYS = ['A', 'B', 'START', 'SELECT', 'UP', 'DOWN', 'LEFT', 'RIGHT']
+/** The sprite watch's pace: a read of the deck's door is under a millisecond, and a name is printed ~20 core steps after it is set. */
+const SPRITE_POLL_MS = 20
 
 /** In a battle: bring the cursor to FIGHT, open the move list, land on `slot`, choose it, then A through the turn. */
 async function fight(slot) {
@@ -304,6 +318,45 @@ try {
       console.log(`at L${level} it would know: ${F.movesAtLevel(id, level).map((m) => Y.DATA.moves[m].name).join(', ')}`)
       console.log(`TM/HM: ${p.tmhm.map((m) => Y.DATA.moves[F.move(m)].name).join(', ')}`)
       break
+    }
+    case 'sprite': {
+      const art = (flag, file, name) => ({
+        tiles: S.tilesOf(S.shadesOf(S.decodePng(readFileSync(flags[flag] ?? new URL(`../data/sprites/${file}`, import.meta.url))))),
+        name: flags[`${flag}-name`] ?? name
+      })
+      const want = { front: art('front', 'notes.png', 'NOTES APP'), back: art('back', 'village.png', 'VILLAGE') }
+      S.encodeName(want.back.name)
+      if ([...S.encodeName(want.front.name)].filter((b) => b !== 0x50).length > S.FRONT_NAME_MAX) die(`the front name is at most ${S.FRONT_NAME_MAX} characters: "A boring " goes before it`)
+      const told = (r) => (r.battle ? ['front', 'back'].map((k) => `${k}: picture ${r[k].pic}, name ${r[k].name}`).join(' · ') : 'not in a battle')
+      // The text patch first: it is in the loaded ROM, which a state load resets, so the watch renews it as each battle starts.
+      const boring = async () => ((await S.boring(door)) + (await S.quizPatch(door)) ? 'text patched' : 'text on')
+      const quiz = (q) => `moves ${q.mine}${q.enemy !== 'none' ? `, enemy ${q.enemy}` : ''}`
+      if (rest[0] !== 'watch') {
+        const text = await boring()
+        const r = await S.apply(door, want)
+        const q = await S.quizMoves(door)
+        await finish(`sprite — ${told(r)} · ${text}${r.battle ? ` · ${quiz(q)}` : ''}`)
+        break
+      }
+      console.error(`watching: repainting the battle pictures and names every ${SPRITE_POLL_MS}ms (^C to stop) · ${await boring()}`)
+      let last = ''
+      let inBattle = false
+      let patchedAt = Date.now()
+      for (;;) {
+        const r = await S.apply(door, want).catch((err) => ({ error: err.message }))
+        if (!r.error && r.battle && (!inBattle || Date.now() - patchedAt > 2000)) {
+          patchedAt = Date.now()
+          if (await S.boring(door).catch(() => 0)) console.error('  · text patched')
+        }
+        inBattle = !!r.battle
+        const q = r.battle ? await S.quizMoves(door).catch((err) => ({ mine: err.message, enemy: 'none' })) : null
+        if (q && (q.mine === 'set' || q.enemy === 'set')) console.error(`  · ${quiz(q)}`)
+        const idle = r.error ?? (r.battle ? '' : 'not in a battle')
+        const did = r.battle && ['front', 'back'].some((k) => r[k].pic === 'painted' || r[k].pic === 'missed' || r[k].name === 'written')
+        if (did || (idle && idle !== last)) console.error(`  · ${idle || told(r)}`)
+        last = idle
+        await new Promise((done) => setTimeout(done, SPRITE_POLL_MS))
+      }
     }
     default:
       die(`unknown command ${cmd}\n${HELP}`)

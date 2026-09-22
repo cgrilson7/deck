@@ -55,6 +55,9 @@ interface Core {
   /** The core's own read: Yellow runs in GBC mode and D000–DFFF is banked, so `memory[]` is not the truth there. */
   memoryRead(addr: number): number
   memoryWrite(addr: number, data: number): void
+  /** The cartridge as loaded (the whole file); bank 0 is mirrored in `memory[]`. A save state carries a copy. */
+  ROM: Uint8Array
+  memory: Uint8Array
   audioBuffer: Float32Array
   audioDestinationPosition: number
   numSamplesTotal: number
@@ -510,6 +513,22 @@ class GameBoy {
         }
         this.blit()
         return {}
+      }
+      case 'patch': {
+        // The trainer's ROM patch (the sprite gag's "A boring …" text): bytes into the LOADED image only —
+        // the file is never written, and a state load brings the original back.
+        let changed = 0
+        for (const [o, b64] of (body.writes as [number, string][]) ?? []) {
+          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+          for (let i = 0; i < bytes.length; i++) {
+            const at = o + i
+            if (at < 0 || at >= this.core.ROM.length) throw new Error(`patch: 0x${at.toString(16)} is outside the cartridge`)
+            if (this.core.ROM[at] !== bytes[i]) changed++
+            this.core.ROM[at] = bytes[i]
+            if (at < 0x4000) this.core.memory[at] = bytes[i]
+          }
+        }
+        return { changed }
       }
       case 'hold': {
         const keys = ((body.keys as string[]) ?? []).filter((k): k is GbKey => (GB_KEYS as readonly string[]).includes(k))

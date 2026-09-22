@@ -57,6 +57,23 @@ move to learn) the screen line says so: answer with `press` and `advance`.
 - Brock: Rock/Ground; Pikachu's Electric moves do nothing to Geodude/Onix — use Mankey / Nidoran / Butterfree's Confusion, or Bulbasaur's Vine Whip if you already have it (you will not, yet). Catch a Mankey on Route 22 or a Nidoran on Route 22 and level it. Misty: Water — Pikachu's Thunder Shock. Surge: Electric — a Ground type (Sandshrew from Route 4 / Diglett's Cave) or just levels; his gym's door needs Cut, and the trash cans hide two switches.
 - Blacked out (all fainted)? You wake at the last Pokémon Center with half your money gone. Better: `load` your last checkpoint.
 
+## The sprite gag (only when asked)
+
+`node "$DECK_TRAINER" sprite` repaints the battle on screen: the enemy MON's picture becomes the
+Notes app icon and is called NOTES APP, the mon YOU SEND OUT becomes the Village logo and is called
+VILLAGE (the text too: "A boring NOTES APP appeared!", "Go! VILLAGE!", "Enemy NOTES APP used
+TACKLE!"), while Red's back and a trainer's face stay their own. It is paint, not data: tiles in
+VRAM, the two battle-only name copies, and the wild-encounter text in the LOADED ROM image, so the
+party, the ROM file and every save are untouched; the game redraws its own pictures at every
+send-out and after the party / bag screens. `sprite watch` keeps repainting (every 20ms, until ^C)
+and is what the user runs in a terminal of their own; outside a battle both do nothing. THE QUIZ: your FIRST party mon's four moves read A, B, C and ALL THE ABOVE — every one a Solar Beam
+("VILLAGE took in sunlight!", the enemy's turn, then "VILLAGE used ALL THE ABOVE!" and the beam) —
+and the enemy's mon knows only SPLASH ("No effect!"). Battle copies only: the party screen shows the
+real moves, and `look` in a battle lists the quiz ones. `--front
+<png>` / `--back <png>` (56×56, four greys) and `--front-name` (nine characters, "A boring " goes
+before it) / `--back-name` (ten) swap the art. `look` and `fight` read the names from the same
+battle copies, so they say NOTES APP / VILLAGE meanwhile.
+
 ## Checkpoints and notes
 
 - `save <name>` after every milestone (`save pewter-badge`, `save got-charmander`); `load <name>` undoes a disaster. Names are free-form.
