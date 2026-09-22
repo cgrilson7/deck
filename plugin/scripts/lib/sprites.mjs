@@ -263,6 +263,15 @@ const FIRED_LINE = ['used THE POWER OF', 'FRIENDSHIP!']
 const SCROLL = 0x4c
 const DONE = 0x57
 const LINE = 0x4f
+// YOUR NAME in the game's lines: the text engine's <PLAYER> handler in the home bank is `push de; ld
+// de,wPlayerName; jr …` (d5 11 57 d1 18); its operand is turned to a string of ours at $0010 — the
+// RST vectors: a `rst $38` trap every eighth byte and zeros between, which Yellow never executes — so every "<PLAYER> …" line says VILLAGE USER while
+// wPlayerName (which a SAVE keeps) stays as it is. The start menu and the trainer card print
+// wPlayerName directly and keep the real name. Lines were laid out for 7 letters; 12 may run long.
+export const PLAYER_NAME = 'VILLAGE USER'
+export const PLAYER_NAME_MAX = 12 // 7 fits every line the game lays out; past that "defeated" and friends run off the box
+const PLAYER_AT = 0x0010
+const PLAYER_LOAD = Buffer.from([0xd5, 0x11, 0x57, 0xd1, 0x18]) // push de; ld de,wPlayerName; jr
 export function firedText() {
   return Buffer.concat([Buffer.from([0x00, LINE]), letters(FIRED_LINE[0]), Buffer.from([SCROLL]), letters(FIRED_LINE[1]), Buffer.from([DONE])])
 }
@@ -293,6 +302,9 @@ function findTables(rom) {
   const bird = rom.indexOf(Buffer.concat([letters('ROCK'), Buffer.from([END]), letters(TYPE_NAME.was), Buffer.from([END])]))
   const usedAsm = rom.indexOf(USED_ASM)
   const used = usedAsm >= 0 && rom.subarray(usedAsm + USED_ASM.length, usedAsm + USED_ASM.length + 8).equals(USED_PLAYER) ? usedAsm + USED_ASM.length : -1
+  const player = rom.indexOf(PLAYER_LOAD)
+  const nameRoom = PLAYER_NAME_MAX + 1
+  if (player < 0 || player >= 0x4000 || rom.subarray(PLAYER_AT, PLAYER_AT + nameRoom).some((b) => b !== 0 && b !== 0xff)) throw new Error('the <PLAYER> handler or the RST vectors are not as expected')
   let stub = 0x4000 // the home bank's tail: at least five zero bytes
   while (stub > 0 && rom[stub - 1] === 0) stub--
   if (0x4000 - stub < 5) stub = -1
@@ -310,7 +322,7 @@ function findTables(rom) {
     at[id] = [p, e - p]
     p = e + 1
   }
-  return { moves, names, at, end: p, bird: bird + 'ROCK'.length + 1, selector, used, stub, fired, charge, named }
+  return { moves, names, at, end: p, bird: bird + 'ROCK'.length + 1, selector, used, stub, fired, charge, named, player: player + 2 }
 }
 
 /** The four names of a moveset, checked: four of them, 1–${MOVE_NAME_MAX} letters, in the game's font. */
@@ -349,10 +361,11 @@ async function cartridge(door) {
 }
 
 /** Patch the loaded ROM: the donors' records and names (the name table rebuilt), the type, the selector, the lines. Returns how many bytes changed. */
-export async function quizPatch(door, { set = 'update', on = true } = {}) {
+export async function quizPatch(door, { set = 'update', on = true, name = PLAYER_NAME } = {}) {
   const names4 = moveset(set)
+  if (!/^[A-Z0-9 .!-]{1,12}$/.test(name)) throw new Error(`a player name is 1–${PLAYER_NAME_MAX} capitals, digits or spaces: “${name}”`)
   const { rom, t } = await cartridge(door)
-  const { moves, names, bird, selector, used, stub, fired, charge, named } = t
+  const { moves, names, bird, selector, used, stub, fired, charge, named, player } = t
   const record = Buffer.from(RECORD)
   record[3] = BIRD
   record[5] = QUIZ_PP
@@ -364,6 +377,8 @@ export async function quizPatch(door, { set = 'update', on = true } = {}) {
   writes.push([fired, b64(on ? text : Buffer.alloc(text.length))])
   writes.push([stub, b64(on ? Buffer.from([0x17, rel & 0xff, rel >> 8, fired >> 14, END]) : Buffer.alloc(5))])
   writes.push([used, b64(on ? Buffer.from([0x20, 0x04, 0x21, stub & 0xff, stub >> 8, 0xc9, 0x00, 0x00]) : USED_PLAYER)])
+  writes.push([PLAYER_AT, b64(on ? Buffer.concat([letters(name), Buffer.from([END]), rom.subarray(PLAYER_AT + name.length + 1, PLAYER_AT + PLAYER_NAME_MAX + 1)]) : rom.subarray(PLAYER_AT, PLAYER_AT + PLAYER_NAME_MAX + 1))])
+  writes.push([player, b64(on ? Buffer.from([PLAYER_AT & 0xff, PLAYER_AT >> 8]) : Buffer.from([A.wPlayerName & 0xff, A.wPlayerName >> 8]))])
   for (const id of DONORS) {
     const rec = moves + (id - 1) * MOVE_RECORD
     writes.push([rec, b64(on ? record : rom.subarray(rec, rec + MOVE_RECORD))])
@@ -642,7 +657,7 @@ export async function apply(door, { front, back, fox } = {}, now = Date.now()) {
       } else if (!mon) done.pic = 'not a mon'
       else if ((await readVram(door, slot.vram, want.tiles.length)).equals(want.tiles)) done.pic = 'kept'
       else done.pic = (await pokeVram(door, slot.vram, want.tiles)) ? 'painted' : 'missed'
-      if (key === 'front' && done.pic !== 'missed') done.coat = await notesPalette(door)
+      if (key === 'front' && done.pic !== 'missed') done.coat = await notesPalette(door) // Village keeps the palette of the species in your slot
     }
   }
   return out

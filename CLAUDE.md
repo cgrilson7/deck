@@ -560,6 +560,9 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Never in a battle ($8000 is the battle's sprites then). HIS COAT is OBJ palette 0 (Red's) in the CGB palette RAM, written through
   OCPS/OCPD ($FF6A/$FF6B: white, Village's orange, the outline) with every paint and once a second, since map loads and fades
   rewrite it. A converter cell with no source pixels under it is CLEAR (it once voted outline: a black bar over his head).
+  YOUR NAME: the home bank's <PLAYER> handler (`push de; ld de,wPlayerName; jr`) has its operand turned to "VILLAGE USER@" written into
+  the RST vectors ($0010; the ROM's first 64 bytes are zero, Yellow uses no rst), so every "<PLAYER> …" line says VILLAGE USER while
+  wPlayerName, which a SAVE keeps, is never written (the start menu and trainer card print it directly and keep the real name).
   THE LINES THAT NAME YOUR MON FROM THE PARTY — "gained … EXP. Points!", "grew to level",
   "fainted!" — print a scratch buffer (text_ram wcd6d) the game fills from wPartyMonNicks, which is never written: their pointers
   are turned to wBattleMonNick, so they say VILLAGE (any party mon's, while the watch runs). Then wBattleMon / wEnemyMon
@@ -580,9 +583,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   and all) — hence `sprite watch`, every 250ms. THE CATCH: this core drops VRAM writes and reads $FF while STAT is in mode 3, and a
   poke lands wherever the last 8ms step ended — so an all-$FF read is retried a keyless step later and a write is read back and
   retried (24 tries), all through the existing ops: `lib/gameboy.ts` needed no change. Village wears the PALETTE OF THE SPECIES in your slot
-  (the dithered disc reads yellow→salmon in Pikachu's); NOTES WEARS ITS OWN: the enemy's picture is BG palette 3 (the HUD is 1, the
-  text box 2), read and written through BCPS/BCPD ($FF68/$FF69) — paper, yellow, brownish-yellow rules, outline — once the fade-in
-  has brought colour 0 up to white, and again whenever a flash or a send-out puts the species' palette back. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
+  (the dithered disc in Pikachu's yellow→orange, Nidoqueen's blues — Colin's choice, after a round in the icon's own yellow and
+  salmon); NOTES WEARS ITS OWN: the enemy's picture is BG palette 3 (the HUD is 1, the text box 2), read and written through
+  BCPS/BCPD ($FF68/$FF69) — paper, yellow, brownish-yellow rules, outline — once the fade-in has brought colour 0 up to white, and
+  again whenever a flash or a send-out puts the species' palette back. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
   min(r,g,b)-white pixels per cell) as shade 0 over a disc dithered shade 1 → 2 (the icon's own gradient), one cell of shade 3 outside
   the ring; Notes = boxed down, header 1, rules and perforation 2, paper 0, a shade-3 outline where opaque meets transparent.
 - **Molecule** (`lib/mol.ts`, `MolTile`, `MolPane`, `main/mol.ts`, `main/data/molLibrary.ts`, `plugin/skills/mol/`,

@@ -31,7 +31,8 @@
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
 //   trainer.mjs badges [all|none]  |  money <n>
 //   trainer.mjs learnset <pokemon> [level]                 what it knows by then
-//   trainer.mjs sprite [watch] [--moves SET] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+//   trainer.mjs sprite [watch] [--moves SET] [--name YOU] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+//                                                          --name: what the game's lines call you (VILLAGE USER; 7 letters fit every line)
 //                                                          THE SPRITE GAG, in a battle: the enemy mon's picture becomes the Notes
 //                                                          icon named NOTES APP, the mon you send out the Village logo named
 //                                                          VILLAGE (56×56 four-grey PNGs, plugin/data/sprites/), "Wild X
@@ -87,7 +88,7 @@ const HELP = `trainer.mjs — play Pokémon Yellow on the deck's Game Boy
   goto TARGET     talk TARGET     fight SLOT     save NAME | load NAME     shot
   speed 1|2|4 | pause | resume    rom [path]     intro     where [TARGET]     map     cut
   party "Name Lvl: move, move; Name Lvl; …"    elite [--level N]    warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
-  sprite [watch] [--moves SET] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
+  sprite [watch] [--moves SET] [--name YOU] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
                   in a battle: NOTES APP (Splash only) vs VILLAGE (a moveset of data/sprites/movesets.json: ${Object.keys(S.MOVESETS).join(" | ")}; Solar Beams, TYPE/ APP); --foxtrot = Red is Foxtrot
 Targets: ${Object.keys(Y.LANDMARKS).join(', ')}; or MAP_CONST@x,y, door:MAP_CONST, MAP_CONST.`
 
@@ -341,7 +342,8 @@ try {
       // The text patch first: it is in the loaded ROM, which a state load resets, so the watch renews it as each battle starts.
       const set = flags.moves ?? Object.keys(S.MOVESETS)[0]
       S.moveset(set)
-      const boring = async () => ((await S.boring(door)) + (await S.quizPatch(door, { set })) ? `text patched (moves: ${set})` : `text on (moves: ${set})`)
+      const name = (flags.name ?? S.PLAYER_NAME).toUpperCase()
+      const boring = async () => ((await S.boring(door)) + (await S.quizPatch(door, { set, name })) ? `text patched (moves: ${set}, you: ${name})` : `text on (moves: ${set}, you: ${name})`)
       const quiz = (q) => `moves ${q.mine}${q.enemy !== 'none' ? `, enemy ${q.enemy}` : ''}`
       if (rest[0] !== 'watch') {
         const text = await boring()
@@ -362,7 +364,7 @@ try {
         if (!r.error && r.battle && (!inBattle || Date.now() - patchedAt > 2000)) {
           patchedAt = Date.now()
           // A state load restores the whole ROM: renew EVERY patch, not just the wild text, or the donor ids in wBattleMon are the real moves.
-          const n = (await S.boring(door).catch(() => 0)) + (await S.quizPatch(door, { set }).catch(() => 0))
+          const n = (await S.boring(door).catch(() => 0)) + (await S.quizPatch(door, { set, name }).catch(() => 0))
           if (n) console.error('  · text patched')
         }
         inBattle = !!r.battle
