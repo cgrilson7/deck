@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { Gamepad2, Pause, Play, RotateCcw, Save, Volume2, VolumeX } from 'lucide-react'
+import { Gamepad2, Pause, Play, RotateCcw, Save, Swords, Volume2, VolumeX } from 'lucide-react'
 import { gameboy, GB_KEYS, SPEEDS, STATE_SLOTS, useGameBoy, type GbKey, type Speed } from '../lib/gameboy'
 import { usePokemonRoms } from '../lib/pokemon'
+import { patchSettings, useSettings } from '../lib/theme'
 import { Fox } from './Fox'
 
 /** Keyboard → Game Boy while the pane is open. Arrows are the pad; Z/X the way every emulator has it. */
@@ -34,6 +35,8 @@ const typing = (t: EventTarget | null) => {
 export function PokemonPane({ onClose }: { onClose: () => void }) {
   const st = useGameBoy()
   const roms = usePokemonRoms()
+  // The sprite gag is main's: the setting runs `trainer.mjs sprite watch` as a child of its own.
+  const { spriteGag } = useSettings()
   const canvas = useRef<HTMLCanvasElement>(null)
   const pane = useRef<HTMLElement>(null)
 
@@ -161,6 +164,13 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
           </button>
           <button className={`pill ${st.muted ? '' : 'on'}`} onClick={() => gb.setMuted(!st.muted)} title={st.muted ? 'Sound on' : 'Mute'}>
             {st.muted ? <VolumeX size={12} /> : <Volume2 size={12} />} {st.muted ? 'muted' : 'sound'}
+          </button>
+          <button
+            className={`pill ${spriteGag ? 'on' : ''}`}
+            onClick={() => patchSettings({ spriteGag: !spriteGag })}
+            title="Village vs Notes: repaint every battle (the sprite gag)"
+          >
+            <Swords size={12} /> gag
           </button>
           <span className="spacer" />
           {roms.length > 0 && st.rom && (

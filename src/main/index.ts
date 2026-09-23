@@ -34,6 +34,7 @@ import { RemoteServer } from './remote'
 import { Wolfpack } from './pack'
 import { Studio } from './studio'
 import { Pokemon } from './pokemon'
+import { SpriteGag } from './spritegag'
 import { Mol } from './mol'
 import { LessonWatch, lessonFigure, lintLessonFile, readCurriculum, readLesson } from './lesson'
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
@@ -461,6 +462,8 @@ app.whenReady().then(async () => {
     p.resolve(result)
   })
 
+  // The trainer's CLI: DECK_TRAINER in every session's env, and what the sprite gag runs below.
+  const trainerScript = join(pluginDir, 'scripts', 'trainer.mjs')
   // The hooks server is also the wolfpack's door: a session inside the deck POSTs /pack to spawn betas.
   const hooks = new HooksServer(
     HOOK_PORT,
@@ -468,7 +471,7 @@ app.whenReady().then(async () => {
     profile,
     join(pluginDir, 'scripts', 'wolfpack.mjs'),
     join(pluginDir, 'scripts', 'studio.mjs'),
-    join(pluginDir, 'scripts', 'trainer.mjs'),
+    trainerScript,
     join(pluginDir, 'scripts', 'mol.mjs'),
     (event, payload) => {
       manager?.onHook(event, payload)
@@ -483,6 +486,13 @@ app.whenReady().then(async () => {
   )
   hooks.onLesson = (body) => lessonCall(body)
   await hooks.start()
+
+  // The sprite gag: `trainer.mjs sprite watch` as a child of main, following the `spriteGag`
+  // setting (the Pokemon pane's `gag` button, View ▸ Pokemon ▸ Village vs Notes). It talks back
+  // to the renderer's Game Boy through /gameboy, so the hooks server is up first.
+  const spriteGag = new SpriteGag(trainerScript, HOOK_PORT)
+  spriteGag.sync(settings.get())
+  settings.onChange((s) => spriteGag.sync(s))
 
   manager = new SessionManager({
     tmux,
@@ -698,6 +708,7 @@ app.whenReady().then(async () => {
   app.on('before-quit', () => {
     fleet.stop()
     spotify.stop()
+    spriteGag.stop()
     hooks.stop()
     lessonWatch.stop()
     remote?.stop()

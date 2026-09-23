@@ -584,6 +584,10 @@ export interface DeckSettings {
   showPokemon: boolean
   /** Where to look for .gbc/.gb ROMs. */
   pokemonRomDir: string
+  /** The sprite gag (Village vs Notes): main runs `trainer.mjs sprite watch` as a child of its own, repainting every battle. */
+  spriteGag: boolean
+  /** Which moveset the sprite gag gives Village (a key of plugin/data/sprites/movesets.json: update, release, gamer, download). */
+  spriteGagMoves: string
   /** The changes tile (the focused session's working tree as `git status` + diffs) takes the grid cell before the vocabulary tile. */
   showGit: boolean
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
@@ -641,6 +645,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
   pokemonRomDir: '~/Downloads',
+  spriteGag: false,
+  spriteGagMoves: 'download',
   showGit: true,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true,

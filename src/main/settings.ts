@@ -147,6 +147,9 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     webApps: webApps(raw.webApps, d.webApps),
     showPokemon: bool(raw.showPokemon, d.showPokemon),
     pokemonRomDir: typeof raw.pokemonRomDir === 'string' && raw.pokemonRomDir.trim() ? raw.pokemonRomDir.trim() : d.pokemonRomDir,
+    spriteGag: bool(raw.spriteGag, d.spriteGag),
+    // A moveset's name reaches a child process's argv, so only a plain word ever does.
+    spriteGagMoves: typeof raw.spriteGagMoves === 'string' && /^[a-z0-9_-]{1,32}$/i.test(raw.spriteGagMoves.trim()) ? raw.spriteGagMoves.trim() : d.spriteGagMoves,
     geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,
     studioModel: typeof raw.studioModel === 'string' && /^[\w.-]*$/.test(raw.studioModel.trim()) ? raw.studioModel.trim() : d.studioModel,
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,

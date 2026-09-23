@@ -146,7 +146,8 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           label: 'Pokemon',
           submenu: [
             { label: 'Play Pokemon', accelerator: 'CmdOrCtrl+Shift+G', click: () => ui({ type: 'togglePokemon' }) },
-            { label: 'Show Pokemon Tile', type: 'checkbox', checked: s.showPokemon, click: () => patch({ showPokemon: !settings().showPokemon }) }
+            { label: 'Show Pokemon Tile', type: 'checkbox', checked: s.showPokemon, click: () => patch({ showPokemon: !settings().showPokemon }) },
+            { label: 'Village vs Notes', type: 'checkbox', checked: s.spriteGag, click: () => patch({ spriteGag: !settings().spriteGag }) }
           ]
         },
         {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { FolderOpen, Gamepad2, Globe, Image as ImageIcon, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
 import type { DeckSettings, DeckState, StudioInfo, StudioModel, StudioRatio, StudioSize } from '@shared/types'
 import { STUDIO_RATIOS, STUDIO_SIZES } from '@shared/types'
@@ -196,13 +196,25 @@ function AppsCard({ settings }: { settings: DeckSettings }) {
         {PLUGINS.map((p) => {
           const on = Boolean(settings[p.setting])
           return (
-            <label key={p.key} className={`lcheck ${on ? 'on' : ''}`}>
-              <input type="checkbox" checked={on} onChange={(e) => patchSettings({ [p.setting]: e.target.checked } as Partial<DeckSettings>)} />
-              <span>
-                <b>{p.label}</b>
-                <small>{p.hint}</small>
-              </span>
-            </label>
+            <Fragment key={p.key}>
+              <label className={`lcheck ${on ? 'on' : ''}`}>
+                <input type="checkbox" checked={on} onChange={(e) => patchSettings({ [p.setting]: e.target.checked } as Partial<DeckSettings>)} />
+                <span>
+                  <b>{p.label}</b>
+                  <small>{p.hint}</small>
+                </span>
+              </label>
+              {/* Not a tile of its own: the gag rides on the Game Boy, so it sits under it. */}
+              {p.key === 'pokemon' && on && (
+                <label className={`lcheck ${settings.spriteGag ? 'on' : ''}`}>
+                  <input type="checkbox" checked={settings.spriteGag} onChange={(e) => patchSettings({ spriteGag: e.target.checked })} />
+                  <span>
+                    <b>Village vs Notes (sprite gag)</b>
+                    <small>Repaints every battle — the pictures, the names, the moves — while the Game Boy runs</small>
+                  </span>
+                </label>
+              )}
+            </Fragment>
           )
         })}
         {settings.webApps.map((a) => (

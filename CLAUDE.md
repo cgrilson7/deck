@@ -90,6 +90,7 @@ src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson
 src/main/lesson.ts         the Lesson tile's disk side: a lesson's text (.md, 1MB), a figure's bytes (inside the lesson's folder tree), curriculum.json, `lint`, the watch on files that are up
 src/main/data/molLibrary.ts  GENERATED (scripts/mollib.mjs): 16 small molecules, 3D coordinates + partial charges
 src/main/pokemon.ts        Pokemon's disk side: the ROM list of `pokemonRomDir`, a ROM's bytes, battery saves + save states under userData/pokemon
+src/main/spritegag.ts      the sprite gag's runner: `trainer.mjs sprite watch` as a child of main while `spriteGag` is on (Electron as node), restarted if it falls over
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/weather.ts        the weather under that tile's clock: Open-Meteo (no key), every `weatherPlaces` place in one call (cached 10 min) + its geocoder
@@ -517,7 +518,12 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Uint8Array). BATTERY RAM (`getSaveData()`) goes to `userData/pokemon/<name>.sav` every 30s
   while running, on pause, on a cartridge swap, when the last view unmounts (the tile turned off
   with the pane closed stops the loop: the game waits) and on `pagehide` (⌘R reloads the
-  renderer, so the game restarts from that save); states are `<name>.state0..2`. Not on the phone.
+  renderer, so the game restarts from that save); states are `<name>.state0..2`. THE SPRITE GAG is a
+  setting, not a terminal: `spriteGag` (off) and `spriteGagMoves` (`download`) have main run
+  `trainer.mjs sprite watch --moves <set>` as a child of its own (`src/main/spritegag.ts`, Electron's
+  binary as node via `ELECTRON_RUN_AS_NODE`, `DECK_HOOK_PORT` in its env, its stderr into the deck's
+  log, restarted after 2s if it falls over and given up on past 5 restarts a minute), toggled from the
+  `gag` button in the pane's bar and View ▸ Pokemon ▸ Village vs Notes. Not on the phone.
 - **Trainer** (`plugin/scripts/trainer.mjs`, `plugin/scripts/lib/`, `plugin/skills/trainer/`, `POST /gameboy` → `gameboyCall` in
   `main/index.ts` → `GameBoy.drive` in `lib/gameboy.ts`): a session plays Pokémon Yellow on the deck's Game Boy through a CLI whose every
   command ends by printing the state. THE DOOR is one small protocol with two ends (`lib/door.mjs`): the deck's emulator, or
@@ -1100,7 +1106,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 
