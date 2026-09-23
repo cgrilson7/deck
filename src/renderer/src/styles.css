@@ -639,7 +639,10 @@ button {
 .pack-roster {
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
+  /* The roster in a GRID TILE does not scroll either (a tile never eats the wheel: the
+   * column is what you are moving through); a dense pack shows what fits, and the agent
+   * pane's rail has every member. Clipped, not hidden, so it is not a scroll container. */
+  overflow: clip;
   display: flex;
   flex-direction: column;
 }
@@ -1079,6 +1082,10 @@ button {
  */
 .tile .chat {
   overflow: hidden;
+  /* `overflow: hidden` is STILL a scroll container, and `.chat`'s `overscroll-behavior: contain`
+   * applies to it: Chromium then stops the wheel at the tile instead of chaining it up to the
+   * column. So the tile's chat lets it chain. */
+  overscroll-behavior: auto;
 }
 
 .chat-empty {
@@ -4763,6 +4770,9 @@ button.foxlog-chip:hover {
   display: flex;
   overflow: hidden;
   cursor: pointer;
+  /* A little air around the screen: flush to the tile's edge, the first column of the game
+   * (the enemy's name) was getting clipped. */
+  padding: 6px;
   background: color-mix(in srgb, var(--ink) 8%, var(--fill));
 }
 .pokemon-pane {
@@ -4775,7 +4785,7 @@ button.foxlog-chip:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  padding: 14px;
   background: color-mix(in srgb, var(--ink) 8%, var(--fill));
 }
 .pokemon-pick {

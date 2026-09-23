@@ -584,12 +584,29 @@ const FOX_COAT = [[255, 255, 255], [255, 255, 255], [214, 121, 65], [47, 47, 46]
 // icon's colours — paper, yellow, brownish-yellow rules, the outline — set once the fade-in has
 // brought colour 0 up to white, and again whenever the game's own flashes and send-outs put the
 // species' palette back.
+// THAT IS NOT ENOUGH ON ITS OWN. A move's flash (the quiz's charging beam) rebuilds palette 3 a
+// step at a time out of the SPECIES' four colours and copies each step into palette RAM, so for a
+// few seconds Notes wore green (or red, or whatever the mon is) — and while a step is up colour 0
+// is not white, so the check below reads 'fading' and leaves it alone. The steps are not built
+// from the hardware palette we overwrote, and not from the game's own copy of palette 3 at $DEE9
+// (forcing that to ours every single frame changed nothing): each step is read STRAIGHT OUT OF THE
+// CARTRIDGE, from the palette table the species' picture uses. So the species' entry in that table
+// is rewritten with Notes' colours for as long as the battle lasts (`notesRom`) — the loaded ROM
+// only, never the file — and the game's own flashes, fades and restores then come out yellow of
+// their own accord. The entry is put back when the battle ends, so the Pokédex and the party
+// screen keep the real colours.
 const BCPS = 0xff68
 const BCPD = 0xff69
 const RED_PALETTE = 2
 const RED_LOW = 0x3f
 const ENEMY_PALETTE = 3
 const NOTES_COLOURS = [[255, 255, 255], [255, 228, 0], [184, 144, 56], [47, 47, 46]].map(bgr555) // the core renders warm, so the yellow is pushed pure
+const NOTES_BYTES = Buffer.from(NOTES_COLOURS.flatMap((c) => [c & 0xff, c >> 8]))
+/** The game's own copy of BG palette 3: what it hands the hardware, and what a species' SetPal writes. */
+const ENEMY_PAL_COPY = 0xdee9
+/** The cartridge's palette table, at the ten entries a mon can wear (PAL_MEWMON … PAL_GREYMON), each white … black. */
+const MON_PALETTES = 0x72b79
+const MON_PALETTE_COUNT = 10
 
 /** One byte of the CGB BG palette RAM, by index. */
 async function bgByte(door, index) {
@@ -616,11 +633,53 @@ async function notesPalette(door) {
   return 'set'
 }
 
+/**
+ * The species' entry in the cartridge's palette table, ours while the battle lasts, so every flash,
+ * fade and restore the game builds for the enemy's picture is built out of Notes' colours. The
+ * table is read from the ROM FILE (the cartridge as it shipped), so it also says what to put back.
+ * Returns 'ours' (the game is already handing out our colours), 'patched', 'restored', 'unknown'
+ * (palette 3 is nobody's species — a trainer's picture, a fade) or 'none'.
+ */
+const ROM_RENEW = 2000 // a state load restores the whole ROM, so the entry is written again on a clock, like the text patch
+let romPal = null
+let romAt = 0
+async function notesRom(door, inBattle, now = Date.now()) {
+  try {
+    if (!inBattle) {
+      if (romPal === null) return 'none'
+      const { rom } = await cartridge(door)
+      await door.call({ op: 'patch', writes: [[romPal, b64(rom.subarray(romPal, romPal + 8))]] })
+      romPal = null
+      return 'restored'
+    }
+    const [copy] = await read(door, [[ENEMY_PAL_COPY, 8]])
+    const ours = copy.equals(NOTES_BYTES)
+    if (ours && (romPal === null || now - romAt < ROM_RENEW)) return 'ours' // the game is handing out our colours already
+    const { rom } = await cartridge(door)
+    let at = ours ? romPal : -1
+    if (!ours) for (let i = 0; i < MON_PALETTE_COUNT; i++) {
+      const o = MON_PALETTES + i * 8
+      if (copy.equals(rom.subarray(o, o + 8))) { at = o; break }
+    }
+    if (at < 0) return 'unknown' // palette 3 is nobody's species — a trainer's picture, a fade step of ours: leave the cartridge alone
+    const writes = []
+    if (romPal !== null && romPal !== at) writes.push([romPal, b64(rom.subarray(romPal, romPal + 8))])
+    writes.push([at, b64(NOTES_BYTES)])
+    const { changed } = await door.call({ op: 'patch', writes })
+    romPal = at
+    romAt = now
+    return changed ? 'patched' : 'ours'
+  } catch {
+    return 'none' // no cartridge file to read: the hardware palette alone, as before
+  }
+}
+
 export async function apply(door, { front, back, fox } = {}, now = Date.now()) {
   const [inBattle, map] = await read(door, [[A.wIsInBattle, 1], [A.wTileMap, COLS * 18]])
   const kind = inBattle[0]
-  if (!kind) return { battle: false }
+  if (!kind) return { battle: false, rom: await notesRom(door, false) }
   const out = { battle: true, kind: kind === 1 ? 'wild' : 'trainer', map }
+  if (front?.tiles) out.rom = await notesRom(door, true)
   for (const [key, want] of [['front', front], ['back', back]]) {
     if (!want) continue
     const slot = SLOTS[key]

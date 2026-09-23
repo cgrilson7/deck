@@ -586,7 +586,14 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   (the dithered disc in Pikachu's yellow→orange, Nidoqueen's blues — Colin's choice, after a round in the icon's own yellow and
   salmon); NOTES WEARS ITS OWN: the enemy's picture is BG palette 3 (the HUD is 1, the text box 2), read and written through
   BCPS/BCPD ($FF68/$FF69) — paper, yellow, brownish-yellow rules, outline — once the fade-in has brought colour 0 up to white, and
-  again whenever a flash or a send-out puts the species' palette back. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
+  again whenever a flash or a send-out puts the species' palette back. THAT ALONE LOST THE BEAM: a move's flash rebuilds palette 3
+  step by step out of the SPECIES' four colours, reading them STRAIGHT OUT OF THE CARTRIDGE (not the hardware palette, not the game's
+  own copy at $DEE9 — forcing that to ours every frame changed nothing), so Notes wore the mon's green for seconds at a time; while a
+  step is up colour 0 is not white, so the check above reads 'fading' and stands back. So `notesRom` rewrites THE SPECIES' ENTRY in the
+  cartridge's palette table (`MON_PALETTES`, the ten a mon can wear, PAL_MEWMON first; the entry is the one matching the game's copy of
+  palette 3) with Notes' colours for as long as the battle lasts — the LOADED ROM only, never the file — so the game's own flashes,
+  fades and restores come out yellow by themselves, and puts it back when the battle ends, leaving the Pokédex and the party screen
+  true. The art is CONVERTED, never redrawn (`scripts/sprites.mjs`): Village = the white strokes of the app icon (coverage of
   min(r,g,b)-white pixels per cell) as shade 0 over a disc dithered shade 1 → 2 (the icon's own gradient), one cell of shade 3 outside
   the ring; Notes = boxed down, header 1, rules and perforation 2, paper 0, a shade-3 outline where opaque meets transparent.
 - **Molecule** (`lib/mol.ts`, `MolTile`, `MolPane`, `main/mol.ts`, `main/data/molLibrary.ts`, `plugin/skills/mol/`,
