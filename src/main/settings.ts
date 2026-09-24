@@ -139,6 +139,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
       : d.spotifyPlaylists,
     spotifyClientId: typeof raw.spotifyClientId === 'string' && /^[a-f0-9]{32}$/i.test(raw.spotifyClientId.trim()) ? raw.spotifyClientId.trim() : d.spotifyClientId,
     showTranslate: bool(raw.showTranslate, d.showTranslate),
+    showQuixote: bool(raw.showQuixote, d.showQuixote),
     showStudio: bool(raw.showStudio, d.showStudio),
     showMol: bool(raw.showMol, d.showMol),
     molTiles: molTiles(raw.molTiles),

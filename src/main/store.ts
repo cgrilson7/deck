@@ -12,7 +12,7 @@
 
 import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import type { SavedWord, StoredWord, TranslateResult, VocabResult, VocabStats, WordSchedule } from '@shared/types'
+import type { SavedForm, SavedWord, StoredWord, TranslateResult, VocabResult, VocabStats, WordExtra, WordSchedule } from '@shared/types'
 
 const SCHEMA = `
 create table if not exists translations (
@@ -54,7 +54,10 @@ create index if not exists words_due on words(due);
 
 /** Columns added after the first release; each is applied once to older files. */
 const MIGRATIONS: [table: string, column: string, ddl: string][] = [
-  ['words', 'liked', 'alter table words add column liked integer not null default 0']
+  ['words', 'liked', 'alter table words add column liked integer not null default 0'],
+  // Where a word saved from the reader was met: the sentence, and "Don Quijote I·8".
+  ['words', 'context', 'alter table words add column context text'],
+  ['words', 'origin', 'alter table words add column origin text']
 ]
 
 const now = () => new Date().toISOString()
@@ -81,6 +84,8 @@ interface Row {
   lapses: number
   known: number
   liked: number
+  context: string | null
+  origin: string | null
 }
 
 const toStored = (r: Row): StoredWord => ({
@@ -95,7 +100,9 @@ const toStored = (r: Row): StoredWord => ({
   interval: r.interval,
   ease: r.ease,
   reps: r.reps,
-  lapses: r.lapses
+  lapses: r.lapses,
+  context: r.context ?? null,
+  origin: r.origin ?? null
 })
 
 const parseEntry = (json: string): VocabResult | null => {
@@ -148,20 +155,26 @@ export class VocabStore {
     return (this.db.prepare('select id from translations where en = ? and es = ?').get(en, es) as { id: number }).id
   }
 
-  /** Record a word the vocabulary tile showed, with its full entry (refreshed on every sighting). */
-  saveWord(r: VocabResult, translationId: number | null): SavedWord {
+  /**
+   * Record a word the vocabulary tile showed, with its full entry (refreshed on every sighting).
+   * From the reader it also carries the sentence it was met in (kept until another reading
+   * replaces it: a plain sighting never clears one) and a ♥.
+   */
+  saveWord(r: VocabResult, translationId: number | null, extra: WordExtra = {}): SavedWord {
     const es = (r.es?.word ?? '').trim()
     const en = (r.en?.word ?? r.es?.senses[0]?.glosses[0] ?? '').trim()
     if (!es && !en) return { id: 0, liked: false }
     const t = now()
     this.db
       .prepare(
-        `insert into words (es, en, source, entry, translation_id, first_seen, last_seen) values (?, ?, ?, ?, ?, ?, ?)
+        `insert into words (es, en, source, entry, translation_id, first_seen, last_seen, context, origin, liked) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          on conflict (es, en) do update set
            entry = excluded.entry, seen = seen + 1, last_seen = excluded.last_seen,
-           translation_id = coalesce(excluded.translation_id, translation_id)`
+           translation_id = coalesce(excluded.translation_id, translation_id),
+           context = coalesce(excluded.context, context), origin = coalesce(excluded.origin, origin),
+           liked = max(liked, excluded.liked)`
       )
-      .run(es, en, r.source, JSON.stringify(r), translationId, t, t)
+      .run(es, en, r.source, JSON.stringify(r), translationId, t, t, extra.context?.trim() || null, extra.origin?.trim() || null, extra.liked ? 1 : 0)
     const row = this.db.prepare('select id, liked from words where es = ? and en = ?').get(es, en) as { id: number; liked: number }
     return { id: row.id, liked: row.liked === 1 }
   }
@@ -174,6 +187,20 @@ export class VocabStore {
   /** Every liked word's Spanish side, newest like first, for the vocabulary supply. */
   likedWords(): string[] {
     return (this.db.prepare("select es from words where liked = 1 and es != '' order by last_seen desc").all() as { es: string }[]).map((r) => r.es)
+  }
+
+  /**
+   * What the reader marks in the text: every liked word's Spanish headword and, when the entry
+   * was reached from an inflection ("corría" → "correr"), that form too. Lowercased.
+   */
+  savedForms(): SavedForm[] {
+    const rows = this.db.prepare("select id, es, en, entry from words where liked = 1 and es != ''").all() as { id: number; es: string; en: string; entry: string }[]
+    const out = new Map<string, SavedForm>()
+    for (const r of rows) {
+      const formOf = parseEntry(r.entry)?.es?.formOf
+      for (const f of [r.es, formOf]) if (f) out.set(f.toLowerCase(), { form: f.toLowerCase(), id: r.id, en: r.en })
+    }
+    return [...out.values()]
   }
 
   /**

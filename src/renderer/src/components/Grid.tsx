@@ -7,6 +7,7 @@ import { PLUGINS, PlusTile, type Placed } from './PlusTile'
 import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
+import { QuixoteTile } from './QuixoteReader'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
@@ -274,6 +275,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <VocabTile />
     case 'translate':
       return <TranslateTile />
+    case 'quixote':
+      return <QuixoteTile />
     case 'mol':
     case 'lesson':
       // A cell per Molecule tile, and per Lesson tile: the grid makes those itself.

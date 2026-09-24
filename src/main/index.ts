@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabResult } from '@shared/types'
+import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
 import { molBody } from '@shared/lesson'
 import { REMOTE_PORT } from '@shared/remote'
@@ -17,6 +17,7 @@ import { translate } from './translate'
 import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
 import { VocabStore } from './store'
+import { QuixoteBook } from './quixote'
 import { wikiBackdrop, wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { weatherNow, weatherSearch } from './weather'
 import { TranscriptWatcher } from './transcript'
@@ -583,17 +584,28 @@ app.whenReady().then(async () => {
   ipcMain.handle('weather:now', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))
   ipcMain.handle('weather:search', (_e, q: string) => weatherSearch(String(q ?? '')))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
-  ipcMain.handle('translate:run', (_e, text: string, hint: Lang) => translate(text, hint, translateKey()))
+  ipcMain.handle('translate:run', (_e, text: string, hint: Lang, fixed?: boolean) => translate(text, hint, translateKey(), fixed === true))
   ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
   store = new VocabStore(userData)
   // Liked words ride along with the user's own languagelog words: front of the queue, every pass.
   ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env, store!.likedWords()))
-  ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) => store!.saveTranslation(r, supersede ?? null))
-  ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null) => store!.saveWord(r, translationId ?? null))
-  ipcMain.handle('store:liked', (_e, id: number, liked: boolean) => store!.setLiked(id, !!liked))
+  // Every write is told to every tile (`vocab:changed`), so the translator, the vocabulary tile's
+  // three faces and the reader's marks stay one store however a word got in.
+  const changed = <T,>(c: VocabChange, v: T): T => (send('vocab:changed', c), v)
+  ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) =>
+    changed({ kind: 'translation', liked: false }, store!.saveTranslation(r, supersede ?? null))
+  )
+  ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null, extra?: WordExtra) =>
+    changed({ kind: 'word', liked: !!extra?.liked }, store!.saveWord(r, translationId ?? null, extra && typeof extra === 'object' ? extra : {}))
+  )
+  ipcMain.handle('store:liked', (_e, id: number, liked: boolean) => changed({ kind: 'liked', liked: true }, store!.setLiked(id, !!liked)))
+  ipcMain.handle('store:forms', () => store!.savedForms())
   ipcMain.handle('store:deck', (_e, limit?: number) => store!.deck(limit))
   ipcMain.handle('store:list', (_e, limit?: number) => store!.list(limit))
-  ipcMain.handle('store:grade', (_e, id: number, grade: number) => store!.gradeWord(id, grade))
+  ipcMain.handle('store:grade', (_e, id: number, grade: number) => changed({ kind: 'grade', liked: false }, store!.gradeWord(id, grade)))
+  const book = new QuixoteBook(userData)
+  ipcMain.handle('quixote:index', () => book.index())
+  ipcMain.handle('quixote:section', (_e, i: number) => book.section(Number(i)))
   ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

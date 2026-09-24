@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, RemoteInfo, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -74,11 +74,19 @@ const api: DeckApi = {
   revealPath: (path) => ipcRenderer.send('file:reveal', path),
   copyText: (text) => ipcRenderer.send('file:copy', text),
   openExternal: (url) => ipcRenderer.send('deck:openExternal', url),
-  translate: (text: string, hint: Lang) => ipcRenderer.invoke('translate:run', text, hint) as Promise<TranslateResult>,
+  translate: (text: string, hint: Lang, fixed?: boolean) => ipcRenderer.invoke('translate:run', text, hint, fixed) as Promise<TranslateResult>,
   vocab: (word: string, hint: Lang, counterpart?: string) => ipcRenderer.invoke('vocab:lookup', word, hint, counterpart) as Promise<VocabResult>,
   vocabWords: () => ipcRenderer.invoke('vocab:words') as Promise<VocabWord[]>,
   saveTranslation: (r, supersede) => ipcRenderer.invoke('store:translation', r, supersede) as Promise<number>,
-  saveWord: (r, translationId) => ipcRenderer.invoke('store:word', r, translationId) as Promise<SavedWord>,
+  saveWord: (r, translationId, extra) => ipcRenderer.invoke('store:word', r, translationId, extra) as Promise<SavedWord>,
+  savedForms: () => ipcRenderer.invoke('store:forms') as Promise<SavedForm[]>,
+  onVocabChanged: (cb) => {
+    const h = (_e: unknown, c: VocabChange) => cb(c)
+    ipcRenderer.on('vocab:changed', h)
+    return () => ipcRenderer.removeListener('vocab:changed', h)
+  },
+  quixoteIndex: () => ipcRenderer.invoke('quixote:index') as Promise<QuixoteIndex>,
+  quixoteSection: (i: number) => ipcRenderer.invoke('quixote:section', i) as Promise<QuixoteSection>,
   setWordLiked: (id, liked) => ipcRenderer.invoke('store:liked', id, liked) as Promise<void>,
   vocabDeck: (limit?: number) => ipcRenderer.invoke('store:deck', limit) as Promise<StoredWord[]>,
   vocabList: (limit?: number) => ipcRenderer.invoke('store:list', limit) as Promise<StoredWord[]>,

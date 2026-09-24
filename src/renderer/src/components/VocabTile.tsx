@@ -177,6 +177,23 @@ export function VocabTile() {
     void refreshStats()
   }, [refreshStats])
 
+  // The store is shared (the translator, the reader, the phone): any write anywhere refreshes the
+  // counts and the review list; a ♥ from elsewhere puts the word in the supply's next pass.
+  const [changes, setChanges] = useState(0)
+  useEffect(
+    () =>
+      window.deck.onVocabChanged((c) => {
+        void refreshStats()
+        if (c.kind !== 'grade') setChanges((n) => n + 1)
+        if (c.liked)
+          void window.deck
+            .vocabWords()
+            .then((ws) => (supply.current = ws))
+            .catch(() => undefined)
+      }),
+    [refreshStats]
+  )
+
   // Single words translated next door show up here, linked to their stored translation.
   useEffect(
     () =>
@@ -273,7 +290,7 @@ export function VocabTile() {
             <div className="plugin-empty">{busy ? '…' : 'vocabulary'}</div>
           ))}
         {mode === 'cards' && <Cards onGraded={refreshStats} onLike={like} />}
-        {mode === 'list' && <ReviewList onPick={open} onLike={like} />}
+        {mode === 'list' && <ReviewList onPick={open} onLike={like} changes={changes} />}
       </div>
       {mode === 'dict' && <div key={tick} className={`vb-timer ${paused ? 'paused' : ''}`} style={{ animationDuration: `${cycleSeconds}s` }} />}
     </div>
@@ -527,7 +544,13 @@ function Cards({ onGraded, onLike }: { onGraded: () => Promise<unknown>; onLike:
             <span className="vb-flash-en">{card.en || '—'}</span>
             {defs.length > 0 && <span className="vb-flash-def">{defs.slice(0, 2).join(' · ')}</span>}
             {native.length > 0 && <span className="vb-flash-def es">{native.slice(0, 1).join(' · ')}</span>}
-            {ex && <span className="vb-flash-ex">“{ex.text}”</span>}
+            {card.context ? (
+              <span className="vb-flash-ex">
+                “{card.context}”{card.origin && <span className="vb-flash-origin"> — {card.origin}</span>}
+              </span>
+            ) : (
+              ex && <span className="vb-flash-ex">“{ex.text}”</span>
+            )}
           </span>
         )}
       </button>
@@ -569,7 +592,7 @@ function dueLabel(due: string | null): string {
 }
 
 /** Everything the store has, soonest due first. A row opens the word back in the dictionary. */
-function ReviewList({ onPick, onLike }: { onPick: (w: StoredWord) => void; onLike: (id: number, liked: boolean) => Promise<unknown> }) {
+function ReviewList({ onPick, onLike, changes }: { onPick: (w: StoredWord) => void; onLike: (id: number, liked: boolean) => Promise<unknown>; changes: number }) {
   const [rows, setRows] = useState<StoredWord[] | null>(null)
   const [q, setQ] = useState('')
 
@@ -578,7 +601,7 @@ function ReviewList({ onPick, onLike }: { onPick: (w: StoredWord) => void; onLik
       .vocabList(LIST_SIZE)
       .then(setRows)
       .catch(() => setRows([]))
-  }, [])
+  }, [changes])
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -598,7 +621,7 @@ function ReviewList({ onPick, onLike }: { onPick: (w: StoredWord) => void; onLik
       <ul>
         {shown.map((w) => (
           <li key={w.id} className={w.known ? 'known' : ''}>
-            <button className="vb-row" onClick={() => onPick(w)} title="Show in the dictionary">
+            <button className="vb-row" onClick={() => onPick(w)} title={w.context ? `“${w.context}” — ${w.origin ?? ''}` : 'Show in the dictionary'}>
               <span className="vb-row-es">{w.es || '—'}</span>
               <span className="vb-row-en">{w.en}</span>
             </button>

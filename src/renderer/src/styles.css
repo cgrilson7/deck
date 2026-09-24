@@ -5806,6 +5806,162 @@ button.foxlog-chip:hover {
 }
 
 
+/* ---- Don Quijote (QuixoteReader.tsx, lib/quixote.ts): the book in a tile and at reading size in the
+   center; a selection's translation pop; the words saved from reading marked in the text. */
+.qx-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  cursor: auto;
+  user-select: text;
+}
+.qx-body .plugin-empty {
+  min-height: 100%;
+  text-align: center;
+  font-size: 12px;
+}
+.qx-text {
+  font-family: 'Iowan Old Style', 'Palatino', Georgia, serif;
+  font-size: 13px;
+  line-height: 1.55;
+  hyphens: auto;
+}
+.qx-text p {
+  margin: 0 0 0.7em;
+}
+.qx-text p.qx-verse {
+  white-space: pre-line;
+  padding-left: 1.4em;
+  font-style: italic;
+}
+.qx-heading {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+.qx-heading .lesson-tag {
+  font-family: system-ui, sans-serif;
+}
+.qx-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0 4px;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.qx-select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  max-width: 300px;
+}
+::highlight(quixote-saved) {
+  background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  text-decoration: underline dotted var(--accent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.quixote-pane {
+  outline: none;
+}
+.quixote-pane .qx-body {
+  padding: 26px clamp(18px, 7%, 64px) 36px;
+}
+.quixote-pane .qx-text {
+  max-width: 36em;
+  margin: 0 auto;
+  font-size: 17.5px;
+  line-height: 1.65;
+}
+.quixote-pane .qx-heading {
+  margin-bottom: 20px;
+  font-size: 23px;
+}
+.qx-pop {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px 8px;
+  /* Solid even under glass (where --overlay is see-through): it sits over the book's text. */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent);
+  font-family: system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.4;
+  cursor: auto;
+}
+.qx-pop-es {
+  font-weight: 650;
+}
+.qx-pop-lemma {
+  font-weight: 400;
+  color: var(--muted);
+}
+.qx-pop-en {
+  font-size: 14px;
+  color: var(--accent);
+}
+.qx-pop-en.err {
+  font-size: 12px;
+  color: var(--blocked);
+}
+.qx-pop-dict,
+.qx-pop-dim {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.qx-pop-sent {
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  font-size: 12px;
+  font-style: italic;
+}
+.qx-pop-more {
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 1px 6px;
+}
+.qx-pop-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.qx-pop-actions .spacer {
+  flex: 1;
+}
+.qx-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.qx-save.on {
+  background: color-mix(in srgb, var(--accent) 14%, var(--fill));
+}
+.vb-flash-origin {
+  font-style: normal;
+  font-size: 10px;
+}
+
 /* ---- glass (the `glass` theme; lib/glass.ts): a blurred Wikipedia picture of the day behind the
    whole window, the chrome colors taken from it, and every pane a tinted sheet of glass over it.
    The picture is blurred ONCE, here, so no pane needs a backdrop-filter of its own (only the

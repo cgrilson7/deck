@@ -59,6 +59,12 @@ export const PLUGINS: {
     setting: 'showTranslate'
   },
   {
+    key: 'quixote',
+    label: 'Don Quijote',
+    hint: 'Read Don Quijote in Spanish: select to translate, save words to the flash cards',
+    setting: 'showQuixote'
+  },
+  {
     key: 'mol',
     label: 'Molecule',
     hint: 'A 3D molecule viewer: small molecules and proteins, which a session can drive (/deck:mol)',

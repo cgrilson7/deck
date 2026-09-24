@@ -17,11 +17,11 @@ interface V2Response {
   error?: { message?: string }
 }
 
-async function call(text: string, target: Lang, key: string): Promise<{ text: string; detected: Lang | null }> {
+async function call(text: string, target: Lang, key: string, source?: Lang): Promise<{ text: string; detected: Lang | null }> {
   const res = await fetch(`${URL}?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: text, target, format: 'text' })
+    body: JSON.stringify({ q: text, target, format: 'text', ...(source ? { source } : {}) })
   })
   const body = (await res.json().catch(() => ({}))) as V2Response
   if (!res.ok) throw new Error(body.error?.message ?? `translate: HTTP ${res.status}`)
@@ -31,12 +31,14 @@ async function call(text: string, target: Lang, key: string): Promise<{ text: st
   return { text: t.translatedText, detected: d === 'en' || d === 'es' ? d : null }
 }
 
-export async function translate(raw: string, hint: Lang, key: string): Promise<TranslateResult> {
+/** `fixed`: the text IS in `hint` (the reader's Spanish), so nothing is detected — a lone "no" or "a" would pass for English. */
+export async function translate(raw: string, hint: Lang, key: string, fixed = false): Promise<TranslateResult> {
   const text = raw.trim()
   if (!text) throw new Error('nothing to translate')
   if (text.length > MAX_CHARS) throw new Error(`keep it under ${MAX_CHARS} characters`)
   if (!key) throw new Error('No API key. Put translateApiKey in config.json (a Google Cloud key with Cloud Translation enabled).')
 
+  if (fixed) return { source: hint, text, translated: (await call(text, other(hint), key, hint)).text }
   let source: Lang = hint
   let r = await call(text, other(hint), key)
   if (r.detected === other(hint)) {

@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Molecule, Lesson),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Don Quijote, Molecule, Lesson),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -94,7 +94,8 @@ src/main/spritegag.ts      the sprite gag's runner: `trainer.mjs sprite watch` a
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/weather.ts        the weather under that tile's clock: Open-Meteo (no key), every `weatherPlaces` place in one call (cached 10 min) + its geocoder
-src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile
+src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile (and, `fixed`, Spanish → English for the reader)
+src/main/quixote.ts        the reader's book: Don Quijote (Gutenberg #2000, fetched once into userData/quixote/), parsed into sections (each part's preliminaries + its chapters)
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
 src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
@@ -121,6 +122,7 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/glass.ts       THE GLASS THEME's wall: the blurred picture of the day behind the window, the tint read off it, kept in localStorage for boot
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
+src/renderer/src/lib/quixote.ts     THE READER's state: the reading place shared by tile + pane (localStorage), the section cache, the saved words' marks (Highlight API), openQuixote()
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
 src/renderer/src/lib/webapps.ts     openWebApp()/closeWebApp() (the same window event) + the tiles' snapshots (localStorage, useWebSnap())
 src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
@@ -144,6 +146,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
+                                    QuixoteReader (Don Quijote: QuixoteTile + QuixotePane over one Reader, and the translation pop),
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
@@ -838,6 +841,28 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   comes from the translator when a key is set, else whichever Wiktionary has the word. Pure
   inflections ("corría") are followed to their lemma (one hop) and the lemma is what gets
   translated. Results are cached in main.
+- **Don Quijote** (`main/quixote.ts`, `lib/quixote.ts`, `QuixoteReader.tsx`; `showQuixote`, on by default; a right-column
+  plugin cell): THE READER of the Spanish-learning suite, which is ONE STORE (`vocab.db`) with several doors — the translator,
+  the vocabulary tile's dictionary / cards / list, and this. The text is Project Gutenberg #2000 (Cervantes' Spanish, both
+  parts, public domain), fetched by main on first use and kept for good in `userData/quixote/pg2000.txt`; `parse()` cuts it
+  into 128 SECTIONS — Part I's preliminaries (from "TASA"), its 52 chapters, Part II's preliminaries (from the "Segunda parte
+  del ingenioso caballero" line after Part I's first chapter; the contents list has one too), its 74 — by the "Capítulo …."
+  headings; prose lines are joined, a paragraph whose every line is under 62 characters is verse and keeps its breaks, `''`
+  is a quote mark, and Part I's four internal "Segunda/Tercera/Cuarta parte del ingenioso hidalgo" dividers are dropped. The
+  renderer asks for the index, then a section at a time (the next one warmed). The TILE and the PANE (⌘⇧D, View ▸ Don
+  Quijote, the tile's ⤢; takes the CENTER like the Lesson pane and takes turns with the others; Esc, ← → chapters) are TWO
+  VIEWS OF ONE PLACE: `{ section, para }` (the paragraph at the top of the view scrolled last) in localStorage
+  `deck.quixote.pos`, told to the other view by a window event, so each follows the other. SELECT any text (a double-click
+  takes a word) and a POP translates it — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
+  detected, since a lone "no" or "a" passes for English — with a word or two also looked up in Wiktionary (`vocab`: the
+  lemma "← correr", glosses), and "translate the whole sentence" (`sentenceAround`, capped around the selection). SAVE writes
+  the translation, then the WORD — the Wiktionary entry, else a bare pair (a phrase, an archaism) so it can still be a card —
+  with `WordExtra { context: the sentence, origin: "Don Quijote I·8", liked: true }`, and, when Wiktionary had it, announces
+  it on `lib/bus.ts` so the vocabulary tile shows it in its dictionary; a second click takes the ♥ off (the card stays).
+  Liked words' forms (`savedForms()`: the headword and the inflection it was met as) are MARKED in the text with
+  `::highlight(quixote-saved)`. SYNC: every store write in main (`store:word / translation / liked / grade`) broadcasts
+  `vocab:changed` (`VocabChange`); the vocabulary tile refreshes its counts and list on it (and the supply on a ♥), the
+  reader its marks. Flash cards show the book's sentence and where it is in place of Wiktionary's example. Not on the phone.
 - **Vocabulary store** (`main/store.ts`, `userData/vocab.db`, `node:sqlite` so nothing to rebuild):
   the raw material for flash cards. `translations` gets every translation the translator
   settles on: single words at once; phrases 4s after the last edit, on ⏎, on blur, or on reset.
@@ -853,7 +878,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   minutes, a pass steps 1 → 6 → interval × ease, and past `KNOWN_DAYS` (120) the word sets
   `known` and leaves the deck. Every grade appends to `reviews`, the per-grade history.
   `list()` is the review list. Unique on (es, en). The ♥ on the card sets
-  `liked` (added by a guarded `alter table` in `MIGRATIONS`); liked words are merged into the
+  `liked` (added by a guarded `alter table` in `MIGRATIONS`, like `context` / `origin`, the sentence a word was saved from in the reader); liked words are merged into the
   vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the
   vocab tile's stats chip, which is also how you get to the cards. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
@@ -1101,7 +1126,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A B E. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B E D. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -1113,6 +1138,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
+- `quixote/` — `pg2000.txt`, the reader's book as Gutenberg sent it (fetched once; delete to fetch again)
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
@@ -1123,7 +1149,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
-  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showMusic, music, spotifyPlaylists, spotifyClientId,
+  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
   showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)

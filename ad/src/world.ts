@@ -90,6 +90,8 @@ class World {
     appearance: 'light',
     defaultCwd: `${HOME}/code`,
     showMol: true,
+    // The film was cut before the reader existed.
+    showQuixote: false,
     foxBark: true,
     cursorBlink: false
   }
@@ -365,6 +367,10 @@ class World {
       vocabWords: async () => Object.keys(this.vocabEntries).map((word, rank) => ({ word, pos: 'adj', rank, mine: false })),
       saveTranslation: async () => 1,
       saveWord: async () => ({ id: 1, liked: true }),
+      savedForms: async () => [],
+      onVocabChanged: nothing,
+      quixoteIndex: no,
+      quixoteSection: no,
       setWordLiked: async () => {},
       vocabDeck: async () => [],
       vocabList: async () => [],

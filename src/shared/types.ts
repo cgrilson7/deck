@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'mol', 'lesson'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showMol' | 'showLesson'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -102,6 +102,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showGit) out.push('git')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
+  if (s.showQuixote) out.push('quixote')
   if (s.showMol) out.push('mol')
   if (s.showLesson) out.push('lesson')
   return out
@@ -439,6 +440,52 @@ export interface StoredWord {
   ease: number
   reps: number
   lapses: number
+  /** The sentence it was met in, when it was saved from reading (the reader tile). */
+  context: string | null
+  /** Where that sentence is ("Don Quijote I·8"). */
+  origin: string | null
+}
+
+/** What a save can carry besides the entry: where the word was met, and a ♥ (a word saved on purpose is one worth learning). */
+export interface WordExtra {
+  context?: string | null
+  origin?: string | null
+  liked?: boolean
+}
+
+/** Main's word that the vocabulary store changed, from whichever tile: `liked` when the set of liked words may have moved. */
+export interface VocabChange {
+  kind: 'word' | 'translation' | 'liked' | 'grade'
+  liked: boolean
+}
+
+/** A form the reader marks in the text: a liked word, or the inflection it was saved from. */
+export interface SavedForm {
+  form: string
+  id: number
+  en: string
+}
+
+/** One paragraph of the book: prose (joined) or verse (its line breaks kept). */
+export interface QuixotePara {
+  text: string
+  verse: boolean
+}
+/** A part's preliminaries (n = 0) or one of its chapters. */
+export interface QuixoteSection {
+  i: number
+  part: 1 | 2
+  n: number
+  /** "Capítulo VIII", "Preliminares". */
+  label: string
+  /** The chapter's own title ("Del buen suceso que el valeroso don Quijote tuvo…"); '' for preliminaries. */
+  title: string
+  paras: QuixotePara[]
+}
+export type QuixoteSectionInfo = Omit<QuixoteSection, 'paras'> & { words: number }
+export interface QuixoteIndex {
+  source: string
+  sections: QuixoteSectionInfo[]
 }
 
 /** Where one graded card landed. */
@@ -558,6 +605,8 @@ export interface DeckSettings {
   spotifyClientId: string
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
+  /** The reader: Don Quijote in Spanish, select to translate, save to the vocabulary store. */
+  showQuixote: boolean
   /** The Studio tile (Gemini image generation: a prompt, references, a gallery; click = the center pane). */
   showStudio: boolean
   /** A Gemini API key (aistudio.google.com) for the Studio. Falls back to $GEMINI_API_KEY. */
@@ -632,6 +681,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   ],
   spotifyClientId: '',
   showTranslate: true,
+  showQuixote: true,
   showStudio: true,
   geminiApiKey: '',
   studioModel: 'gemini-3.1-flash-image',
@@ -863,7 +913,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -947,9 +997,10 @@ export interface DeckApi {
   openExternal(url: string): void
   /**
    * Detect whether `text` is English or Spanish and translate it to the other one. `hint` is the
-   * box it was typed into; it only breaks ties when detection is unsure.
+   * box it was typed into; it only breaks ties when detection is unsure. `fixed`: the text is
+   * `hint`'s language, no detecting (the reader).
    */
-  translate(text: string, hint: Lang): Promise<TranslateResult>
+  translate(text: string, hint: Lang, fixed?: boolean): Promise<TranslateResult>
   /** Dictionary + thesaurus + etymology for a word and its counterpart in the other language. */
   /** `counterpart` = the other-language headword to use instead of translating (the list's SAT word). */
   vocab(word: string, hint: Lang, counterpart?: string): Promise<VocabResult>
@@ -961,7 +1012,14 @@ export interface DeckApi {
    */
   saveTranslation(r: TranslateResult, supersede: number | null): Promise<number>
   /** Store a word the vocabulary tile showed, linked to the translation it came from, if any. */
-  saveWord(r: VocabResult, translationId: number | null): Promise<SavedWord>
+  saveWord(r: VocabResult, translationId: number | null, extra?: WordExtra): Promise<SavedWord>
+  /** Every liked word's Spanish forms (the headword and the inflection it was met as), for the reader's marks. */
+  savedForms(): Promise<SavedForm[]>
+  /** The vocabulary store changed (any tile, or the phone): cards, the list and the reader's marks refresh. */
+  onVocabChanged(cb: (c: VocabChange) => void): () => void
+  /** The reader's book: every section's heading and length (fetched from Gutenberg once, then from userData). */
+  quixoteIndex(): Promise<QuixoteIndex>
+  quixoteSection(i: number): Promise<QuixoteSection>
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>
   /** The flash-card deck: what is due first, then whatever comes soonest, entries included. */
