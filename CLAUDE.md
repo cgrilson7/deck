@@ -853,7 +853,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Quijote, the tile's ⤢; takes the CENTER like the Lesson pane and takes turns with the others; Esc, ← → chapters) are TWO
   VIEWS OF ONE PLACE: `{ section, para }` (the paragraph at the top of the view scrolled last) in localStorage
   `deck.quixote.pos`, told to the other view by a window event, so each follows the other. SELECT any text (a double-click
-  takes a word) and a POP translates it — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
+  takes a word) and a POP translates it, FOXTROT AS THE TRANSLATOR (his idle tail-wag beside the words, `alert` on an error, and the pane head's bark — hop + `BarkBursts`, shared with `FoxStatus` — when the translation lands and when it is saved; `foxBark` off silences it) — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
   detected, since a lone "no" or "a" passes for English — with a word or two also looked up in Wiktionary (`vocab`: the
   lemma "← correr", glosses), and "translate the whole sentence" (`sentenceAround`, capped around the selection). SAVE writes
   the translation, then the WORD — the Wiktionary entry, else a bare pair (a phrase, an archaism) so it can still be a card —

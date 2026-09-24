@@ -2,6 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { BookOpen, ChevronLeft, ChevronRight, Heart, Maximize2, RotateCcw, X } from 'lucide-react'
 import type { QuixoteIndex, QuixoteSection, SavedForm, TranslateResult, VocabEntry, VocabResult } from '@shared/types'
 import { announceTranslation } from '../lib/bus'
+import { BARK_MS } from '../lib/bark'
+import { useSettings } from '../lib/theme'
+import { Fox } from './Fox'
+import { BarkBursts } from './FoxStatus'
 import { plain } from '../lib/errors'
 import { openQuixote, originOf, paintSaved, readPosNow, sentenceAround, setReadPos, shortLabel, useBookIndex, useReadPos, useSavedForms, useSection } from '../lib/quixote'
 
@@ -264,12 +268,27 @@ function Pop({ pick, section, forms, onClose }: { pick: Picked; section: Quixote
   const lookup = useRef<Promise<VocabResult | null> | null>(null)
   const already = forms.get(pick.text.toLowerCase()) ?? null
   const [savedId, setSavedId] = useState<number | null>(already?.id ?? null)
+  // Foxtrot is the translator: he wags while he stands by and barks when he has it (and when it is saved).
+  const barks = useSettings().foxBark
+  const [run, setRun] = useState(0)
+  const barkTimer = useRef<number | undefined>(undefined)
+  const bark = useCallback(() => {
+    if (!barks) return
+    setRun((n) => n + 1)
+    window.clearTimeout(barkTimer.current)
+    barkTimer.current = window.setTimeout(() => setRun(0), BARK_MS)
+  }, [barks])
+  useEffect(() => () => window.clearTimeout(barkTimer.current), [])
 
   useEffect(() => {
     let alive = true
     window.deck
       .translate(pick.text, 'es', true)
-      .then((r) => alive && setTr(r))
+      .then((r) => {
+        if (!alive) return
+        setTr(r)
+        bark()
+      })
       .catch((e: unknown) => alive && setErr(plain(e)))
     if (wordish) {
       lookup.current = window.deck.vocab(pick.text, 'es').catch(() => null)
@@ -278,7 +297,7 @@ function Pop({ pick, section, forms, onClose }: { pick: Picked; section: Quixote
     return () => {
       alive = false
     }
-  }, [pick.text, wordish])
+  }, [pick.text, wordish]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const translateSentence = () => {
     setSentence('…')
@@ -303,6 +322,7 @@ function Pop({ pick, section, forms, onClose }: { pick: Picked; section: Quixote
       const entry: VocabResult = found ?? { source: 'es', es: bare(pick.text), en: bare(tr.translated) }
       const sw = await window.deck.saveWord(entry, tid, { context: pick.sentence, origin: originOf(section), liked: true })
       setSavedId(sw.id || null)
+      bark()
       // The vocabulary tile shows it in its dictionary (and finds the row just written).
       if (found) announceTranslation({ ...tr, id: tid })
     } catch (e) {
@@ -325,11 +345,19 @@ function Pop({ pick, section, forms, onClose }: { pick: Picked; section: Quixote
       onMouseUp={stop}
       onClick={stop}
     >
-      <div className="qx-pop-es" lang="es">
-        {pick.text}
-        {lemma && <span className="qx-pop-lemma"> ← {lemma}</span>}
+      <div className="qx-pop-top">
+        <span className={`qx-pop-fox ${run > 0 ? 'barking' : ''}`} title="Foxtrot, translating">
+          <Fox anim={err ? 'alert' : 'idle'} scale={2} />
+          {run > 0 && <BarkBursts run={run} />}
+        </span>
+        <div className="qx-pop-words">
+          <div className="qx-pop-es" lang="es">
+            {pick.text}
+            {lemma && <span className="qx-pop-lemma"> ← {lemma}</span>}
+          </div>
+          <div className={`qx-pop-en ${err ? 'err' : ''}`}>{err ?? tr?.translated ?? '…'}</div>
+        </div>
       </div>
-      <div className={`qx-pop-en ${err ? 'err' : ''}`}>{err ?? tr?.translated ?? '…'}</div>
       {wordish && dict === null && <div className="qx-pop-dim">Wiktionary…</div>}
       {glosses.length > 0 && (
         <div className="qx-pop-dict">

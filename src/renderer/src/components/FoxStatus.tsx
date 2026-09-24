@@ -38,22 +38,30 @@ export function FoxStatus({ id, status, attention, coat }: { id: string; status:
   return (
     <span className={`fox-status ${barking ? 'barking' : ''}`}>
       <Fox anim={needs ? 'alert' : POSE[status]} scale={1} coat={coat} title={label} />
-      {barking &&
-        BARK_WORDS.map((word, i) => {
-          const s = BARK_SCATTER[i % BARK_SCATTER.length]
-          const style = {
-            '--rot': `${s.rot}deg`,
-            '--dx': `${s.dx}px`,
-            '--dy': `${s.dy}px`,
-            animationDelay: `${i * BARK_EVERY_MS}ms`,
-            animationDuration: `${BARK_LIFE_MS}ms`
-          } as CSSProperties
-          return (
-            <span key={`${run}-${i}`} className="bark" style={style} aria-hidden="true">
-              {word}
-            </span>
-          )
-        })}
+      {barking && <BarkBursts run={run} />}
     </span>
+  )
+}
+
+/** slay's three comic bursts, one run of them (`run` keys it, so a new run replays). Placed by the parent's `.bark` rule. */
+export function BarkBursts({ run }: { run: number }) {
+  return (
+    <>
+      {BARK_WORDS.map((word, i) => {
+        const s = BARK_SCATTER[i % BARK_SCATTER.length]
+        const style = {
+          '--rot': `${s.rot}deg`,
+          '--dx': `${s.dx}px`,
+          '--dy': `${s.dy}px`,
+          animationDelay: `${i * BARK_EVERY_MS}ms`,
+          animationDuration: `${BARK_LIFE_MS}ms`
+        } as CSSProperties
+        return (
+          <span key={`${run}-${i}`} className="bark" style={style} aria-hidden="true">
+            {word}
+          </span>
+        )
+      })}
+    </>
   )
 }
