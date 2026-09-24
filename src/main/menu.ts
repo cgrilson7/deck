@@ -136,9 +136,9 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
-          label: 'Don Quijote',
+          label: 'Reader',
           submenu: [
-            { label: 'Read Don Quijote', accelerator: 'CmdOrCtrl+Shift+D', click: () => ui({ type: 'toggleQuixote' }) },
+            { label: 'Open the Reader', accelerator: 'CmdOrCtrl+Shift+D', click: () => ui({ type: 'toggleQuixote' }) },
             { label: 'Show Reader Tile', type: 'checkbox', checked: s.showQuixote, click: () => patch({ showQuixote: !settings().showQuixote }) }
           ]
         },

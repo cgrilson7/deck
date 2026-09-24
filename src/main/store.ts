@@ -55,7 +55,7 @@ create index if not exists words_due on words(due);
 /** Columns added after the first release; each is applied once to older files. */
 const MIGRATIONS: [table: string, column: string, ddl: string][] = [
   ['words', 'liked', 'alter table words add column liked integer not null default 0'],
-  // Where a word saved from the reader was met: the sentence, and "Don Quijote I·8".
+  // Where a word saved from the reader was met: the sentence, and "Odisea V" / "Don Quijote I·8".
   ['words', 'context', 'alter table words add column context text'],
   ['words', 'origin', 'alter table words add column origin text']
 ]

@@ -1,5 +1,5 @@
-// THE READER's state (Don Quijote, main/quixote.ts). The tile and the pane are two views of ONE
-// place in the book: the section and the paragraph at the top of whichever view was scrolled
+// THE READER's state (La Odisea and Don Quijote, main/quixote.ts). The tile and the pane are two
+// views of ONE place in ONE book (each book keeps its own place): the section and the paragraph at the top of whichever view was scrolled
 // last, kept in localStorage and told to the other view by a window event, so opening the pane
 // lands where the tile was and closing it leaves the tile where you stopped. The pane itself opens
 // like the Studio's (a window event App listens to). The words saved from reading are the
@@ -7,7 +7,7 @@
 // painted in the text with the CSS Custom Highlight API (no DOM is touched, so React never notices).
 
 import { useEffect, useState } from 'react'
-import type { QuixoteIndex, QuixoteSection, QuixoteSectionInfo, SavedForm } from '@shared/types'
+import { READER_BOOKS, isReaderBook, type QuixoteIndex, type QuixoteSection, type ReaderBook, type SavedForm } from '@shared/types'
 
 // ── the pane in the center ──
 
@@ -21,48 +21,73 @@ export function onQuixote(cb: (want: QuixoteWant) => void): () => void {
   return () => window.removeEventListener(PANE, h)
 }
 
-// ── where you are ──
+// ── which book, and where you are in it ──
 
 export interface ReadPos {
   section: number
   para: number
 }
-const POS_KEY = 'deck.quixote.pos'
+const BOOK_KEY = 'deck.reader.book'
+/** Don Quijote keeps the key it had before the reader had a second book, so its place survives. */
+const posKey = (book: ReaderBook) => (book === 'quijote' ? 'deck.quixote.pos' : `deck.reader.pos.${book}`)
 const MOVED = 'deck:quixote:pos'
-/** Chapter I, not the licences and sonnets: that is where a first reading starts. */
+/** Chapter / Canto I, not the licences or the translator's preface: that is where a first reading starts. */
 const START: ReadPos = { section: 1, para: 0 }
 
-function readPos(): ReadPos {
+function readBook(): ReaderBook {
   try {
-    const p = JSON.parse(localStorage.getItem(POS_KEY) ?? 'null') as Partial<ReadPos> | null
+    const b = localStorage.getItem(BOOK_KEY)
+    if (isReaderBook(b)) return b
+  } catch {
+    /* fall through */
+  }
+  return READER_BOOKS[0].id
+}
+function readPos(book: ReaderBook): ReadPos {
+  try {
+    const p = JSON.parse(localStorage.getItem(posKey(book)) ?? 'null') as Partial<ReadPos> | null
     if (p && Number.isInteger(p.section) && Number.isInteger(p.para) && p.section! >= 0 && p.para! >= 0) return { section: p.section!, para: p.para! }
   } catch {
     /* fall through */
   }
   return START
 }
-let pos = readPos()
+function store(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* the place just won't survive a reload */
+  }
+}
+let book = readBook()
+let pos = readPos(book)
+const tell = (from: object | null) => window.dispatchEvent(new CustomEvent(MOVED, { detail: { book, pos, from } }))
 
 /** Move the reading place. `from` is the view that moved it (it does not scroll itself to where it already is). */
 export function setReadPos(next: ReadPos, from: object | null = null): void {
   if (next.section === pos.section && next.para === pos.para) return
   pos = next
-  try {
-    localStorage.setItem(POS_KEY, JSON.stringify(pos))
-  } catch {
-    /* the place just won't survive a reload */
-  }
-  window.dispatchEvent(new CustomEvent(MOVED, { detail: { pos, from } }))
+  store(posKey(book), JSON.stringify(pos))
+  tell(from)
 }
 export const readPosNow = (): ReadPos => pos
 
-/** The reading place, live; `jump` is set when ANOTHER view (or a chapter change) moved it, which is when this one scrolls. */
-export function useReadPos(owner: object): { pos: ReadPos; jump: number } {
-  const [st, setSt] = useState({ pos, jump: 0 })
+/** Open another book, where it was left. Every view follows. */
+export function setBook(next: ReaderBook): void {
+  if (next === book) return
+  book = next
+  pos = readPos(book)
+  store(BOOK_KEY, book)
+  tell(null)
+}
+
+/** The book and the reading place, live; `jump` is set when ANOTHER view (or a chapter or book change) moved it, which is when this one scrolls. */
+export function useReadPos(owner: object): { book: ReaderBook; pos: ReadPos; jump: number } {
+  const [st, setSt] = useState({ book, pos, jump: 0 })
   useEffect(() => {
     const h = (e: Event) => {
-      const d = (e as CustomEvent<{ pos: ReadPos; from: object | null }>).detail
-      setSt((s) => ({ pos: d.pos, jump: d.from === owner && d.pos.section === s.pos.section ? s.jump : s.jump + 1 }))
+      const d = (e as CustomEvent<{ book: ReaderBook; pos: ReadPos; from: object | null }>).detail
+      setSt((s) => ({ book: d.book, pos: d.pos, jump: d.from === owner && d.book === s.book && d.pos.section === s.pos.section ? s.jump : s.jump + 1 }))
     }
     window.addEventListener(MOVED, h)
     return () => window.removeEventListener(MOVED, h)
@@ -70,71 +95,70 @@ export function useReadPos(owner: object): { pos: ReadPos; jump: number } {
   return st
 }
 
-// ── the book ──
+// ── the books ──
 
-let index: Promise<QuixoteIndex> | null = null
-const sections = new Map<number, Promise<QuixoteSection>>()
+const indexes = new Map<ReaderBook, Promise<QuixoteIndex>>()
+const sections = new Map<string, Promise<QuixoteSection>>()
 
-function loadIndex(): Promise<QuixoteIndex> {
-  index ??= window.deck.quixoteIndex().catch((e: unknown) => {
-    index = null // the first fetch from Gutenberg failed: try again next time
-    throw e
-  })
-  return index
-}
-function loadSection(i: number): Promise<QuixoteSection> {
-  let p = sections.get(i)
+function loadIndex(b: ReaderBook): Promise<QuixoteIndex> {
+  let p = indexes.get(b)
   if (!p) {
-    p = window.deck.quixoteSection(i).catch((e: unknown) => {
-      sections.delete(i)
+    p = window.deck.quixoteIndex(b).catch((e: unknown) => {
+      indexes.delete(b) // the first fetch from Gutenberg failed: try again next time
       throw e
     })
-    sections.set(i, p)
+    indexes.set(b, p)
+  }
+  return p
+}
+function loadSection(b: ReaderBook, i: number): Promise<QuixoteSection> {
+  const key = `${b}:${i}`
+  let p = sections.get(key)
+  if (!p) {
+    p = window.deck.quixoteSection(b, i).catch((e: unknown) => {
+      sections.delete(key)
+      throw e
+    })
+    sections.set(key, p)
   }
   return p
 }
 
-export function useBookIndex(): { index: QuixoteIndex | null; error: string | null; retry: () => void } {
+export function useBookIndex(b: ReaderBook): { index: QuixoteIndex | null; error: string | null; retry: () => void } {
   const [st, setSt] = useState<{ index: QuixoteIndex | null; error: string | null }>({ index: null, error: null })
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     setSt({ index: null, error: null })
     let alive = true
-    loadIndex()
+    loadIndex(b)
       .then((index) => alive && setSt({ index, error: null }))
       .catch((e: unknown) => alive && setSt({ index: null, error: e instanceof Error ? e.message : String(e) }))
     return () => {
       alive = false
     }
-  }, [attempt])
+  }, [b, attempt])
   return { ...st, retry: () => setAttempt((n) => n + 1) }
 }
 
-export function useSection(i: number): QuixoteSection | null {
+export function useSection(b: ReaderBook, i: number): QuixoteSection | null {
   const [s, setS] = useState<QuixoteSection | null>(null)
   useEffect(() => {
     let alive = true
     setS(null)
-    loadSection(i)
+    loadSection(b, i)
       .then((x) => {
         if (!alive) return
         setS(x)
         // The next chapter, warm, so "next" is instant.
-        void loadSection(i + 1).catch(() => undefined)
+        void loadSection(b, i + 1).catch(() => undefined)
       })
       .catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [i])
+  }, [b, i])
   return s
 }
-
-const PART = ['', 'I', 'II']
-/** "I·8", "II·prel." — short, for heads and chips. */
-export const shortLabel = (s: Pick<QuixoteSectionInfo, 'part' | 'n'>): string => `${PART[s.part]}·${s.n || 'prel.'}`
-/** What a saved word says it came from. */
-export const originOf = (s: Pick<QuixoteSectionInfo, 'part' | 'n'>): string => `Don Quijote ${shortLabel(s)}`
 
 // ── the words saved from reading ──
 

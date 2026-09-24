@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, Don Quijote, Molecule, Lesson),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -95,7 +95,7 @@ src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcr
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
 src/main/weather.ts        the weather under that tile's clock: Open-Meteo (no key), every `weatherPlaces` place in one call (cached 10 min) + its geocoder
 src/main/translate.ts      Google Cloud Translation v2 detect + translate for the translator tile (and, `fixed`, Spanish → English for the reader)
-src/main/quixote.ts        the reader's book: Don Quijote (Gutenberg #2000, fetched once into userData/quixote/), parsed into sections (each part's preliminaries + its chapters)
+src/main/quixote.ts        the reader's books (`READER_BOOKS` in shared/types.ts): La Odisea (Gutenberg #58221, the default) and Don Quijote (#2000), each fetched once into userData/quixote/pg<n>.txt and parsed by its own parser into sections
 src/main/dictionary.ts     Wiktionary (kaikki.org exports) + Datamuse lookups for the vocabulary tile
 src/main/vocabwords.ts     vocabulary supply: data/esLemmas.ts (frequency lemmas) + languagelog's SQLite
 src/main/store.ts          VocabStore: userData/vocab.db (node:sqlite) — translations + shown words, for flash cards
@@ -122,7 +122,7 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/glass.ts       THE GLASS THEME's wall: the blurred picture of the day behind the window, the tint read off it, kept in localStorage for boot
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
-src/renderer/src/lib/quixote.ts     THE READER's state: the reading place shared by tile + pane (localStorage), the section cache, the saved words' marks (Highlight API), openQuixote()
+src/renderer/src/lib/quixote.ts     THE READER's state: the book up and its reading place shared by tile + pane (localStorage, a place per book), the section cache, the saved words' marks (Highlight API), openQuixote()
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
 src/renderer/src/lib/webapps.ts     openWebApp()/closeWebApp() (the same window event) + the tiles' snapshots (localStorage, useWebSnap())
 src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
@@ -146,7 +146,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     LeashDialog (the reason for a cancel, a note for a pause),
                                     DocPane (the file preview over the grid), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
-                                    QuixoteReader (Don Quijote: QuixoteTile + QuixotePane over one Reader, and the translation pop),
+                                    QuixoteReader (the reader: QuixoteTile + QuixotePane over one Reader, and the translation pop),
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
@@ -841,23 +841,30 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   comes from the translator when a key is set, else whichever Wiktionary has the word. Pure
   inflections ("corría") are followed to their lemma (one hop) and the lemma is what gets
   translated. Results are cached in main.
-- **Don Quijote** (`main/quixote.ts`, `lib/quixote.ts`, `QuixoteReader.tsx`; `showQuixote`, on by default; a right-column
+- **The reader** (`main/quixote.ts`, `lib/quixote.ts`, `QuixoteReader.tsx`; `showQuixote`, on by default; a right-column
   plugin cell): THE READER of the Spanish-learning suite, which is ONE STORE (`vocab.db`) with several doors — the translator,
-  the vocabulary tile's dictionary / cards / list, and this. The text is Project Gutenberg #2000 (Cervantes' Spanish, both
-  parts, public domain), fetched by main on first use and kept for good in `userData/quixote/pg2000.txt`; `parse()` cuts it
+  the vocabulary tile's dictionary / cards / list, and this. TWO BOOKS (`READER_BOOKS` in `shared/types.ts`, the first the
+  default): LA ODISEA, Project Gutenberg #58221 (Luis Segalá y Estalella's 1910 prose translation from the Greek; Roman names —
+  Ulises, Minerva — and the 1910 spelling, `á` / `é` as words, left as printed), and DON QUIJOTE, #2000 (Cervantes' Spanish,
+  both parts). The book's name in the head is a button that switches to the other; the book up is localStorage
+  `deck.reader.book`, and EACH BOOK KEEPS ITS OWN PLACE (Quijote's under its old key `deck.quixote.pos`, others
+  `deck.reader.pos.<id>`). Each is fetched by main on first use and kept for good in `userData/quixote/pg<n>.txt`, and has its
+  own parser into SECTIONS that carry their own `label` / `title` / `short` (the index adds the book's `parts` names), so the
+  renderer never knows a book's shape. `parseOdisea`: the translator's "AL LECTOR" up to its NOTAS, then the 24 CANTOS, each
+  titled by its capitalised subtitle lowered (names capitalised again as the text writes them); the illustration captions,
+  footnotes and their `[n]` marks, Homer's line numbers and `_italics_` are dropped; no verse. `parseQuijote` cuts #2000
   into 128 SECTIONS — Part I's preliminaries (from "TASA"), its 52 chapters, Part II's preliminaries (from the "Segunda parte
   del ingenioso caballero" line after Part I's first chapter; the contents list has one too), its 74 — by the "Capítulo …."
   headings; prose lines are joined, a paragraph whose every line is under 62 characters is verse and keeps its breaks, `''`
   is a quote mark, and Part I's four internal "Segunda/Tercera/Cuarta parte del ingenioso hidalgo" dividers are dropped. The
-  renderer asks for the index, then a section at a time (the next one warmed). The TILE and the PANE (⌘⇧D, View ▸ Don
-  Quijote, the tile's ⤢; takes the CENTER like the Lesson pane and takes turns with the others; Esc, ← → chapters) are TWO
-  VIEWS OF ONE PLACE: `{ section, para }` (the paragraph at the top of the view scrolled last) in localStorage
-  `deck.quixote.pos`, told to the other view by a window event, so each follows the other. SELECT any text (a double-click
+  renderer asks for the index, then a section at a time (the next one warmed). The TILE and the PANE (⌘⇧D, View ▸ Reader,
+  the tile's ⤢; takes the CENTER like the Lesson pane and takes turns with the others; Esc, ← → chapters) are TWO
+  VIEWS OF ONE PLACE: the book and `{ section, para }` (the paragraph at the top of the view scrolled last), told to the other view by a window event, so each follows the other. SELECT any text (a double-click
   takes a word) and a POP translates it, FOXTROT AS THE TRANSLATOR (his idle tail-wag beside the words, `alert` on an error, and the pane head's bark — hop + `BarkBursts`, shared with `FoxStatus` — when the translation lands and when it is saved; `foxBark` off silences it) — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
   detected, since a lone "no" or "a" passes for English — with a word or two also looked up in Wiktionary (`vocab`: the
   lemma "← correr", glosses), and "translate the whole sentence" (`sentenceAround`, capped around the selection). SAVE writes
   the translation, then the WORD — the Wiktionary entry, else a bare pair (a phrase, an archaism) so it can still be a card —
-  with `WordExtra { context: the sentence, origin: "Don Quijote I·8", liked: true }`, and, when Wiktionary had it, announces
+  with `WordExtra { context: the sentence, origin: "Odisea V" / "Don Quijote I·8", liked: true }`, and, when Wiktionary had it, announces
   it on `lib/bus.ts` so the vocabulary tile shows it in its dictionary; a second click takes the ♥ off (the card stays).
   Liked words' forms (`savedForms()`: the headword and the inflection it was met as) are MARKED in the text with
   `::highlight(quixote-saved)`. SYNC: every store write in main (`store:word / translation / liked / grade`) broadcasts
@@ -1138,7 +1145,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `studio/` — the Studio's gallery: `jobs.json` (the last 400 generations, newest first) and a PNG per done job; see the Studio rule above
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
-- `quixote/` — `pg2000.txt`, the reader's book as Gutenberg sent it (fetched once; delete to fetch again)
+- `quixote/` — `pg58221.txt` (La Odisea) and `pg2000.txt` (Don Quijote), the reader's books as Gutenberg sent them (fetched once; delete to fetch again)
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days

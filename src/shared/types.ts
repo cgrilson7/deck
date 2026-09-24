@@ -442,7 +442,7 @@ export interface StoredWord {
   lapses: number
   /** The sentence it was met in, when it was saved from reading (the reader tile). */
   context: string | null
-  /** Where that sentence is ("Don Quijote I·8"). */
+  /** Where that sentence is ("Odisea V", "Don Quijote I·8"). */
   origin: string | null
 }
 
@@ -466,25 +466,42 @@ export interface SavedForm {
   en: string
 }
 
+/** The reader's books, the first the one it opens on. Project Gutenberg texts, fetched once by main/quixote.ts. */
+export const READER_BOOKS = [
+  { id: 'odisea', title: 'La Odisea', short: 'Odisea', gutenberg: 58221 },
+  { id: 'quijote', title: 'Don Quijote', short: 'Don Quijote', gutenberg: 2000 }
+] as const
+export type ReaderBook = (typeof READER_BOOKS)[number]['id']
+export const isReaderBook = (x: unknown): x is ReaderBook => READER_BOOKS.some((b) => b.id === x)
+
 /** One paragraph of the book: prose (joined) or verse (its line breaks kept). */
 export interface QuixotePara {
   text: string
   verse: boolean
 }
-/** A part's preliminaries (n = 0) or one of its chapters. */
+/** A part's preliminaries (n = 0) or one of its chapters / cantos. */
 export interface QuixoteSection {
   i: number
-  part: 1 | 2
+  /** An index into the book's `parts` (Don Quijote's 1 and 2; La Odisea has only 1, unnamed). */
+  part: number
   n: number
-  /** "Capítulo VIII", "Preliminares". */
+  /** "Capítulo VIII", "Canto V", "Preliminares". */
   label: string
-  /** The chapter's own title ("Del buen suceso que el valeroso don Quijote tuvo…"); '' for preliminaries. */
+  /** The chapter's own title ("Del buen suceso que el valeroso don Quijote tuvo…", "Concilio de los dioses — …"). */
   title: string
+  /** Short, for heads and a saved word's origin: "I·8", "V", "prel.". */
+  short: string
   paras: QuixotePara[]
 }
 export type QuixoteSectionInfo = Omit<QuixoteSection, 'paras'> & { words: number }
 export interface QuixoteIndex {
+  book: ReaderBook
+  title: string
+  /** What a saved word's origin starts with: "Odisea", "Don Quijote". */
+  short: string
   source: string
+  /** Part names by `part` ('' = not worth saying). */
+  parts: string[]
   sections: QuixoteSectionInfo[]
 }
 
@@ -605,7 +622,7 @@ export interface DeckSettings {
   spotifyClientId: string
   /** The English ⇄ Spanish translator takes the last grid cell (and one session slot). */
   showTranslate: boolean
-  /** The reader: Don Quijote in Spanish, select to translate, save to the vocabulary store. */
+  /** The reader: La Odisea and Don Quijote in Spanish, select to translate, save to the vocabulary store. */
   showQuixote: boolean
   /** The Studio tile (Gemini image generation: a prompt, references, a gallery; click = the center pane). */
   showStudio: boolean
@@ -1018,8 +1035,8 @@ export interface DeckApi {
   /** The vocabulary store changed (any tile, or the phone): cards, the list and the reader's marks refresh. */
   onVocabChanged(cb: (c: VocabChange) => void): () => void
   /** The reader's book: every section's heading and length (fetched from Gutenberg once, then from userData). */
-  quixoteIndex(): Promise<QuixoteIndex>
-  quixoteSection(i: number): Promise<QuixoteSection>
+  quixoteIndex(book: ReaderBook): Promise<QuixoteIndex>
+  quixoteSection(book: ReaderBook, i: number): Promise<QuixoteSection>
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>
   /** The flash-card deck: what is due first, then whatever comes soonest, entries included. */

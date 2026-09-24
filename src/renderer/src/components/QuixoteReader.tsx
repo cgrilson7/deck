@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronLeft, ChevronRight, Heart, Maximize2, RotateCcw, X } from 'lucide-react'
-import type { QuixoteIndex, QuixoteSection, SavedForm, TranslateResult, VocabEntry, VocabResult } from '@shared/types'
+import { READER_BOOKS, type QuixoteIndex, type SavedForm, type TranslateResult, type VocabEntry, type VocabResult } from '@shared/types'
 import { announceTranslation } from '../lib/bus'
 import { BARK_MS } from '../lib/bark'
 import { useSettings } from '../lib/theme'
 import { Fox } from './Fox'
 import { BarkBursts } from './FoxStatus'
 import { plain } from '../lib/errors'
-import { openQuixote, originOf, paintSaved, readPosNow, sentenceAround, setReadPos, shortLabel, useBookIndex, useReadPos, useSavedForms, useSection } from '../lib/quixote'
-
-const PART_NAME = ['', 'Primera parte', 'Segunda parte']
+import { openQuixote, paintSaved, readPosNow, sentenceAround, setBook, setReadPos, useBookIndex, useReadPos, useSavedForms, useSection } from '../lib/quixote'
 /** What the translator takes in one go (main/translate.ts). */
 const MAX_SELECTION = 1000
 /** The pop's width, and roughly its height when choosing above or below the selection. */
@@ -36,7 +34,8 @@ interface Picked {
 }
 
 /**
- * DON QUIJOTE, to read in Spanish: the TILE (a plugin cell of the right column) and the PANE (the
+ * THE READER, a book to read in Spanish — La Odisea (Segalá's 1910 prose) first, Don Quijote the
+ * other, switched by the book's name in the head: the TILE (a plugin cell of the right column) and the PANE (the
  * same reader at reading size in the center column, ⌘⇧D or the tile's ⤢) are two views of one
  * place in the book (lib/quixote.ts). Select any word or passage — a double-click takes a word —
  * and a pop translates it (Google, the translator tile's key); a word or two is also looked up
@@ -45,16 +44,20 @@ interface Picked {
  */
 function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
   const owner = useRef({}).current
-  const { index, error, retry } = useBookIndex()
-  const { pos, jump } = useReadPos(owner)
-  const section = useSection(pos.section)
+  const { book, pos, jump } = useReadPos(owner)
+  const { index, error, retry } = useBookIndex(book)
+  const loaded = useSection(book, pos.section)
+  // While another book loads, the last one's section is not this book's.
+  const section = index && loaded && index.book === book ? loaded : null
+  const meta = READER_BOOKS.find((b) => b.id === book)!
+  const other = READER_BOOKS[(READER_BOOKS.findIndex((b) => b.id === book) + 1) % READER_BOOKS.length]
   const forms = useSavedForms()
   const body = useRef<HTMLDivElement>(null)
   const text = useRef<HTMLDivElement>(null)
   const quiet = useRef(0)
   const [pick, setPick] = useState<Picked | null>(null)
-  const info = index?.sections[pos.section] ?? null
-  const count = index?.sections.length ?? 0
+  const info = index?.book === book ? (index.sections[pos.section] ?? null) : null
+  const count = info ? index!.sections.length : 0
 
   const go = useCallback(
     (i: number) => {
@@ -64,6 +67,8 @@ function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
     },
     [count]
   )
+
+  useEffect(() => setPick(null), [book])
 
   // Scroll to the place when the section arrives, and whenever another view moved it.
   useLayoutEffect(() => {
@@ -154,17 +159,21 @@ function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
   }, [big, pick, onClose, go, pos.section])
 
   const pct = section && section.paras.length > 1 ? Math.round((pos.para / (section.paras.length - 1)) * 100) : 0
-  const next = index?.sections[pos.section + 1] ?? null
+  const next = info ? (index!.sections[pos.section + 1] ?? null) : null
+  const parts = index?.parts ?? []
+  const where = (s: { part: number; label: string }) => (parts[s.part] ? `${parts[s.part]} · ${s.label}` : s.label)
   const saved = new Set([...forms.values()].map((f) => f.id)).size
 
   return (
     <>
       <header className="pane-head">
         <BookOpen size={big ? 14 : 13} className="lesson-glyph" />
-        <span className="name">Don Quijote</span>
+        <button className="ghost name qx-book" title={`Switch to ${other.title} (each book keeps its place)`} onClick={() => setBook(other.id)}>
+          {meta.title}
+        </button>
         {info && (
-          <span className="badge" title={`${PART_NAME[info.part]}, ${info.label}${info.title ? `: ${info.title}` : ''}`}>
-            {shortLabel(info)} · {pct}%
+          <span className="badge" title={`${where(info)}${info.title ? `: ${info.title}` : ''}`}>
+            {info.short} · {pct}%
           </span>
         )}
         {big && saved > 0 && (
@@ -205,14 +214,12 @@ function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
             </button>
           </div>
         ) : !section || !info ? (
-          <div className="plugin-empty">{index ? '…' : 'fetching Don Quijote from Project Gutenberg…'}</div>
+          <div className="plugin-empty">{index ? '…' : `fetching ${meta.title} from Project Gutenberg…`}</div>
         ) : (
           <div ref={text} className="qx-text" lang="es">
             <h2 className="qx-heading">
-              <span className="lesson-tag">
-                {PART_NAME[section.part]} · {section.label}
-              </span>
-              {section.title || (section.part === 1 ? 'Tasa, privilegio, prólogo y versos preliminares' : 'Tasa, aprobaciones, dedicatoria y prólogo')}
+              <span className="lesson-tag">{where(section)}</span>
+              {section.title}
             </h2>
             {section.paras.map((p, k) => (
               <p key={k} data-p={k} className={p.verse ? 'qx-verse' : undefined}>
@@ -221,32 +228,35 @@ function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
             ))}
             {next && (
               <button className="qx-next" onClick={() => go(next.i)}>
-                {PART_NAME[next.part] !== PART_NAME[section.part] ? `${PART_NAME[next.part]} · ` : ''}
-                {next.label} <ChevronRight size={13} />
+                {next.part !== section.part ? where(next) : next.label} <ChevronRight size={13} />
               </button>
             )}
           </div>
         )}
-        {pick && section && <Pop key={`${pick.text}|${pick.top}|${pick.bottom}`} pick={pick} section={section} forms={forms} onClose={() => setPick(null)} />}
+        {pick && section && index && (
+          <Pop key={`${pick.text}|${pick.top}|${pick.bottom}`} pick={pick} origin={`${index.short} ${section.short}`} forms={forms} onClose={() => setPick(null)} />
+        )}
       </div>
     </>
   )
 }
 
 function ChapterSelect({ index, value, onPick }: { index: QuixoteIndex; value: number; onPick: (i: number) => void }) {
+  const option = (s: QuixoteIndex['sections'][number]) => (
+    <option key={s.i} value={s.i}>
+      {s.n ? `${s.n}. ${s.title.length > 60 ? `${s.title.slice(0, 58)}…` : s.title}` : s.label}
+    </option>
+  )
+  const named = [...new Set(index.sections.map((s) => s.part))].filter((p) => index.parts[p])
   return (
     <select className="qx-select" value={value} onChange={(e) => onPick(Number(e.target.value))} title="Go to a chapter">
-      {[1, 2].map((part) => (
-        <optgroup key={part} label={PART_NAME[part]}>
-          {index.sections
-            .filter((s) => s.part === part)
-            .map((s) => (
-              <option key={s.i} value={s.i}>
-                {s.n ? `${s.n}. ${s.title.length > 60 ? `${s.title.slice(0, 58)}…` : s.title}` : s.label}
-              </option>
-            ))}
-        </optgroup>
-      ))}
+      {named.length
+        ? named.map((part) => (
+            <optgroup key={part} label={index.parts[part]}>
+              {index.sections.filter((s) => s.part === part).map(option)}
+            </optgroup>
+          ))
+        : index.sections.map(option)}
     </select>
   )
 }
@@ -258,7 +268,7 @@ function ChapterSelect({ index, value, onPick }: { index: QuixoteIndex; value: n
  * where it is, liked; every tile hears of it through main's `vocab:changed`, and the vocabulary
  * tile shows the word in its dictionary.
  */
-function Pop({ pick, section, forms, onClose }: { pick: Picked; section: QuixoteSection; forms: Map<string, SavedForm>; onClose: () => void }) {
+function Pop({ pick, origin, forms, onClose }: { pick: Picked; origin: string; forms: Map<string, SavedForm>; onClose: () => void }) {
   const wordish = isWordish(pick.text)
   const [tr, setTr] = useState<TranslateResult | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -320,7 +330,7 @@ function Pop({ pick, section, forms, onClose }: { pick: Picked; section: Quixote
       const tid = (await window.deck.saveTranslation(tr, null)) || null
       const found = wordish ? await lookup.current : null
       const entry: VocabResult = found ?? { source: 'es', es: bare(pick.text), en: bare(tr.translated) }
-      const sw = await window.deck.saveWord(entry, tid, { context: pick.sentence, origin: originOf(section), liked: true })
+      const sw = await window.deck.saveWord(entry, tid, { context: pick.sentence, origin, liked: true })
       setSavedId(sw.id || null)
       bark()
       // The vocabulary tile shows it in its dictionary (and finds the row just written).

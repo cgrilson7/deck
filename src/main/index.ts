@@ -17,7 +17,7 @@ import { translate } from './translate'
 import { lookupVocab } from './dictionary'
 import { vocabWords } from './vocabwords'
 import { VocabStore } from './store'
-import { QuixoteBook } from './quixote'
+import { ReaderBooks } from './quixote'
 import { wikiBackdrop, wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { weatherNow, weatherSearch } from './weather'
 import { TranscriptWatcher } from './transcript'
@@ -603,9 +603,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('store:deck', (_e, limit?: number) => store!.deck(limit))
   ipcMain.handle('store:list', (_e, limit?: number) => store!.list(limit))
   ipcMain.handle('store:grade', (_e, id: number, grade: number) => changed({ kind: 'grade', liked: false }, store!.gradeWord(id, grade)))
-  const book = new QuixoteBook(userData)
-  ipcMain.handle('quixote:index', () => book.index())
-  ipcMain.handle('quixote:section', (_e, i: number) => book.section(Number(i)))
+  const books = new ReaderBooks(userData)
+  ipcMain.handle('quixote:index', (_e, book: unknown) => books.index(book))
+  ipcMain.handle('quixote:section', (_e, book: unknown, i: number) => books.section(book, Number(i)))
   ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

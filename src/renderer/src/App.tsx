@@ -60,7 +60,7 @@ export default function App() {
   const [molOpen, setMolOpen] = useState<number | null>(null)
   // A Lesson tile at reading size, the same way (which tile's).
   const [lessonOpen, setLessonOpen] = useState<number | null>(null)
-  // The reader (Don Quijote) at reading size, the same way.
+  // The reader (La Odisea, Don Quijote) at reading size, the same way.
   const [bookOpen, setBookOpen] = useState(false)
   // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
   const [webOpen, setWebOpen] = useState<string | null>(null)

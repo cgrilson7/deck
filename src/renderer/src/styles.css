@@ -5855,6 +5855,16 @@ button.foxlog-chip:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+.pane-head .qx-book {
+  padding: 0 4px;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pane-head .qx-book:hover {
+  color: var(--accent);
+}
 .qx-select {
   font: inherit;
   font-size: 12px;

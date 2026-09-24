@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -85,8 +85,8 @@ const api: DeckApi = {
     ipcRenderer.on('vocab:changed', h)
     return () => ipcRenderer.removeListener('vocab:changed', h)
   },
-  quixoteIndex: () => ipcRenderer.invoke('quixote:index') as Promise<QuixoteIndex>,
-  quixoteSection: (i: number) => ipcRenderer.invoke('quixote:section', i) as Promise<QuixoteSection>,
+  quixoteIndex: (book: ReaderBook) => ipcRenderer.invoke('quixote:index', book) as Promise<QuixoteIndex>,
+  quixoteSection: (book: ReaderBook, i: number) => ipcRenderer.invoke('quixote:section', book, i) as Promise<QuixoteSection>,
   setWordLiked: (id, liked) => ipcRenderer.invoke('store:liked', id, liked) as Promise<void>,
   vocabDeck: (limit?: number) => ipcRenderer.invoke('store:deck', limit) as Promise<StoredWord[]>,
   vocabList: (limit?: number) => ipcRenderer.invoke('store:list', limit) as Promise<StoredWord[]>,

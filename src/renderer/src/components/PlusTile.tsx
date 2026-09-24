@@ -60,8 +60,8 @@ export const PLUGINS: {
   },
   {
     key: 'quixote',
-    label: 'Don Quijote',
-    hint: 'Read Don Quijote in Spanish: select to translate, save words to the flash cards',
+    label: 'Reader',
+    hint: 'Read La Odisea or Don Quijote in Spanish: select to translate, save words to the flash cards',
     setting: 'showQuixote'
   },
   {
