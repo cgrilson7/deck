@@ -1196,8 +1196,9 @@ class MolViewer {
     const tint = (extra: Record<string, unknown> = {}) => (this.color === 'element' ? extra : { ...extra, colorfunc: (a: Atom) => colorOf(a) ?? elementFallback(a) })
     const elementFallback = (a: Atom) => (a.elem === 'C' ? muted : a.elem === 'O' ? '#d9362b' : a.elem === 'N' ? '#2b5fd9' : a.elem === 'S' ? '#d8c23a' : a.elem === 'H' ? '#e8e8e8' : muted)
 
+    // 'line' is drawn as thin sticks: WebGL ignores linewidth (every line is 1px, a hair on a retina screen).
     const atomStyle = (s: MolStyle): Record<string, unknown> =>
-      s === 'stick' ? { stick: tint({ radius: 0.16 }) } : s === 'sphere' ? { sphere: tint() } : s === 'line' ? { line: tint({ linewidth: 2 }) } : { stick: tint({ radius: 0.13 }), sphere: tint({ scale: 0.27 }) }
+      s === 'stick' ? { stick: tint({ radius: 0.16 }) } : s === 'sphere' ? { sphere: tint() } : s === 'line' ? { stick: tint({ radius: 0.07 }) } : { stick: tint({ radius: 0.13 }), sphere: tint({ scale: 0.27 }) }
 
     vw.setStyle({}, {})
     for (const m of this.models) {
@@ -1259,12 +1260,12 @@ class MolViewer {
       vw.addLabel(c.text, { ...labelStyle, position: p, fontSize: 13, backgroundColor: accent, fontColor: panel, backgroundOpacity: 0.92, borderThickness: 0 })
     }
 
-    const dash = (a: Atom, b: Atom, color: string, radius = 0.06) =>
-      vw.addCylinder({ start: { x: a.x, y: a.y, z: a.z }, end: { x: b.x, y: b.y, z: b.z }, radius, color, dashed: true, dashLength: 0.22, gapLength: 0.16, fromCap: 1, toCap: 1 })
+    const dash = (a: Atom, b: Atom, color: string, radius = 0.1) =>
+      vw.addCylinder({ start: { x: a.x, y: a.y, z: a.z }, end: { x: b.x, y: b.y, z: b.z }, radius, color, dashed: true, dashLength: 0.26, gapLength: 0.18, fromCap: 1, toCap: 1 })
     const mid = (as: Atom[]) => ({ x: as.reduce((s, a) => s + a.x, 0) / as.length, y: as.reduce((s, a) => s + a.y, 0) / as.length, z: as.reduce((s, a) => s + a.z, 0) / as.length })
 
     for (const m of this.measures) {
-      for (let i = 0; i + 1 < m.atoms.length; i++) dash(m.atoms[i], m.atoms[i + 1], ink, 0.05)
+      for (let i = 0; i + 1 < m.atoms.length; i++) dash(m.atoms[i], m.atoms[i + 1], ink, 0.09)
       const where = m.kind === 'angle' ? m.atoms[1] : null
       vw.addLabel(`${m.value.toFixed(m.kind === 'distance' ? 2 : 1)}${m.kind === 'distance' ? ' Å' : '°'}`, { ...labelStyle, position: where ? { x: where.x, y: where.y, z: where.z } : mid(m.kind === 'dihedral' ? m.atoms.slice(1, 3) : m.atoms), fontSize: 12 })
     }
@@ -1282,7 +1283,7 @@ class MolViewer {
         const pairs = this.contacts(this.hilite.contacts, scope)
         this.contactCount = pairs.length
         this.contactResidues = this.residuesOf(pairs.flatMap(([, b]) => [b]))
-        for (const [a, b] of pairs.slice(0, 300)) dash(a, b, muted, 0.035)
+        for (const [a, b] of pairs.slice(0, 300)) dash(a, b, muted, 0.06)
       }
       if (scope && scope.size && !this.selExpr) vw.addStyle(this.spec([...scope]), { stick: tint({ radius: 0.2 }) })
     }
