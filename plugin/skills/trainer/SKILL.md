@@ -72,7 +72,7 @@ letters each) — every one Hyper Beam's animation and power on Solar Beam's cha
 missing ("VILLAGE is updating!", the enemy's turn, then "VILLAGE used THE POWER OF FRIENDSHIP!" and the
 beam, whatever the move was called) — and the enemy's mon knows only SPLASH ("No
 effect!"). The EXP, level-up and fainted lines say VILLAGE too, and the
-game's lines call you VILLAGE USER (`--name`; seven letters fit every line, more run off some). With `--foxtrot` (off by default) Red is FOXTROT: on
+game's lines call you VILLAGER (`--name`; seven letters fit every line, more run off some). With `--foxtrot` (off by default) Red is FOXTROT: on
 the map (wagging his tail standing, trotting as you walk; Pikachu follows unseen) and in a battle's intro,
 where he stands in Red's back slot wagging until VILLAGE is sent out. Battle copies only: the party screen shows the
 real moves, and `look` in a battle lists the quiz ones. `--front

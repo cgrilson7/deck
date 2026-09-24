@@ -32,7 +32,7 @@
 //   trainer.mjs badges [all|none]  |  money <n>
 //   trainer.mjs learnset <pokemon> [level]                 what it knows by then
 //   trainer.mjs sprite [watch] [--moves SET] [--name YOU] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
-//                                                          --name: what the game's lines call you (VILLAGE USER; 7 letters fit every line)
+//                                                          --name: what the game's lines call you (VILLAGER; 7 letters fit every line)
 //                                                          THE SPRITE GAG, in a battle: the enemy mon's picture becomes the Notes
 //                                                          icon named NOTES APP, the mon you send out the Village logo named
 //                                                          VILLAGE (56×56 four-grey PNGs, plugin/data/sprites/), "Wild X

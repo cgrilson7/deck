@@ -551,6 +551,24 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   before, the player's returning a 5-byte home-bank text (the home bank's last 17 bytes are zero) whose text_far prints "used THE POWER
   OF" <SCROLL> "FRIENDSHIP!" from the bank $27 padding after the boring text. (A long NAME cannot do it: a 23-letter move name
   overruns the game's name buffer — party moves and level went to garbage in the simulation — and the menu draws before any swap.)
+  EVERY TRAINER IN THE GAME IS A BUG CATCHER — class name, picture and losing line. THE NAME: `TrainerNames` (47 @-terminated names,
+  found by "YOUNGSTER@BUG CATCHER@LASS@SAILOR@") has CODE right after it, so a table of 47 "BUG CATCHER"s does not fit; it does not
+  have to, because the lookup is `ld a,[wTrainerClass]` → three `cp`/`jr z` that send the rival's classes to his own name → the store,
+  TRAINER_NAME, the names' bank, `call GetName`, and THOSE THREE BYTES become `ld a,BUG_CATCHER; nop`, so every class — the rival's
+  included — reads entry 2. The "<class>:" over a beaten trainer's words is a SECOND table, of 47 pointers in a bank of its own (the
+  ones it has no name for aim at wTrainerName), whose `ld a,[wTrainerClass]` gets the same three bytes. THE PICTURE:
+  `TrainerPicAndMoneyPointers` (five bytes a class: dw picture, three BCD money bytes) is found from the home-bank routine that reads
+  it and believed only when all 47 entries carry a ROM pointer and digit-nibble money AND the table ends exactly where TrainerNames
+  begins; every class's two picture bytes become the Bug Catcher's and the money is left alone, so a COOLTRAINER still pays a
+  COOLTRAINER's. THE LOSING LINE: 303 of the game's 329 trainers (`trainerTexts`, each map's blocks → its header — CHECKED against
+  its object data's warp / sign / person counts — → its text pointers → the person's `ld hl,<TrainerHeader>` → the header's end-battle
+  text object) have that object's `text_far` repointed at ONE text of ours in the bank $27 padding after the fired line, "No bugs in"
+  <SCROLL> "VILLAGE? Not fair!" (it opens with a <LINE>: the game has already put "BUG CATCHER: " on line one). THE OTHER 26 ARE
+  SCRIPTED and are reported, not broken (`scripted()`): the eight gym leaders (Giovanni at Viridian among them), the rival's two,
+  Giovanni twice more (the Hideout, Silph), the seven Cinnabar Gym quiz trainers, the Mt. Moon and Fighting Dojo set pieces and five
+  Rockets have no TrainerHeader of their own — their person entry is `text_asm; ld a,[<an event flag>]` or a `call` — or their
+  end-battle object is not a plain `text_far; text_end`. They still wear the Bug Catcher's name and picture; they keep their own last
+  words. A Bug Catcher gone missing from the scan THROWS, so the original fourteen can never quietly stop working.
   FOXTROT IS RED — ONLY WITH `--foxtrot` (off by default: Red and Pikachu stay themselves). In a battle's intro he stands in Red's back slot (`fox` in `apply`, `backFrames`; `data/sprites/fox-back.png`,
   the idle frames with rows at 3× and the 22 columns over the 56, on the floor) wagging at 280ms while the block is Red's (whole,
   no HUD of yours), IN HIS OWN COLOURS — Red's block is BG palette 2 (white, yellow, red, dark; the text box shares it but uses only
@@ -567,7 +585,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   OCPS/OCPD ($FF6A/$FF6B: white, Village's orange, the outline) with every paint and once a second, since map loads and fades
   rewrite it. A converter cell with no source pixels under it is CLEAR (it once voted outline: a black bar over his head).
   YOUR NAME: the home bank's <PLAYER> handler (`push de; ld de,wPlayerName; jr`) has its operand turned to "VILLAGE USER@" written into
-  the RST vectors ($0010; the ROM's first 64 bytes are zero, Yellow uses no rst), so every "<PLAYER> …" line says VILLAGE USER while
+  the RST vectors ($0010; the ROM's first 64 bytes are zero, Yellow uses no rst), so every "<PLAYER> …" line says VILLAGER while
   wPlayerName, which a SAVE keeps, is never written (the start menu and trainer card print it directly and keep the real name).
   THE LINES THAT NAME YOUR MON FROM THE PARTY — "gained … EXP. Points!", "grew to level",
   "fainted!" — print a scratch buffer (text_ram wcd6d) the game fills from wPartyMonNicks, which is never written: their pointers
