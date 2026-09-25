@@ -5,3 +5,4 @@ dist/
 *.log
 docs/comics/*/out/
 ad/out/
+.claude/
