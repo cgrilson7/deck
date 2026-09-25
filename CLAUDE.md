@@ -767,7 +767,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   behind another app would look once a second. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
   (no body for 2.5s = away, counted from the last frame you were in); a slouch must last 3s (`GRACE_MS`) to break a streak, and then
   counts from where it began. THE HISTORY is good / bad / away segments (epoch ms), 3h kept in localStorage `posture:history` (saved
-  every 15s and on pagehide); ticks more than 5s apart leave the time between untracked. A MINUTE OF SLOUCHING in one go (`ALERT_MS`)
+  every 15s and on pagehide); ticks more than 5s apart leave the time between untracked. TEN SECONDS OF SLOUCHING in one go (`ALERT_MS`; the 3s grace is inside it, since a slouch counts from its start)
   is `postureAlert` → main: a Foxtrot BARK (`external()`, kind `posture`, in his log) and a macOS Notification, again every 5 minutes
   while it lasts; the tile's frame goes red meanwhile. The TILE: the stopwatch (the last streak faint when none runs), a thin strip of
   the last two hours with the share upright, and the FEED (the camera mirrored, cropped to fill, the pose lines in green / red and a

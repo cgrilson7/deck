@@ -610,7 +610,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('quixote:index', (_e, book: unknown) => books.index(book))
   ipcMain.handle('quixote:section', (_e, book: unknown, i: number) => books.section(book, Number(i)))
   // The Posture tile: MediaPipe's files over `pose:`, the camera prompt, full-speed timers while it
-  // watches, and its one alert — a minute of slouching — as a Foxtrot bark and a macOS notification.
+  // watches, and its one alert — ten seconds of slouching — as a Foxtrot bark and a macOS notification.
   const posture = new Posture(userData)
   posture.serve()
   ipcMain.handle('posture:camera', () => posture.camera())

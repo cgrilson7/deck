@@ -1045,7 +1045,7 @@ export interface DeckApi {
   postureCamera(): Promise<boolean>
   /** The Posture tile is tracking (or stopped): main keeps the window's timers at full speed meanwhile. */
   postureTracking(on: boolean): void
-  /** A minute of bad posture: Foxtrot barks it into his log and macOS shows it. */
+  /** Ten seconds of bad posture: Foxtrot barks it into his log and macOS shows it. */
   postureAlert(text: string): void
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>

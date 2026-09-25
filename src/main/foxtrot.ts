@@ -252,7 +252,7 @@ export class Foxtrot {
     for (const bySession of this.edits.values()) bySession.delete(id)
   }
 
-  /** A bark from outside the sessions (the Posture tile: a minute of slouching), told as it comes. */
+  /** A bark from outside the sessions (the Posture tile: ten seconds of slouching), told as it comes. */
   external(kind: FoxKind, text: string): void {
     this.add('bark', kind, text, [])
   }

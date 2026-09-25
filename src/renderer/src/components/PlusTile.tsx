@@ -79,7 +79,7 @@ export const PLUGINS: {
   {
     key: 'posture',
     label: 'Posture',
-    hint: 'The camera watches how you sit: a good-posture streak, a small feed, the last two hours; a minute of slouching is a bark',
+    hint: 'The camera watches how you sit: a good-posture streak, a small feed, the last two hours; ten seconds of slouching is a bark',
     setting: 'showPosture'
   }
 ]

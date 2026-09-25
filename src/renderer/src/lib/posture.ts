@@ -55,7 +55,7 @@ const BAD_ON = 1.0
 const BAD_OFF = 0.8
 /** A slouch this long breaks the streak (and is counted from its start). */
 const GRACE_MS = 3000
-export const ALERT_MS = 60_000
+export const ALERT_MS = 10_000
 const REALERT_MS = 5 * 60_000
 const CALIB_COUNTDOWN_MS = 3000
 const CALIB_SAMPLE_MS = 4000
@@ -386,8 +386,8 @@ class Tracker {
     if (this.status === 'bad') {
       this.note = ISSUE_TEXT[a.worst]
       if (now >= this.nextAlert) {
-        const mins = Math.round((now - this.badSince!) / 60_000)
-        window.deck.postureAlert(mins <= 1 ? `A minute of slouching. ${ISSUE_TEXT[a.worst]}.` : `Still slouching, ${mins} minutes now. ${ISSUE_TEXT[a.worst]}.`)
+        const first = now - this.badSince! < ALERT_MS + REALERT_MS
+        window.deck.postureAlert(first ? `Slouching for ${span(now - this.badSince!)}. ${ISSUE_TEXT[a.worst]}.` : `Still slouching, ${span(now - this.badSince!)} now. ${ISSUE_TEXT[a.worst]}.`)
         this.nextAlert = now + REALERT_MS
       }
     } else this.note = ''
