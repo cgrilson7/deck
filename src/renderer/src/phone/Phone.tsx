@@ -148,7 +148,7 @@ export function Phone() {
           ) : (
             <button key={p.id} type="button" className={`ph-chip ph-chip-agent ${p.id === cur ? 'on' : ''}`} onClick={() => goTo(p.id)}>
               <span className="slot slot-beta">β</span>
-              <Fox anim={p.a.cancelled ? 'down' : p.a.endedAt !== null ? 'sleep' : p.a.paused ? 'alert' : 'run'} scale={1} coat="gold" />
+              <Fox anim={p.a.cancelled ? 'down' : p.a.endedAt !== null ? 'sleep' : p.a.paused ? 'look' : 'run'} scale={1} coat="gold" />
               <span className="name">{agentName(p.a)}</span>
             </button>
           )
@@ -233,7 +233,7 @@ export function Phone() {
 function Unpaired({ link }: { link: Link }) {
   return (
     <div className="ph ph-empty">
-      <Fox anim="alert" scale={4} />
+      <Fox anim="look" scale={4} />
       <p>{link === 'unauthorized' ? 'This link no longer matches the deck.' : 'Not paired with a deck yet.'}</p>
       <p className="ph-hint">On the Mac, press the phone button in Deck's top bar and scan the code (or open the link) on this phone.</p>
       {link === 'unauthorized' && (

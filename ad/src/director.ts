@@ -296,7 +296,7 @@ export class Director {
     const words: [string, number, number, number][] = [['YIP!', 70, -46, -8], ['ARF!', 96, -14, 7], ['CHRRP!', 58, -78, -4]]
     words.forEach(([word, dx, dy, rot], i) =>
       this.at(t + i * 0.28, () => {
-        if (i === 0) this.pose('alert', 1400)
+        if (i === 0) this.pose('look', 1400)
         const b = document.createElement('div')
         b.className = 'ad-bark'
         b.textContent = word

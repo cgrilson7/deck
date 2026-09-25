@@ -3,7 +3,7 @@
 // 32px frames; the art occupies the bottom of each frame (y 14–31, x 4–25), so
 // `.fox` elements are sized to that ART box (22×18 units × --fox-scale), not the
 // frame — see styles.css. Rows: 0 idle tail-wag (5), 1 look-around (14),
-// 2 run (8), 3 leap (11), 4 alert tail-up (5), 5 sleep (6), 6 lie-down (7).
+// 2 run (8), 3 leap (11), 4 alert tail-up (5; NEVER USED: Colin's rule, the pose reads badly), 5 sleep (6), 6 lie-down (7).
 // The 'demented' frame (Colin's word): row 4 frame 0, which is pixel-identical to
 // row 6 frame 0 (both rows open from it). Fine inside the animations, which keep
 // every frame; as a STILL the lifted muzzle reads wrong at size, and it went on a

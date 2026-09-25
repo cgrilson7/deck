@@ -20,7 +20,7 @@ export function agentState(a: AgentView): AgentState {
 export function agentPose(a: AgentView): FoxAnim {
   if (a.cancelled) return 'down'
   if (a.endedAt !== null) return 'sleep'
-  if (a.paused) return a.held ? 'alert' : 'look'
+  if (a.paused) return 'look'
   return 'run'
 }
 

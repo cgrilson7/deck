@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-export type FoxAnim = 'idle' | 'look' | 'run' | 'leap' | 'alert' | 'sleep' | 'down'
+export type FoxAnim = 'idle' | 'look' | 'run' | 'leap' | 'sleep' | 'down'
 /** Foxtrot's own orange, or the gold coat a wolfpack's betas wear. */
 export type FoxCoat = 'orange' | 'gold'
 

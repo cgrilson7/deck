@@ -387,6 +387,7 @@ class Tracker {
       this.note = ISSUE_TEXT[a.worst]
       if (now >= this.nextAlert) {
         const first = now - this.badSince! < ALERT_MS + REALERT_MS
+        window.dispatchEvent(new Event(BARK_EVENT))
         window.deck.postureAlert(first ? `Slouching for ${span(now - this.badSince!)}. ${ISSUE_TEXT[a.worst]}.` : `Still slouching, ${span(now - this.badSince!)} now. ${ISSUE_TEXT[a.worst]}.`)
         this.nextAlert = now + REALERT_MS
       }
@@ -581,6 +582,30 @@ export function span(ms: number): string {
   const m = Math.floor(s / 60)
   if (m < 60) return s % 60 && m < 10 ? `${m}m ${s % 60}s` : `${m}m`
   return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+// ---- the head's bark ---------------------------------------------------------------
+
+/** Fired with every alert: Foxtrot in the top bar barks it (FoxHead). */
+const BARK_EVENT = 'deck:posture-bark'
+
+/**
+ * For Foxtrot in the top bar: `alarm` while a slouch has run past ALERT_MS (he sits up alert
+ * until you do), and `barks`, bumped at each alert (a bark run each). Re-renders only on those.
+ */
+export function usePostureAlarm(): { alarm: boolean; barks: number } {
+  const [alarm, setAlarm] = useState(false)
+  const [barks, setBarks] = useState(0)
+  useEffect(() => {
+    const off = posture().subscribe((v) => setAlarm(v.status === 'bad' && v.badSince !== null && Date.now() - v.badSince >= ALERT_MS))
+    const bark = () => setBarks((n) => n + 1)
+    window.addEventListener(BARK_EVENT, bark)
+    return () => {
+      off()
+      window.removeEventListener(BARK_EVENT, bark)
+    }
+  }, [])
+  return { alarm, barks }
 }
 
 // ---- the pane's door ---------------------------------------------------------------

@@ -357,7 +357,7 @@ function Pop({ pick, origin, forms, onClose }: { pick: Picked; origin: string; f
     >
       <div className="qx-pop-top">
         <span className={`qx-pop-fox ${run > 0 ? 'barking' : ''}`} title="Foxtrot, translating">
-          <Fox anim={err ? 'alert' : 'idle'} scale={2} />
+          <Fox anim={err ? 'look' : 'idle'} scale={2} />
           {run > 0 && <BarkBursts run={run} />}
         </span>
         <div className="qx-pop-words">

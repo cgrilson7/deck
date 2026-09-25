@@ -141,6 +141,7 @@ src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and
 src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live), for his log
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
+src/renderer/src/lib/barks.ts       THE BARK LIBRARY: real red fox clips in assets/barks/ (credits in CREDITS.md there), playBark() picks one at random
 src/renderer/src/lib/usage.ts       useUsage() (one store for the header's meters and the tiles' context badges), the 70 / 90 thresholds, left()
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
 src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two scrolling side columns + drag anywhere), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
@@ -170,7 +171,7 @@ ad/                        THE AD, a film of the deck made FROM the deck: its ow
                              capture.mjs (offscreen Electron → capturePage → ffmpeg) is frame-exact; `--shots 3,9.5` writes stills,
                              `--eval` / `--dump` inspect the page. The app's build never sees any of it. assets/ are Studio-made images + 1UBQ.cif
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
-build/icon.png, icon.icns  the app icon (Foxtrot's alert pose on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
+build/icon.png, icon.icns  the app icon (Foxtrot standing, row 0 frame 0, on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test
 docs/casa.md               where the deck is headed: the house (casa) as a deck plugin, Foxtrot as the Mac mini
 docs/foxtrot-portrait.md   Foxtrot as a voxel figure: image prompts for concept art
@@ -299,7 +300,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   PACK TILE is what ties agents to their session: the head is `α<slot>` + the session's name
   (click = focus it), the tally ("2 working · 1 finished") and "clear n" for the finished; the
   body is a ROSTER, a row per agent as it started — a MINIATURE gold fox in its pose (runs while
-  working, looks around while pausing, sits up alert when held, asleep once finished, down when
+  working, looks around while paused or held, asleep once finished, down when
   cancelled), name, type · model, the line it is on NOW (`useLastBlock`: its transcript's last
   block, live; what it said last once finished; the reason when cancelled), the leash (on row
   hover, always while paused) and `AgentStatus` (a pulsing pip + the running clock; `✓ 3m 12s`
@@ -389,7 +390,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
     carries `agent_id` when the call is a subagent's, verified). Normally the answer is a 204
     at once. PAUSE (⏸ on the head; the dialog takes an optional note) holds the member's next
     tool call: the response waits until ▶ resume (`held` on the view says it has bitten; the
-    fox sits up alert), at most the hour. CANCEL (✕; the dialog REQUIRES a reason) refuses the
+    fox looks around), at most the hour. CANCEL (✕; the dialog REQUIRES a reason) refuses the
     member's tool calls from then on with a PreToolUse `deny` decision carrying the reason,
     which the agent reads as its tool result and returns early on (verified end to end: the
     parent gets "I was cancelled: <reason>"); a beta is killed a beat later. Both are TOLD TO
@@ -888,7 +889,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   renderer asks for the index, then a section at a time (the next one warmed). The TILE and the PANE (⌘⇧D, View ▸ Reader,
   the tile's ⤢; takes the CENTER like the Lesson pane and takes turns with the others; Esc, ← → chapters) are TWO
   VIEWS OF ONE PLACE: the book and `{ section, para }` (the paragraph at the top of the view scrolled last), told to the other view by a window event, so each follows the other. SELECT any text (a double-click
-  takes a word) and a POP translates it, FOXTROT AS THE TRANSLATOR (his idle tail-wag beside the words, `alert` on an error, and the pane head's bark — hop + `BarkBursts`, shared with `FoxStatus` — when the translation lands and when it is saved; `foxBark` off silences it) — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
+  takes a word) and a POP translates it, FOXTROT AS THE TRANSLATOR (his idle tail-wag beside the words, `look` on an error, and the pane head's bark — hop + `BarkBursts`, shared with `FoxStatus` — when the translation lands and when it is saved; `foxBark` off silences it) — `translate(text, 'es', fixed = true)`: the source is passed to Google, never
   detected, since a lone "no" or "a" passes for English — with a word or two also looked up in Wiktionary (`vocab`: the
   lemma "← correr", glosses), and "translate the whole sentence" (`sentenceAround`, capped around the selection). SAVE writes
   the translation, then the WORD — the Wiktionary entry, else a bare pair (a phrase, an archaism) so it can still be a card —
@@ -916,11 +917,13 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `liked` (added by a guarded `alter table` in `MIGRATIONS`, like `context` / `origin`, the sentence a word was saved from in the reader); liked words are merged into the
   vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the
   vocab tile's stats chip, which is also how you get to the cards. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
+- **THE ALERT POSE IS NEVER USED** (the sheet's row 4, "alert tail-up"): Colin's rule, it reads badly. It is not in `FoxAnim`
+  and has no CSS class; needing you, a held agent and an error all show `look`, a cancel `down`. Do not bring it back.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's
   "2D Pixel Art Fox Sprites", the same 14×7 sheet as slay's `/dream-fox.png`, copied to
   `src/renderer/src/assets/fox.png`; terms in `assets/LICENSE-fox.md`: credit Elthen, recolors are fine in-product, don't ship it standalone). It IS
   the status indicator: every pane head shows a 22×18 fox (`FoxStatus`) in place of a dot, running
-  while Claude works, asleep while it waits, sitting up alert when it needs you, looking around while
+  while Claude works, asleep while it waits, looking around when it needs you, looking around while
   starting, lying down when the pane died. It barks the way slay's fox does, SILENTLY: a hop and
   three comic bursts ("YIP!" "ARF!" "CHRRP!", Press Start 2P, bundled in assets/, 280ms apart,
   620ms each; `lib/bark.ts`; off = `foxBark` false / View ▸ Fox Barks) on the TRANSITION into needing you and
@@ -931,7 +934,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   every xterm render for the banner's first two rows (`▐▛█…` / `▝▜█…`), registers a marker + decoration
   (3 rows × the logo width) that xterm scrolls, hides and disposes with the line, paints it `--panel`,
   and stands the fox on it. The pose follows the pane's classes: busy runs, idle sleeps, blocked /
-  attention sits up alert, dead lies down, else the tail wags. `.fox` elements are the ART box of a
+  attention looks around, dead lies down, else the tail wags. `.fox` elements are the ART box of a
   frame (22×18 sheet px × `--fox-scale`), animated by stepping `background-position-x` one frame
   (32px × scale) at a time; row / frame count / duration are CSS variables (`.fox-idle`, `.fox-run`,
   …); the sheet is a `--fox-sheet` data: URL set at boot (`installFoxSheet`, CSP allows `img-src data:`).
@@ -947,9 +950,13 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Entries append to `userData/foxtrot.jsonl` (compacted to the last 2000 past 5000; 1000 kept in
   memory), pushed as `fox:entry`, fetched with `fox:log`.
   The top bar is TALL for him (88px, 52px compact; main's `lightsAt()` centers the traffic lights
-  to match): the fox at 4× (2× compact) AND NOTHING ELSE — no speech bubble, and the big fox NEVER
-  BARKS or sits up alert: he is not a voice addressing the user, only the sessions' foxes summed
-  up (`FoxHead`). Any session busy = he trots (`run`); every open session resting (idle, no
+  to match): the fox at 4× (2× compact) AND NOTHING ELSE — no speech bubble, and the SESSIONS never
+  make the big fox bark: for them he is only their foxes summed up (`FoxHead`). The
+  ONE THING HE BARKS AT IS YOUR POSTURE: the Posture tile's alert (`usePostureAlarm` in lib/posture.ts,
+  a window event per alert) makes him hop and burst "SIT UP!" "ARF!" "YIP!" in `--blocked` AND BARK OUT LOUD: `playBark()` (`lib/barks.ts`) plays a
+  real red fox, one at random from THE BARK LIBRARY, `assets/barks/` (trimmed ~1s WAVs, each credited in its `CREDITS.md`;
+  public domain / CC0 / CC-BY only, never NC; the macOS notification is silent while he barks aloud), and he
+  stands looking around (overriding every other pose) until you sit up; `foxBark` off keeps the pose, drops the bursts and the sound. Any session busy = he trots (`run`); every open session resting (idle, no
   attention) or none open = asleep; anything else (starting, needing you, dead) = he stands
   looking back and forth (`look`). What needs you is told by that session's own fox. Then
   `.topbar-tools` on the right, a wrapping row that is where new buttons and dropdowns go. The

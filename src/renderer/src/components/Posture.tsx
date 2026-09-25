@@ -36,7 +36,7 @@ function FeedCover({ v }: { v: PostureView }) {
   if (v.status === 'good' || v.status === 'bad' || v.status === 'away' || v.status === 'uncalibrated' || v.status === 'calibrating') return null
   return (
     <div className="posture-cover">
-      <Fox anim={v.status === 'starting' ? 'run' : v.status === 'error' ? 'alert' : 'sleep'} scale={2} />
+      <Fox anim={v.status === 'starting' ? 'run' : v.status === 'error' ? 'look' : 'sleep'} scale={2} />
       {v.status === 'error' && <span>{v.note}</span>}
     </div>
   )

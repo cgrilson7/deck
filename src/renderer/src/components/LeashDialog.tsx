@@ -38,7 +38,7 @@ export function LeashDialog({ ask, onClose }: { ask: LeashAsk; onClose: () => vo
     <div className="picker-scrim" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="picker leash" onClick={(e) => e.stopPropagation()} onKeyDown={onKeyDown} role="dialog" aria-label={cancel ? 'Cancel this agent' : 'Pause this agent'}>
         <header className="picker-head">
-          <Fox anim={cancel ? 'alert' : 'sleep'} scale={1} coat="gold" />
+          <Fox anim={cancel ? 'down' : 'sleep'} scale={1} coat="gold" />
           <span className="picker-title">
             {cancel ? 'Cancel' : 'Pause'} {target.kind === 'beta' ? 'beta' : 'agent'} “{target.name}”
           </span>

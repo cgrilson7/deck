@@ -4,12 +4,12 @@ import { Fox, type FoxAnim, type FoxCoat } from './Fox'
 import { BARK_EVERY_MS, BARK_LIFE_MS, BARK_SCATTER, BARK_WORDS, useBark } from '../lib/bark'
 import { useSettings } from '../lib/theme'
 
-/** Foxtrot's pose per status. Needing you overrides all of them with `alert`. */
+/** Foxtrot's pose per status. Needing you overrides all of them with `look`. (Never the sheet's alert row: Colin's rule.) */
 const POSE: Record<SessionStatus, FoxAnim> = {
   starting: 'look',
   busy: 'run',
   idle: 'sleep',
-  blocked: 'alert',
+  blocked: 'look',
   dead: 'down',
   unknown: 'look'
 }
@@ -37,17 +37,17 @@ export function FoxStatus({ id, status, attention, coat }: { id: string; status:
   const label = needs ? `needs you (${LABEL[status]})` : LABEL[status]
   return (
     <span className={`fox-status ${barking ? 'barking' : ''}`}>
-      <Fox anim={needs ? 'alert' : POSE[status]} scale={1} coat={coat} title={label} />
+      <Fox anim={needs ? 'look' : POSE[status]} scale={1} coat={coat} title={label} />
       {barking && <BarkBursts run={run} />}
     </span>
   )
 }
 
 /** slay's three comic bursts, one run of them (`run` keys it, so a new run replays). Placed by the parent's `.bark` rule. */
-export function BarkBursts({ run }: { run: number }) {
+export function BarkBursts({ run, words = BARK_WORDS }: { run: number; words?: readonly string[] }) {
   return (
     <>
-      {BARK_WORDS.map((word, i) => {
+      {words.map((word, i) => {
         const s = BARK_SCATTER[i % BARK_SCATTER.length]
         const style = {
           '--rot': `${s.rot}deg`,

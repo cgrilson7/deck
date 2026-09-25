@@ -620,7 +620,7 @@ app.whenReady().then(async () => {
     if (!body) return
     foxtrot?.external('posture', body)
     if (!Notification.isSupported()) return
-    const n = new Notification({ title: 'Sit up straight', body })
+    const n = new Notification({ title: 'Sit up straight', body, silent: settings!.get().foxBark })
     n.on('click', () => {
       win?.show()
       win?.focus()

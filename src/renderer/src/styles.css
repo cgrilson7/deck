@@ -3017,11 +3017,6 @@ button {
   --fox-frames: 11;
   --fox-ms: 750ms;
 }
-.fox-alert {
-  --fox-row: 4;
-  --fox-frames: 5;
-  --fox-ms: 900ms;
-}
 .fox-sleep {
   --fox-row: 5;
   --fox-frames: 6;
@@ -3045,7 +3040,7 @@ button {
 }
 
 /* ---- fox status (FoxStatus.tsx): Foxtrot in every pane head, in place of a dot.
-   The pose is the status (run / sleep / alert / look / down); a bark is a hop on the
+   The pose is the status (run / sleep / look / down); a bark is a hop on the
    wrapper (the fox itself owns the sprite animation) plus slay's comic bursts: three
    words in Press Start 2P (OFL, bundled: CSP font-src is self + data:), scattered by
    --rot/--dx/--dy, each one `fox-bark` for BARK_LIFE_MS, staggered by animation-delay. ---- */
@@ -3123,9 +3118,9 @@ button {
 }
 .status-blocked .fox-banner,
 .attention .fox-banner {
-  --fox-row: 4;
-  --fox-frames: 5;
-  --fox-ms: 900ms;
+  --fox-row: 1;
+  --fox-frames: 14;
+  --fox-ms: 3200ms;
 }
 .status-dead .fox-banner {
   --fox-row: 6;
@@ -3799,16 +3794,39 @@ button {
 }
 
 /* ---- Foxtrot, the head (FoxHead): the fox large at the left of the top bar, posed for the
-   whole deck. No bubble, no barks. He opens his log. ---- */
+   whole deck. No bubble; he barks only at your posture (the Posture tile's alert). He opens his log. ---- */
 .fox-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
 }
 .fox-head-fox {
+  position: relative;
   flex: 0 0 auto;
   display: inline-flex;
   padding: 0;
+}
+.fox-head-fox.barking {
+  animation: fox-hop-big 1.2s ease-out;
+}
+@keyframes fox-hop-big {
+  0%, 20%, 43%, 66%, 100% { transform: none; }
+  10%, 33%, 56% { transform: translateY(-8px); }
+}
+.fox-head-fox .bark {
+  position: absolute;
+  left: 70%;
+  top: 26px; /* they drift up ~20px, and the top bar clips */
+  z-index: 5;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--blocked);
+  text-shadow: 2px 2px 0 var(--panel), -2px 2px 0 var(--panel), 2px -2px 0 var(--panel), -2px -2px 0 var(--panel);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: fox-bark 620ms ease-out both;
 }
 .topbar-tools {
   flex: 1 1 320px;
