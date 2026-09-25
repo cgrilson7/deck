@@ -143,6 +143,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'Posture',
+          submenu: [
+            { label: 'Open Posture', accelerator: 'CmdOrCtrl+Shift+P', click: () => ui({ type: 'togglePosture' }) },
+            { label: 'Show Posture Tile (uses the camera)', type: 'checkbox', checked: s.showPosture, click: () => patch({ showPosture: !settings().showPosture }) }
+          ]
+        },
+        {
           label: 'Lesson',
           submenu: [
             { label: 'Open Lesson', accelerator: 'CmdOrCtrl+Shift+E', click: () => ui({ type: 'toggleLesson' }) },

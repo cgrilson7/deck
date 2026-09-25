@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -84,6 +84,7 @@ src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claude
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
+src/main/posture.ts        the Posture tile's main side: the `pose:` scheme (MediaPipe's wasm + the pose model, fetched once into userData/posture), the camera prompt, background throttling
 src/main/mol.ts            the Molecule tile's disk + network side: a target → structure text (library, RCSB, AlphaFold DB, PubChem, a file), cached in userData/mol
 src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson` (front matter, cards, the mol / fig / ask / dad blocks), `lintLesson`,
                              `molBody` (one line of a mol block → the Molecule door's body; MIRRORS plugin/scripts/mol.mjs's argv handling, keep them in step), `cleanCurriculum`
@@ -128,6 +129,8 @@ src/renderer/src/lib/webapps.ts     openWebApp()/closeWebApp() (the same window 
 src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon() (the same window event), the last ROM (localStorage), usePokemonRoms()
 src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
 src/renderer/src/serverboy.d.ts     serverboy ships no types
+src/renderer/src/lib/posture.ts     THE POSTURE TRACKER: camera + MediaPipe pose as a module singleton (the streak, the history, the alert, the feed drawn into canvases); usePosture(), openPosture()
+src/renderer/src/lib/postureMath.ts Posture Pal's pure math (~/posture3 renderer/posture.js), typed: metrics, the calibrated baseline, the four checks
 src/renderer/src/lib/mol.ts         THE MOLECULE VIEWER: 3Dmol.js as a module singleton (one viewer moved between tile and pane, the scene as state, every op of the door); useMol(), openMol()
 src/renderer/src/lib/lesson.ts      THE LESSON TILE's state: a deck per tile (file, card, marks, note, ad-hoc asks, answers, mol runs), every op of the door (`drive`), live reload,
                                     `useLesson()`, `useCurriculum()`, `setMarks()` (the CSS Custom Highlight API), `openLesson()`
@@ -150,6 +153,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
+                                    Posture (PostureTile: the streak + a small feed; PosturePane: the feed large, the checks, the last two hours),
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
                                     LessonTile (a lesson's card as a plugin cell, or HOME: the curriculum), LessonPane (it at reading size in the center column: a rail of the cards, the sources),
                                     LessonCard (one card — prose, mol button, figure, ask, "for Dad", sources — shared by the two, and the home view),
@@ -747,6 +751,30 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   cards (answered asks ticked), the file's sources, and with several tiles Molecule's rail of chips. `DECK_LESSON` is
   derived from the mol script's folder in `hooks.ts` (no constructor change); a session started before the tile existed
   has no `DECK_LESSON`, which is why the skill falls back to `$(dirname "$DECK_MOL")/lesson.mjs`. Not on the phone.
+- **Posture** (`lib/posture.ts`, `lib/postureMath.ts`, `components/Posture.tsx`, `main/posture.ts`; the `showPosture` setting, OFF by
+  default because it turns the camera on): Posture Pal (~/posture3, github.com/cgrilson7/posture-pal) folded into the deck. ONE
+  TRACKER for the window (`posture()`), the Game Boy's plan: the camera (640×480, a hidden `<video>`) and MediaPipe's Pose Landmarker
+  (lite, CPU delegate — the deck needs its WebGL contexts — 5 detections a second, ~15ms each) run IN THE RENDERER while the setting is
+  on and it is not paused, whether or not the tile is scrolled to; App calls `enable()` on every `showPosture` change, off = camera off.
+  The math is Posture Pal's, typed and unchanged (`postureMath.ts`: head height, leaning in, slumping, side lean against a CALIBRATED
+  BASELINE, the median of 4s of samples after a 3s countdown, kept in localStorage `posture:baseline`; the smoothed worst check over 1.0
+  is bad, back under 0.8 is good). MAIN SERVES WHAT FILE:// CANNOT: MediaPipe injects its wasm loader as a `<script crossOrigin>` and
+  fetches the .wasm and the model, which Chromium refuses from the packaged window's file:// page, so the privileged `pose:` scheme
+  (registered before `ready`, handled on the default session, CORS `*`) answers `pose://wasm/vision_wasm_internal.{js,wasm}` out of
+  `node_modules/@mediapipe/tasks-vision/wasm` and `pose://model/pose_landmarker_lite.task` out of `userData/posture/` (downloaded from
+  Google's model bucket on first use); the CSP carries `pose:` in default-src / script-src and `'wasm-unsafe-eval'`. `posture:camera`
+  is `askForMediaAccess('camera')`; while tracking, main turns the window's BACKGROUND THROTTLING OFF (`posture:tracking`), or a deck
+  behind another app would look once a second. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
+  (no body for 2.5s = away, counted from the last frame you were in); a slouch must last 3s (`GRACE_MS`) to break a streak, and then
+  counts from where it began. THE HISTORY is good / bad / away segments (epoch ms), 3h kept in localStorage `posture:history` (saved
+  every 15s and on pagehide); ticks more than 5s apart leave the time between untracked. A MINUTE OF SLOUCHING in one go (`ALERT_MS`)
+  is `postureAlert` → main: a Foxtrot BARK (`external()`, kind `posture`, in his log) and a macOS Notification, again every 5 minutes
+  while it lasts; the tile's frame goes red meanwhile. The TILE: the stopwatch (the last streak faint when none runs), a thin strip of
+  the last two hours with the share upright, and the FEED (the camera mirrored, cropped to fill, the pose lines in green / red and a
+  dashed line where your head sat at calibration), drawn by the tracker into every attached canvas on rAF. The PANE (⌘⇧P, View ▸
+  Posture, the tile) takes the CENTER like the reader: the feed large with the calibration overlay, the streak, the four checks as
+  bars, calibrate / pause (camera off) / strictness (0.5–2×, localStorage), and THE LAST TWO HOURS: the strip with times under it,
+  and good / bad / away / longest streak. Not on the phone.
 - **Web apps** (`shared/types.ts` `WebApp`, `main/webapps.ts`, `WebLayer`, `WebTile`, `lib/webapps.ts`; the `webApps`
   setting): ANY SITE AS A MINI APP — registered by a name + URL (`{ id, name, url, show }`, `WEB_APPS_MAX` 12;
   Village, `https://villagenotes.app/dream`, is the default entry; the `+` picker's "Web app" row registers
@@ -1133,7 +1161,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A B E D. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B E D P. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -1146,6 +1174,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `quixote/` — `pg58221.txt` (La Odisea) and `pg2000.txt` (Don Quijote), the reader's books as Gutenberg sent them (fetched once; delete to fetch again)
+- `posture/` — `pose_landmarker_lite.task`, the Posture tile's pose model (downloaded once; delete to fetch again)
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
@@ -1157,7 +1186,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

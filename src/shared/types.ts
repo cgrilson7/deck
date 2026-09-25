@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -105,6 +105,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showQuixote) out.push('quixote')
   if (s.showMol) out.push('mol')
   if (s.showLesson) out.push('lesson')
+  if (s.showPosture) out.push('posture')
   return out
 }
 
@@ -642,6 +643,8 @@ export interface DeckSettings {
   molTiles: number[]
   /** The Lesson tile (a lesson file of the learner's repo as cards), which a teaching session drives through `$DECK_LESSON`. */
   showLesson: boolean
+  /** The Posture tile: the camera watching how you sit — a good-posture streak, a small feed, the last two hours (off by default: it turns the camera on). */
+  showPosture: boolean
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -708,6 +711,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showMol: false,
   molTiles: [1],
   showLesson: false,
+  showPosture: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
@@ -765,7 +769,7 @@ export interface FileDoc {
 }
 
 /** Which of Foxtrot's senses saw something (main/foxtrot.ts). */
-export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died'
+export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died' | 'posture'
 
 /**
  * One of Foxtrot's observations, from the head in the top bar. A `bark` is something that
@@ -930,7 +934,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -1037,6 +1041,12 @@ export interface DeckApi {
   /** The reader's book: every section's heading and length (fetched from Gutenberg once, then from userData). */
   quixoteIndex(book: ReaderBook): Promise<QuixoteIndex>
   quixoteSection(book: ReaderBook, i: number): Promise<QuixoteSection>
+  /** The Posture tile: ask macOS for the camera (true = granted; a prompt only the first time). */
+  postureCamera(): Promise<boolean>
+  /** The Posture tile is tracking (or stopped): main keeps the window's timers at full speed meanwhile. */
+  postureTracking(on: boolean): void
+  /** A minute of bad posture: Foxtrot barks it into his log and macOS shows it. */
+  postureAlert(text: string): void
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>
   /** The flash-card deck: what is due first, then whatever comes soonest, entries included. */

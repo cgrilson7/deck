@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Notification, shell } from 'electron'
 import { join } from 'node:path'
 import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
@@ -42,6 +42,7 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
+import { Posture, registerPoseScheme } from './posture'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -57,6 +58,8 @@ app.setName('Deck')
 // by hand. The menu-bar name only changes with a real bundle (`npm run dist`).
 const iconPath = join(app.getAppPath(), 'build', 'icon.png')
 app.setPath('userData', join(app.getPath('appData'), profile))
+// The Posture tile's MediaPipe files and model (main/posture.ts): privileged schemes are declared before `ready`.
+registerPoseScheme()
 
 if (!app.requestSingleInstanceLock({ profile })) {
   app.quit()
@@ -606,6 +609,24 @@ app.whenReady().then(async () => {
   const books = new ReaderBooks(userData)
   ipcMain.handle('quixote:index', (_e, book: unknown) => books.index(book))
   ipcMain.handle('quixote:section', (_e, book: unknown, i: number) => books.section(book, Number(i)))
+  // The Posture tile: MediaPipe's files over `pose:`, the camera prompt, full-speed timers while it
+  // watches, and its one alert — a minute of slouching — as a Foxtrot bark and a macOS notification.
+  const posture = new Posture(userData)
+  posture.serve()
+  ipcMain.handle('posture:camera', () => posture.camera())
+  ipcMain.on('posture:tracking', (_e, on: boolean) => win?.webContents.setBackgroundThrottling(!on))
+  ipcMain.on('posture:alert', (_e, text: string) => {
+    const body = String(text ?? '').slice(0, 200)
+    if (!body) return
+    foxtrot?.external('posture', body)
+    if (!Notification.isSupported()) return
+    const n = new Notification({ title: 'Sit up straight', body })
+    n.on('click', () => {
+      win?.show()
+      win?.focus()
+    })
+    n.show()
+  })
   ipcMain.handle('store:stats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

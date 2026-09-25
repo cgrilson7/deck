@@ -75,6 +75,12 @@ export const PLUGINS: {
     label: 'Lesson',
     hint: 'A lesson from the focused folder as cards: sources, figures, molecule buttons, questions you answer here; a session drives it (/deck:lesson)',
     setting: 'showLesson'
+  },
+  {
+    key: 'posture',
+    label: 'Posture',
+    hint: 'The camera watches how you sit: a good-posture streak, a small feed, the last two hours; a minute of slouching is a bark',
+    setting: 'showPosture'
   }
 ]
 

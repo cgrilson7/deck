@@ -144,6 +144,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     showMol: bool(raw.showMol, d.showMol),
     molTiles: molTiles(raw.molTiles),
     showLesson: bool(raw.showLesson, d.showLesson),
+    showPosture: bool(raw.showPosture, d.showPosture),
     lessonTiles: molTiles(raw.lessonTiles, LESSON_TILES_MAX),
     webApps: webApps(raw.webApps, d.webApps),
     showPokemon: bool(raw.showPokemon, d.showPokemon),

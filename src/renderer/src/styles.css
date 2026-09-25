@@ -6048,6 +6048,386 @@ button.foxlog-chip:hover {
   font-size: 10px;
 }
 
+/* ---- Posture (Posture.tsx, lib/posture.ts): the good-posture streak and a small feed in a tile, and
+   in the center column the feed large, the four checks and the last two hours. Upright is --green,
+   slouching --blocked, away the muted ink; the feed is the camera mirrored with the pose drawn on it. */
+.posture-glyph {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.posture-badge.good {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 55%, var(--line));
+}
+.posture-badge.bad,
+.posture-badge.error {
+  color: var(--blocked);
+  border-color: color-mix(in srgb, var(--blocked) 55%, var(--line));
+}
+.tile.posture.posture-alarm {
+  border-color: var(--blocked);
+  box-shadow: 0 0 0 1px var(--blocked);
+}
+.posture-face {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px 10px;
+  cursor: pointer;
+}
+.posture-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+}
+.posture-left .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.posture-streak {
+  min-width: 0;
+}
+.posture-clock {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.posture-streak.good .posture-clock {
+  color: var(--green);
+}
+.posture-streak:not(.good) .posture-clock {
+  color: var(--muted);
+}
+.posture-streak.big .posture-clock {
+  font-size: 56px;
+}
+.posture-sub {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.posture-streak.big .posture-sub {
+  font-size: 13px;
+}
+.posture-streak.bad .posture-sub {
+  color: var(--blocked);
+}
+.posture-hot {
+  font-weight: 600;
+}
+.posture-last {
+  color: var(--muted);
+}
+.posture-mini {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.posture-mini-text {
+  font-size: 10px;
+  color: var(--muted);
+}
+.posture-feed-box {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  aspect-ratio: 4 / 3;
+  max-width: 55%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 10%, var(--fill));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.posture-feed-box.good {
+  box-shadow: inset 0 0 0 2px var(--green);
+}
+.posture-feed-box.bad {
+  box-shadow: inset 0 0 0 2px var(--blocked);
+}
+.posture-feed {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.posture-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.posture-calib {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+}
+.posture-calib.mini {
+  font-size: 22px;
+  font-weight: 600;
+}
+.posture-calib-n {
+  font-size: 48px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.posture-calib-text {
+  font-size: 13px;
+  max-width: 360px;
+}
+.posture-calib-bar {
+  width: 60%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.posture-calib-bar i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+
+/* The strip: two hours wide, a segment per stretch; untracked time shows the track. */
+.posture-strip {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 6%, var(--fill));
+}
+.posture-strip.thin {
+  height: 6px;
+  border-radius: 3px;
+}
+.posture-strip i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.posture-strip i.good {
+  background: var(--green);
+}
+.posture-strip i.bad {
+  background: var(--blocked);
+}
+.posture-strip i.away {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+}
+
+.posture-pane {
+  min-height: 0;
+  outline: none;
+}
+.posture-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+}
+.posture-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+.posture-feed-box.large {
+  flex: 1 1 360px;
+  height: auto;
+  max-width: 640px;
+  border-radius: var(--radius);
+}
+.posture-side {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.posture-issue {
+  font-size: 13px;
+  color: var(--blocked);
+}
+.posture-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.posture-check {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.posture-check i {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
+  overflow: hidden;
+}
+.posture-check b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  transition: width 0.2s linear;
+}
+.posture-check b.good {
+  background: var(--green);
+}
+.posture-check b.warn {
+  background: var(--busy);
+}
+.posture-check b.bad {
+  background: var(--blocked);
+}
+/* The line: a check at 1 (two thirds along) is slouching. */
+.posture-check em {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 66.7%;
+  width: 1px;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.posture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.posture-actions .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.posture-actions .pill.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+}
+.posture-actions .pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.posture-sens {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.posture-sens input {
+  width: 90px;
+  accent-color: var(--accent);
+}
+.posture-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.posture-h-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.posture-h-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+.posture-h-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.posture-axis {
+  position: relative;
+  height: 14px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.posture-axis span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.posture-axis span:first-child {
+  transform: none;
+}
+.posture-axis span:last-child {
+  transform: translateX(-100%);
+}
+.posture-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.posture-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+}
+.posture-total.good {
+  border-left-color: var(--green);
+}
+.posture-total.bad {
+  border-left-color: var(--blocked);
+}
+.posture-total.away {
+  border-left-color: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+.posture-total.best {
+  border-left-color: var(--accent);
+}
+.posture-total-n {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.posture-total-l {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 /* ---- glass (the `glass` theme; lib/glass.ts): a blurred Wikipedia picture of the day behind the
    whole window, the chrome colors taken from it, and every pane a tinted sheet of glass over it.
    The picture is blurred ONCE, here, so no pane needs a backdrop-filter of its own (only the

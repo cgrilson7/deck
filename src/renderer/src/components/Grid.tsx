@@ -8,6 +8,7 @@ import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
 import { QuixoteTile } from './QuixoteReader'
+import { PostureTile } from './Posture'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
@@ -277,6 +278,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <TranslateTile />
     case 'quixote':
       return <QuixoteTile />
+    case 'posture':
+      return <PostureTile />
     case 'mol':
     case 'lesson':
       // A cell per Molecule tile, and per Lesson tile: the grid makes those itself.
