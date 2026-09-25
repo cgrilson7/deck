@@ -5855,6 +5855,45 @@ button.foxlog-chip:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* The head never wraps: buttons keep their size, and the book's name, the place badge and the chapter
+   select give way (ellipsized) in that order of last-to-go. */
+.quixote .pane-head,
+.quixote-pane .pane-head {
+  gap: 4px;
+  white-space: nowrap;
+}
+.quixote .pane-head > *,
+.quixote-pane .pane-head > * {
+  flex: 0 0 auto;
+}
+.quixote .pane-head > .ghost:not(.qx-book),
+.quixote-pane .pane-head > .ghost:not(.qx-book) {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+}
+.quixote .pane-head > .qx-book,
+.quixote-pane .pane-head > .qx-book {
+  flex: 0 1 auto;
+  min-width: 3em;
+}
+.quixote .pane-head > .badge,
+.quixote-pane .pane-head > .badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quixote .pane-head > .spacer,
+.quixote-pane .pane-head > .spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.quixote-pane .pane-head > .qx-select {
+  flex: 0 1 300px;
+  min-width: 80px;
+  text-overflow: ellipsis;
+}
 .pane-head .qx-book {
   padding: 0 4px;
   border: none;
