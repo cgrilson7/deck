@@ -170,6 +170,8 @@ ad/                        THE AD, a film of the deck made FROM the deck: its ow
                              public/clock.js = a virtual clock under ?capture (timers, rAF, Date, CSS animations scrubbed), so
                              capture.mjs (offscreen Electron → capturePage → ffmpeg) is frame-exact; `--shots 3,9.5` writes stills,
                              `--eval` / `--dump` inspect the page. The app's build never sees any of it. assets/ are Studio-made images + 1UBQ.cif
+sounds/fox-barks/          THE BARK LIBRARY'S SOURCE, not bundled: 27 trimmed red fox clips (all redistributable), index.html to audition them,
+                             SOURCES-*.md (URLs, authors, licenses, attribution, more cut points); originals in ~/Music/fox-barks-originals/
 tmux.conf                  the deck tmux server config (status off, remain-on-exit failed, titles on)
 build/icon.png, icon.icns  the app icon (Foxtrot standing, row 0 frame 0, on a cream tile): the Dock under `npm run dev`, the bundle under `npm run dist`
 scripts/smoke.mjs          the smoke test
