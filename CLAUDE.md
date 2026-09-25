@@ -56,6 +56,7 @@ src/main/hooks.ts          local HTTP server + the --settings hooks file for ins
                              and POST /studio, the Studio's,
                              and POST /gameboy + POST /mol, the doors to the renderer's Game Boy and molecule viewer (main/index.ts relays both),
                              and POST /lesson, the Lesson tile's door (`onLesson`, a FIELD set after construction like `onStatus`, never a constructor argument),
+                             and POST /doc, the preview pane's (`onDoc`, a field too: `$DECK_DOC open <path>` → the renderer's `openDoc`),
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
 src/main/usage.ts          USAGE for the header: every session's status line POSTs the CLI's status JSON to /status → the account's 5-hour / weekly
                              windows + each session's context % (`usage:update`; windows kept in userData/usage.json)
@@ -71,6 +72,8 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              scripts/mol.mjs (show, style, compare, select, highlight, measure, label, view, look, list, clear; DECK_MOL in every session's env),
                              skills/lesson/SKILL.md (`/deck:lesson`: teach from a lesson file, card by card; ALSO the lesson file format's authoring reference),
                              scripts/lesson.mjs (show, goto, mark, note, ask, look, home, reset, tiles, close, lint; DECK_LESSON in every session's env),
+                             skills/doc/SKILL.md (`/deck:doc`: open a file the user should read or edit in the preview pane, NOT with macOS `open`),
+                             scripts/doc.mjs (open <path> [--line N]; DECK_DOC in every session's env, beside mol.mjs like DECK_LESSON),
                              skills/trainer/SKILL.md (`/deck:trainer`: play Pokémon Yellow on the Game Boy, one command at a time),
                              scripts/trainer.mjs (look, press, advance, walk, goto, talk, fight, save / load, party, elite, warp, sprite…; DECK_TRAINER in every session's env),
                              scripts/lib/ (the trainer's: door.mjs = the emulator behind one small protocol, the deck's `POST /gameboy` or serverboy HEADLESS
@@ -81,7 +84,8 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
 src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only, token-gated) serving out/renderer/phone.html and relaying the IPC broadcasts
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
-src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing
+src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing;
+                             and WRITES one back (`writeDoc` = the edit mode, `toggleTask` = a checkbox): the safety rules in the preview pane rule
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/posture.ts        the Posture tile's main side: the `pose:` scheme (MediaPipe's wasm + the pose model, fetched once into userData/posture), the camera prompt, background throttling
@@ -135,8 +139,10 @@ src/renderer/src/lib/mol.ts         THE MOLECULE VIEWER: 3Dmol.js as a module si
 src/renderer/src/lib/lesson.ts      THE LESSON TILE's state: a deck per tile (file, card, marks, note, ad-hoc asks, answers, mol runs), every op of the door (`drive`), live reload,
                                     `useLesson()`, `useCurriculum()`, `setMarks()` (the CSS Custom Highlight API), `openLesson()`
 src/renderer/src/3dmol.d.ts         the slice of 3Dmol lib/mol.ts uses, for the minified ES build it imports by path
-src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles
-src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one
+src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) for Claude's prose in the tiles; nested lists, `- [ ]` / `- [x]` as checkboxes
+                                    (clickable only when the caller passes `MarkdownExt.task`: the preview pane)
+src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one; the preview pane's
+                                    unsaved-edits guard (`setDocGuard` / `docMayClose`), asked by whatever closes it from App
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
 src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live), for his log
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
@@ -148,7 +154,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     PackTile (a session's subagents as one cell: a roster of miniature foxes), AgentPane (a subagent full size in the center column), AgentStatus (pip + word + clock),
                                     LeashButtons (⏸ ▶ ✕ on a member's head),
                                     LeashDialog (the reason for a cancel, a note for a pause),
-                                    DocPane (the file preview over the grid), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
+                                    DocPane (the file preview in the center: read, tick task boxes, edit), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     QuixoteReader (the reader: QuixoteTile + QuixotePane over one Reader, and the translation pop),
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
@@ -999,6 +1005,34 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `img-src blob:` in the CSP); a folder is a list you can walk into, with a back button. Anything
   else — binary, missing, over the caps (1.5MB of text, 40MB of bytes) — says so and offers the
   header's buttons, which hand the path to macOS: open (Preview, for a PDF), reveal in Finder, copy.
+  IT ALSO WRITES (`file:write` / `file:task` → `writeDoc` / `toggleTask` in `main/files.ts`), two
+  ways. A markdown TASK ITEM (`- [ ]` / `- [x]`, any bullet or `1.`, nested) is a checkbox
+  (`lib/markdown.tsx` draws it for everyone; only the pane passes `MarkdownExt.task`, so a tile's are
+  disabled, and so are ones inside a blockquote, whose lines are not the file's): a click sends its
+  0-based line (the renderer splits on `\r?\n`, main counts `\n`, so they agree) and its state, and
+  main flips THAT ONE BYTE — the rest of the file stays byte for byte, CRLFs and all — after checking
+  the line is still that task. EDIT (a toggle beside `source`, text and markdown files that were not
+  cut at the cap) is a plain monospace `<textarea>` (no editor dependency; Tab indents two spaces
+  through `execCommand` so ⌘Z still works), ● in the head while it differs from the file, a `save`
+  button then, ⌘S saves (the pane's own keydown; nothing in the menu takes ⌘S); main answers with
+  the file read back, whose mtime is the next save's lock. THE RULES, main's: an existing regular
+  file (a symlink is followed and stays a link), text or markdown by `readDoc`'s own test, not
+  truncated, VALID UTF-8 (a decode/encode round trip must give the same bytes, or an edit could
+  change bytes nobody touched), at most 1.5MB after the write; the mtime the pane READ must still be
+  the file's (else `stale`: refused, and the pane's problem line offers `reload` — never a silent
+  overwrite); written atomically (a `.<name>.deck-<hex>.tmp` beside it with the file's mode, then a
+  rename). UNSAVED EDITS ASK FIRST (a native `confirm`, like the kill button) on Esc, ×, the scrim,
+  back, leaving edit, a reload, a new file arriving (a click or the door), and — through
+  `setDocGuard` in `lib/paths.ts` — App's closes (Esc-all, Foxtrot's log); ⌘R does not ask (a
+  `beforeunload` veto would block Refresh UI). Desktop only: the phone's `writeDoc` / `toggleTask`
+  reject and it is not in `REMOTE_METHODS`.
+  THE DOOR: a session opens a file here with `node "$DECK_DOC" open <path> [--line N]`
+  (`plugin/scripts/doc.mjs`, `/deck:doc`; `path:42` works too) → `POST /doc` → `hooks.onDoc` in
+  `main/index.ts`, which resolves it (a missing path is refused), sends `doc:open`, and brings the
+  window forward → App's `onDocOpen` → `openDoc`. The skill tells sessions to use it INSTEAD OF
+  macOS `open` for a file the user should read or edit (a checklist `open` once sent to RStudio).
+  `DECK_DOC` is derived beside mol.mjs in `hooks.ts`, like `DECK_LESSON`; a session started before it
+  falls back to `$(dirname "$DECK_MOL")/doc.mjs`.
 - **Tile prompts** (`TilePrompt`, the bar along the bottom of every grid session tile): an
   always-visible rounded outline, no label, that pastes what you type into THAT session and
   submits it (⏎; ⇧⏎ = newline, Esc empties) without swapping it into focus. Clicks in the bar

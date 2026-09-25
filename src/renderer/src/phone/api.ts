@@ -259,6 +259,10 @@ export const api: DeckApi = {
   spotifyLibrary: notHere,
   spotifySearch: notHere,
   readDoc: (ref, cwd) => remote.call<FileDoc & { bytesB64?: string }>('readDoc', [ref, cwd]).then(undoc),
+  // The phone reads files; writing them is the desktop's.
+  writeDoc: notHere,
+  toggleTask: notHere,
+  onDocOpen: nothing,
   openPath: (path) => remote.call('openPath', [path]),
   revealPath: noop,
   copyText: (text) => void navigator.clipboard?.writeText(text).catch(noop),

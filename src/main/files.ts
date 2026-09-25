@@ -5,12 +5,19 @@
 // anything text-shaped (capped), bytes for an image or a PDF (the renderer makes a blob URL of
 // them), a listing for a directory. What it cannot show it still reports, with a note, so the
 // pane can offer to open it in the app macOS would use.
+//
+// It also WRITES, for the pane's edit mode and its task-list checkboxes — carefully: only an
+// existing regular text / markdown file of valid UTF-8, only if it has not changed since the
+// pane read it (the mtime it read is the lock), never past the text cap, and atomically (a temp
+// file beside it, then a rename, with the file's own mode). A task toggle flips ONE byte of ONE
+// line, so the rest of the file stays exactly as it was.
 
-import { open, readdir, readFile, stat } from 'node:fs/promises'
+import { chmod, open, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { FileDoc, FileKind } from '@shared/types'
+import { randomBytes } from 'node:crypto'
+import type { DocWrite, FileDoc, FileKind } from '@shared/types'
 
 /** Text is read up to here; the rest is dropped and the pane says so. */
 const TEXT_CAP = 1_500_000
@@ -138,4 +145,84 @@ export async function readDoc(ref: string, cwd?: string): Promise<FileDoc> {
   } catch (err) {
     return { ...doc, note: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/** A task-list item's line: the list marker, then `[ ]` / `[x]`. Group 1 runs up to the mark itself. */
+const TASK = /^([ \t]*(?:[-*+]|\d+[.)])[ \t]+\[)([ xX])\]/
+
+/**
+ * The file behind `path` if the pane may write it: an existing regular file (a symlink is
+ * followed, so the link stays a link), text or markdown, whole (not cut at the cap), valid
+ * UTF-8, and unchanged since the pane read it at `mtime`.
+ */
+async function editable(path: string, mtime: number): Promise<{ real: string; mode: number; buf: Buffer } | { error: string; stale?: boolean }> {
+  const doc = await readDoc(path)
+  if (doc.kind !== 'text' && doc.kind !== 'markdown') return { error: doc.kind === 'missing' ? 'The file is gone.' : 'Only a text or markdown file can be edited here.' }
+  if (doc.truncated) return { error: 'Too big to edit here.' }
+  let real: string
+  try {
+    real = await realpath(doc.path)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+  const s = await stat(real)
+  if (!s.isFile()) return { error: 'Not a regular file.' }
+  if (s.mtimeMs !== mtime) return { error: 'The file changed on disk since it was read.', stale: true }
+  const buf = await readFile(real)
+  if (!Buffer.from(buf.toString('utf8'), 'utf8').equals(buf)) return { error: 'Not UTF-8 text: editing it here could change bytes you did not touch.' }
+  return { real, mode: s.mode & 0o7777, buf }
+}
+
+/** Temp file in the same folder, then a rename over the original: a reader never sees half a file. */
+async function replaceFile(real: string, mode: number, data: Buffer): Promise<void> {
+  const tmp = join(dirname(real), `.${basename(real)}.deck-${randomBytes(4).toString('hex')}.tmp`)
+  try {
+    await writeFile(tmp, data, { mode, flag: 'wx' })
+    await chmod(tmp, mode) // writeFile's mode passes through the umask
+    await rename(tmp, real)
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => {})
+    throw err
+  }
+}
+
+async function commit(path: string, mtime: number, next: (buf: Buffer) => Buffer | string): Promise<DocWrite> {
+  try {
+    const e = await editable(resolveRef(path), mtime)
+    if ('error' in e) return { ok: false, error: e.error, stale: e.stale }
+    const out = next(e.buf)
+    if (typeof out === 'string') return { ok: false, error: out }
+    if (out.length > TEXT_CAP) return { ok: false, error: `That would make the file bigger than ${Math.round(TEXT_CAP / 1e6 * 10) / 10}MB, the most edited here.` }
+    await replaceFile(e.real, e.mode, out)
+    return { ok: true, doc: await readDoc(path) }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** The pane's edit mode: the whole text, written over the file the pane read at `mtime`. */
+export function writeDoc(path: string, text: string, mtime: number): Promise<DocWrite> {
+  return commit(path, mtime, () => Buffer.from(String(text ?? ''), 'utf8'))
+}
+
+/**
+ * A task-list checkbox: line `line` (0-based, split on \n) must still be a task that is
+ * `checked`; its mark becomes the other one ('x' / ' ') and not another byte moves.
+ */
+export function toggleTask(path: string, line: number, checked: boolean, mtime: number): Promise<DocWrite> {
+  return commit(path, mtime, (buf) => {
+    let start = 0
+    for (let n = 0; n < line; n += 1) {
+      const nl = buf.indexOf(0x0a, start)
+      if (nl < 0) return 'That line is not in the file any more.'
+      start = nl + 1
+    }
+    const end = buf.indexOf(0x0a, start)
+    const m = TASK.exec(buf.toString('utf8', start, end < 0 ? buf.length : end))
+    if (!m || (m[2] !== ' ') !== checked) return 'That line is not the task it was: reload.'
+    // Everything before the mark is ASCII (spaces, a bullet or a number, `[`), so its length is its byte count.
+    const out = Buffer.from(buf)
+    out[start + m[1].length] = checked ? 0x20 : 0x78
+    return out
+  })
 }

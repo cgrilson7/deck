@@ -91,3 +91,17 @@ export function onOpenDoc(cb: (r: DocRef) => void): () => void {
   window.addEventListener(EVENT, h)
   return () => window.removeEventListener(EVENT, h)
 }
+
+// The pane's edit mode has something to lose: while it holds unsaved edits it registers a guard,
+// and whatever closes the pane from outside (App: Esc-all, Foxtrot's log) asks it first.
+let guard: (() => boolean) | null = null
+
+/** DocPane: `ask` confirms leaving unsaved edits (true = go ahead); null when there is nothing to lose. */
+export function setDocGuard(ask: (() => boolean) | null): void {
+  guard = ask
+}
+
+/** May the preview pane go away? Asks the user when it holds unsaved edits. */
+export function docMayClose(): boolean {
+  return guard ? guard() : true
+}

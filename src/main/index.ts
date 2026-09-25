@@ -28,7 +28,7 @@ import { SpotifyAuth } from './spotifyauth'
 import { setupYoutubeSession } from './youtube'
 import { guardWebviews, setupWebSession, webSnap } from './webapps'
 import { keepDrop, type DroppedFile } from './drops'
-import { readDoc, resolveRef } from './files'
+import { readDoc, resolveRef, toggleTask, writeDoc } from './files'
 import { gitChanges, gitDiff } from './git'
 import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
@@ -489,6 +489,21 @@ app.whenReady().then(async () => {
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
   hooks.onLesson = (body) => lessonCall(body)
+  // The preview pane's door: `$DECK_DOC open <path> [--line N]` (plugin/scripts/doc.mjs) — a file
+  // the user should read or edit opens here instead of in whatever app macOS would pick.
+  hooks.onDoc = async (body) => {
+    const b = (body ?? {}) as { op?: unknown; path?: unknown; line?: unknown }
+    if (b.op !== 'open') throw new Error(`unknown op “${String(b.op)}”: the door knows \`open\``)
+    if (typeof b.path !== 'string' || !isAbsolute(b.path)) throw new Error('open wants an absolute path')
+    if (!win || win.isDestroyed()) throw new Error('no window')
+    const doc = await readDoc(b.path)
+    if (doc.kind === 'missing') throw new Error(`no such file: ${doc.path}`)
+    const line = Number.isInteger(b.line) && (b.line as number) > 0 ? (b.line as number) : null
+    send('doc:open', { path: doc.path, line })
+    if (win.isMinimized()) win.restore()
+    win.show()
+    return { ok: true, path: doc.path, kind: doc.kind, editable: (doc.kind === 'text' || doc.kind === 'markdown') && !doc.truncated, ...(line ? { line } : {}), ...(doc.note ? { note: doc.note } : {}) }
+  }
   await hooks.start()
 
   // The sprite gag: `trainer.mjs sprite watch` as a child of main, following the `spriteGag`
@@ -635,6 +650,9 @@ app.whenReady().then(async () => {
   // A referenced file, for the preview pane over the grid: read it here, and let macOS open
   // or reveal it (a PDF lands in Preview, everything else in whatever owns the type).
   ipcMain.handle('file:read', (_e, ref: string, cwd?: string) => readDoc(String(ref ?? ''), typeof cwd === 'string' ? cwd : undefined))
+  // …and writes it back, for the pane's edit mode and its checkboxes: see files.ts for the rules (the mtime read is the lock).
+  ipcMain.handle('file:write', (_e, path: string, text: string, mtime: number) => writeDoc(String(path ?? ''), String(text ?? ''), Number(mtime)))
+  ipcMain.handle('file:task', (_e, path: string, line: number, checked: boolean, mtime: number) => toggleTask(String(path ?? ''), Math.max(0, Math.floor(Number(line) || 0)), !!checked, Number(mtime)))
   ipcMain.handle('file:open', async (_e, path: string) => shell.openPath(resolveRef(String(path ?? ''))))
   ipcMain.on('file:reveal', (_e, path: string) => shell.showItemInFolder(resolveRef(String(path ?? ''))))
   ipcMain.on('file:copy', (_e, text: string) => clipboard.writeText(String(text ?? '')))

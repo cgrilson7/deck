@@ -768,6 +768,15 @@ export interface FileDoc {
   note?: string
 }
 
+/** What a write from the preview pane came to (`main/files.ts`): the file read back, or why not. `stale` = it changed on disk since the pane read it. */
+export type DocWrite = { ok: true; doc: FileDoc } | { ok: false; error: string; stale?: boolean }
+
+/** `POST /doc` → the renderer: open the preview pane on this absolute path. */
+export interface DocOpen {
+  path: string
+  line: number | null
+}
+
 /** Which of Foxtrot's senses saw something (main/foxtrot.ts). */
 export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died' | 'posture'
 
@@ -1009,6 +1018,12 @@ export interface DeckApi {
    * file: URL. Never rejects — a missing or unshowable file comes back with a note.
    */
   readDoc(ref: string, cwd?: string): Promise<FileDoc>
+  /** The preview pane's edit mode: write `text` over the file, which must not have changed since it was read at `mtime`. Desktop only. */
+  writeDoc(path: string, text: string, mtime: number): Promise<DocWrite>
+  /** A task-list checkbox in the preview pane: flip line `line` (0-based), which must still be a task that is `checked`. Desktop only. */
+  toggleTask(path: string, line: number, checked: boolean, mtime: number): Promise<DocWrite>
+  /** The door (`POST /doc`, `$DECK_DOC open`): a session asks for a file in the preview pane. */
+  onDocOpen(cb: (r: DocOpen) => void): () => void
   /** Hand the path to macOS (Preview for a PDF, whatever else owns the type). Resolves an error string, '' when it opened. */
   openPath(path: string): Promise<string>
   /** Reveal the path in Finder. */

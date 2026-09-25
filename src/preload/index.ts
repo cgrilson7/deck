@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -70,6 +70,13 @@ const api: DeckApi = {
   spotifyLibrary: () => ipcRenderer.invoke('spotify:library') as Promise<SpotifyLibrary>,
   spotifySearch: (q: string) => ipcRenderer.invoke('spotify:search', q) as Promise<SpotifyItem[]>,
   readDoc: (ref, cwd) => ipcRenderer.invoke('file:read', ref, cwd) as Promise<FileDoc>,
+  writeDoc: (path, text, mtime) => ipcRenderer.invoke('file:write', path, text, mtime) as Promise<DocWrite>,
+  toggleTask: (path, line, checked, mtime) => ipcRenderer.invoke('file:task', path, line, checked, mtime) as Promise<DocWrite>,
+  onDocOpen: (cb) => {
+    const h = (_e: unknown, r: DocOpen) => cb(r)
+    ipcRenderer.on('doc:open', h)
+    return () => ipcRenderer.removeListener('doc:open', h)
+  },
   openPath: (path) => ipcRenderer.invoke('file:open', path) as Promise<string>,
   revealPath: (path) => ipcRenderer.send('file:reveal', path),
   copyText: (text) => ipcRenderer.send('file:copy', text),

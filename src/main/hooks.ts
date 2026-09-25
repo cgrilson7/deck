@@ -78,6 +78,8 @@ export class HooksServer {
    * breaks /pretool for every session of the deck being edited. Its CLI sits beside mol.mjs (DECK_LESSON).
    */
   onLesson: ((body: unknown) => Promise<unknown>) | null = null
+  /** `POST /doc`: open a file in the preview pane (main/index.ts `docCall`). A field too; its CLI sits beside mol.mjs (DECK_DOC). */
+  onDoc: ((body: unknown) => Promise<unknown>) | null = null
 
   constructor(
     private readonly port: number,
@@ -183,7 +185,7 @@ export class HooksServer {
     })
     const settings = {
       statusLine: this.writeStatusScript(),
-      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs') },
+      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs') },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
@@ -246,9 +248,10 @@ export class HooksServer {
             return
           }
           if (path !== 'gameboy') this.log(path, payload)
-          if (path === 'pack' || path === 'studio' || path === 'gameboy' || path === 'mol' || path === 'lesson') {
-            // The wolfpack (or the Studio, the Game Boy, the Molecule tile, the Lesson tile) answers: JSON either way, and never hangs the caller.
-            void (path === 'lesson' ? (this.onLesson ? this.onLesson(payload) : Promise.reject(new Error('not ready'))) : path === 'pack' ? this.onPack(payload) : path === 'studio' ? this.onStudio(payload) : path === 'mol' ? this.onMol(payload) : this.onGameboy(payload)).then(
+          if (path === 'pack' || path === 'studio' || path === 'gameboy' || path === 'mol' || path === 'lesson' || path === 'doc') {
+            // The wolfpack (or the Studio, the Game Boy, the Molecule tile, the Lesson tile, the preview pane) answers: JSON either way, and never hangs the caller.
+            const field = path === 'lesson' ? this.onLesson : path === 'doc' ? this.onDoc : undefined
+            void (field !== undefined ? (field ? field(payload) : Promise.reject(new Error('not ready'))) : path === 'pack' ? this.onPack(payload) : path === 'studio' ? this.onStudio(payload) : path === 'mol' ? this.onMol(payload) : this.onGameboy(payload)).then(
               (result) => {
                 res.statusCode = 200
                 res.setHeader('content-type', 'application/json')

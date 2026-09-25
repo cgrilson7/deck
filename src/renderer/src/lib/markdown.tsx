@@ -1,5 +1,5 @@
 // A small markdown → React renderer for Claude's prose in the grid tiles: paragraphs,
-// headings, bullet / numbered lists, fenced code, pipe tables, and inline code / bold /
+// headings, bullet / numbered lists (nested, and `- [ ]` / `- [x]` task items as checkboxes), fenced code, pipe tables, and inline code / bold /
 // italic / links (and, for a caller that asks, footnote marks). Builds elements, never HTML, so nothing in a reply can inject markup.
 // `cwd` is the session's folder: file references in the prose become clickable and are
 // resolved against it (lib/filerefs.tsx).
@@ -8,13 +8,32 @@ import type { ReactNode } from 'react'
 import { FileRef, linkifyPaths } from './filerefs'
 import { isPathRef, splitRef } from './paths'
 
-/** What a caller may add to the renderer. `foot`: a footnote mark `[^id]` (the Lesson tile's sources); without it the mark stays text. */
+/**
+ * What a caller may add to the renderer. `foot`: a footnote mark `[^id]` (the Lesson tile's sources); without it the mark stays text.
+ * `task`: a click on a task item's checkbox, with its 0-based line in `src` and whether it was checked (the preview pane
+ * writes it to disk); without it the checkboxes are drawn disabled.
+ */
 export interface MarkdownExt {
   foot?: (id: string, key: string) => ReactNode
+  task?: (line: number, checked: boolean) => void
+}
+
+const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
+/** A task item's text: `[ ]` / `[x]`, then what it says. */
+const TASK_ITEM = /^\[([ xX])\](?:\s+(.*))?$/
+
+interface ListItem {
+  indent: number
+  ordered: boolean
+  text: string
+  /** Its line in the source, for a task's checkbox. */
+  line: number
+  kids: ListItem[]
 }
 
 export function renderMarkdown(src: string, cwd?: string, ext?: MarkdownExt): ReactNode[] {
-  const lines = src.replace(/\r\n?/g, '\n').split('\n')
+  // Split on \n (a \r\n counts as one), so a line's index is the one main counts to toggle a task.
+  const lines = src.split(/\r?\n/)
   const out: ReactNode[] = []
   let i = 0
   let key = 0
@@ -92,33 +111,32 @@ export function renderMarkdown(src: string, cwd?: string, ext?: MarkdownExt): Re
       )
       continue
     }
-    // list (bullets or numbers; one level, continuation lines indented)
-    const li = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(line)
-    if (li) {
-      const ordered = /\d/.test(li[2])
-      const items: string[] = []
+    // list (bullets or numbers, nested by indentation, continuation lines indented)
+    if (LIST_ITEM.test(line)) {
+      const roots: ListItem[] = []
+      const open: ListItem[] = []
+      let last: ListItem | null = null
       while (i < lines.length) {
-        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
-        if (m) items.push(m[3])
-        else if (/^\s{2,}\S/.test(lines[i]) && items.length) items[items.length - 1] += ' ' + lines[i].trim()
+        const m = LIST_ITEM.exec(lines[i])
+        if (m) {
+          const item: ListItem = { indent: m[1].replace(/\t/g, '    ').length, ordered: /\d/.test(m[2]), text: m[3], line: i, kids: [] }
+          while (open.length && open[open.length - 1].indent >= item.indent) open.pop()
+          ;(open.length ? open[open.length - 1].kids : roots).push(item)
+          open.push(item)
+          last = item
+        } else if (/^\s{2,}\S/.test(lines[i]) && last) last.text += ' ' + lines[i].trim()
         else break
         i++
       }
-      const Tag = ordered ? 'ol' : 'ul'
-      out.push(
-        <Tag key={k()}>
-          {items.map((it, j) => (
-            <li key={j}>{inline(it, cwd, ext)}</li>
-          ))}
-        </Tag>
-      )
+      out.push(list(roots, k(), cwd, ext))
       continue
     }
     // blockquote
     if (/^\s*>/.test(line)) {
       const q: string[] = []
       while (i < lines.length && /^\s*>/.test(lines[i])) q.push(lines[i++].replace(/^\s*>\s?/, ''))
-      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'), cwd, ext)}</blockquote>)
+      // A quote's lines are not the file's lines, so its task items are drawn but not clickable.
+      out.push(<blockquote key={k()}>{renderMarkdown(q.join('\n'), cwd, { ...ext, task: undefined })}</blockquote>)
       continue
     }
     // paragraph: run until a blank line or a block start
@@ -128,6 +146,36 @@ export function renderMarkdown(src: string, cwd?: string, ext?: MarkdownExt): Re
     out.push(<p key={k()}>{inline(p.join(' '), cwd, ext)}</p>)
   }
   return out
+}
+
+/** One level of a list, its nested lists inside their items. A task item leads with its checkbox. */
+function list(items: ListItem[], key: string, cwd?: string, ext?: MarkdownExt): ReactNode {
+  const Tag = items[0]?.ordered ? 'ol' : 'ul'
+  const tasks = items.some((it) => TASK_ITEM.test(it.text))
+  return (
+    <Tag key={key} className={tasks ? 'md-tasks' : undefined}>
+      {items.map((it, j) => {
+        const t = TASK_ITEM.exec(it.text)
+        const done = !!t && t[1] !== ' '
+        const kids = it.kids.length ? list(it.kids, `${key}.${j}`, cwd, ext) : null
+        if (!t) return <li key={j}>{inline(it.text, cwd, ext)}{kids}</li>
+        return (
+          <li key={j} className={done ? 'md-task done' : 'md-task'}>
+            <input
+              type="checkbox"
+              checked={done}
+              disabled={!ext?.task}
+              readOnly={!ext?.task}
+              onChange={ext?.task ? () => ext.task!(it.line, done) : undefined}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <span className="md-task-text">{inline(t[2] ?? '', cwd, ext)}</span>
+            {kids}
+          </li>
+        )
+      })}
+    </Tag>
+  )
 }
 
 const INLINE = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|_([^_\n]+)_|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)]+)|\[\^([\w-]+)\]/g

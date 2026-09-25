@@ -13,7 +13,7 @@ import { LeashDialog } from './components/LeashDialog'
 import { PhonePair } from './components/PhonePair'
 import { ThemeControls } from './components/ThemeControls'
 import { dispose, liveIds } from './lib/terminals'
-import { onOpenDoc, type DocRef } from './lib/paths'
+import { docMayClose, onOpenDoc, openDoc, type DocRef } from './lib/paths'
 import { onLeash, type LeashAsk } from './lib/leash'
 import { onAgentPane, useAutoDismiss } from './lib/agents'
 import { useFoxLog } from './lib/foxlog'
@@ -101,7 +101,7 @@ export default function App() {
       if (ev.type === 'openSettings') setThemeOpen((v) => !v)
       if (ev.type === 'closeOverlays') {
         setThemeOpen(false)
-        setDoc(null)
+        if (docMayClose()) setDoc(null)
         setFoxOpen(false)
         setAgentOpen(null)
         setLessonOpen(null)
@@ -111,6 +111,7 @@ export default function App() {
         setLeash(null)
       }
       if (ev.type === 'toggleFoxLog') {
+        if (!docMayClose()) return
         setDoc(null)
         setFoxOpen((v) => !v)
       }
@@ -265,6 +266,8 @@ export default function App() {
       setFoxOpen(false)
       setDoc(r)
     })
+    // A session asked for a file (`$DECK_DOC open`, POST /doc): the same pane a click opens.
+    const offDocDoor = window.deck.onDocOpen((r) => openDoc(r.path, undefined, r.line))
     const offAgentPane = onAgentPane((id) => {
       if (id) {
         setStudioOpen(false)
@@ -283,6 +286,7 @@ export default function App() {
       offErr()
       offUi()
       offDoc()
+      offDocDoor()
       offAgents()
       offAgentPane()
       offLeash()
@@ -380,6 +384,7 @@ export default function App() {
           state={state}
           open={foxOpen}
           onToggle={() => {
+            if (!docMayClose()) return
             setDoc(null)
             setFoxOpen((v) => !v)
           }}
