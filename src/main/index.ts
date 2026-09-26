@@ -99,7 +99,7 @@ function createWindow(): void {
   win = new BrowserWindow({
     width: 1800,
     height: 1100,
-    minWidth: 1100,
+    minWidth: 640, // half a laptop screen: below 1400 the renderer drops the right column
     minHeight: 700,
     title: 'Deck',
     titleBarStyle: 'hiddenInset',

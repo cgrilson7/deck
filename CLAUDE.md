@@ -225,6 +225,11 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `arrange()` moves a key saved on the wrong side (an order from before this) to the foot of its
   own, `moved()` takes no side, the LEFT `+` opens the session form + parked list only and the
   RIGHT `+` the mini-app and web-app pills only.
+- **A NARROW WINDOW DROPS THE RIGHT COLUMN** (the `@media (max-width: 1399px)` block after `.main` in
+  styles.css; `minWidth` 640 in `main/index.ts`): half a screen is sessions (a quarter, 150px at
+  least) · focus (the rest), `.grid-right` hidden, so the terminal stays about the size it was.
+  `focusWidth` reaches `.main` as the `--focus-cols` variable, not an inline template, so the media
+  query can win; a grid-area that means "to the right edge" is written `-1`, never `4`.
 - **THE LEFT COLUMN IS THE SESSION BROWSER and orders itself** (`byRecency` in `Grid.tsx`,
   `SessionRecord.activeAt`): the session active most recently is on top. `activeAt` is set in
   `main/sessions.ts` when a session starts or resumes, on every Notification / Stop /

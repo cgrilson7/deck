@@ -249,10 +249,20 @@ button {
   flex: 1;
   min-height: 0;
   display: grid;
-  /* tiles · focus · tiles; App.tsx sets the widths from `focusWidth`. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  /* tiles · focus · tiles; App.tsx sets `--focus-cols` from `focusWidth`. */
+  grid-template-columns: var(--focus-cols, minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
+}
+/* NARROW (a window at half a screen): the right column — the entertainment — goes, the sessions
+   column takes a quarter and the focus pane the rest, so the terminal keeps roughly its size. */
+@media (max-width: 1399px) {
+  .main {
+    grid-template-columns: minmax(150px, 1fr) minmax(0, 3fr);
+  }
+  .grid-right {
+    display: none;
+  }
 }
 
 .focus {
@@ -3604,7 +3614,7 @@ button {
 }
 /* ⤢: the whole window, both side columns included, for something wide. */
 .doc.is-wide {
-  grid-area: 1 / 1 / 2 / 4;
+  grid-area: 1 / 1 / 2 / -1;
 }
 .doc-scrim {
   position: absolute;

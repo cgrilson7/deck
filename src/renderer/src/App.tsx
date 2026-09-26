@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { AgentView, DeckState } from '@shared/types'
 import { DocPane } from './components/DocPane'
@@ -408,7 +408,7 @@ export default function App() {
           <ThemeControls open={themeOpen} onOpenChange={setThemeOpen} />
         </div>
       </header>
-      <main className="main" style={{ gridTemplateColumns: FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third }}>
+      <main className="main" style={{ '--focus-cols': FOCUS_COLS[settings.focusWidth] ?? FOCUS_COLS.third } as CSSProperties}>
         {openAgent ? (
           <AgentPane agent={openAgent} parent={top.find((s) => s.id === openAgent.parent) ?? null} pack={agents.filter((a) => a.parent === openAgent.parent)} onClose={() => setAgentOpen(null)} />
         ) : openWeb !== null ? null : pokemonOpen ? (
