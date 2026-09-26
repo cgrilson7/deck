@@ -1591,6 +1591,174 @@ button {
 .pill-x:hover {
   color: var(--blocked);
 }
+/* The right +: the mini apps and web apps as a grid of cards, four across, each with what it is. */
+.picker.picker-wide {
+  width: min(70vw, 1400px);
+  min-width: min(640px, 94vw);
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.picker-card {
+  --hue: var(--accent);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--hue) 5%, var(--fill));
+  border: 1.5px solid color-mix(in srgb, var(--hue) 55%, var(--line));
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.picker-card:hover {
+  border-color: var(--hue);
+  background: color-mix(in srgb, var(--hue) 12%, var(--fill));
+}
+/* Eleven hues, one a mini app: the terminal palette's six and the five between them, so they follow the theme. */
+.hue-red { --hue: var(--red); }
+.hue-orange { --hue: color-mix(in oklab, var(--red), var(--yellow)); }
+.hue-yellow { --hue: var(--yellow); }
+.hue-lime { --hue: color-mix(in oklab, var(--yellow), var(--green)); }
+.hue-green { --hue: var(--green); }
+.hue-teal { --hue: color-mix(in oklab, var(--green), var(--cyan)); }
+.hue-cyan { --hue: var(--cyan); }
+.hue-sky { --hue: color-mix(in oklab, var(--cyan), var(--blue)); }
+.hue-blue { --hue: var(--blue); }
+.hue-violet { --hue: color-mix(in oklab, var(--blue), var(--magenta)); }
+.hue-magenta { --hue: var(--magenta); }
+.hue-web { --hue: var(--muted); }
+.picker-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: calc(var(--radius) + 2px);
+  color: var(--hue);
+  background: color-mix(in srgb, var(--hue) 16%, var(--fill));
+}
+.picker-card-icon.small {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+}
+.picker-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.picker-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.picker-card-head b {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-card-head small {
+  margin-left: auto;
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--hue);
+  background: color-mix(in srgb, var(--hue) 14%, transparent);
+}
+.picker-card-desc {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* A web app's card carries a remove button (on hover), which turns the card into its own confirmation. */
+.picker-card-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.picker-card-wrap > .picker-card {
+  flex: 1;
+  min-width: 0;
+}
+.picker-card-remove {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: var(--overlay);
+  border: 1px solid var(--line);
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.picker-card-wrap:hover .picker-card-remove,
+.picker-card-remove:focus-visible {
+  opacity: 1;
+}
+.picker-card-remove:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+.picker-confirm {
+  cursor: default;
+  border-color: var(--hue);
+}
+.picker-confirm:hover {
+  background: color-mix(in srgb, var(--hue) 5%, var(--fill));
+}
+.picker-confirm-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.picker-danger {
+  color: var(--panel);
+  background: var(--red);
+  border-color: var(--red);
+}
+.picker-danger:hover {
+  border-color: var(--ink);
+}
+.picker-card.web-add {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  border-style: dashed;
+  cursor: default;
+}
+.picker-card.web-add:hover {
+  background: color-mix(in srgb, var(--hue) 5%, var(--fill));
+}
+.picker-card.web-add input,
+.picker-card.web-add .web-add-url {
+  width: 100%;
+  min-width: 0;
+}
+.web-add-row {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.web-add-row .web-add-url {
+  flex: 1;
+}
 .picker-opts {
   display: flex;
   align-items: center;

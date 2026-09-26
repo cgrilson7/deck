@@ -295,8 +295,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   only orders tiles nobody has placed. The key test in `main/settings.ts` (`isGridKey`) is BUILT
   FROM `PLUGIN_KEYS`: the old hand-written regex never learned `pokemon`, which is why that tile
   could not be dragged. View ▸ Grid ▸ Reset Layout (and the launcher) empties `gridOrder`. Each
-  column ends in a `+` (`PlusTile`) that opens the PICKER, a modal over the window: a pill row
-  of the mini apps (turned on if off, moved to the foot of THAT column either way; one already
+  column ends in a `+` (`PlusTile`) that opens the PICKER, a modal over the window: the RIGHT one is 70% of the window wide, the mini apps
+  and web apps as a GRID OF CARDS four across (icon, name, `PLUGINS[].hint` as the description; never a horizontal scroll) (turned on if off, moved to the foot of THAT column either way; one already
   showing says "move here"), and below the cap THE LAUNCHER'S OWN SESSION FORM and parked list
   (`StartCard` / `ParkedCard` from `SessionForm.tsx`, the one module both draw them from: the
   focused folder leads the pills there, and starting or resuming closes the picker). A tile that
@@ -809,7 +809,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   second copy: its face is the page's last SNAPSHOT — main's `web:snap` (`capturePage` of that webContents id, only
   ever a webview of the web partition, 560px JPEG data: URL) taken 1.2s after each load and every 15s while in view,
   kept in localStorage (`deck.web.snap.<id>`). The pane's head: back / forward / reload-stop / home, the current
-  URL, ↗ the browser, a two-click remove, ×; a rail of chips with more than one app. MAIN KEEPS GUESTS IN A BOX
+  URL, ↗ the browser, a two-click remove, ×; the right `+` picker's web-app cards remove too (a trash button on hover turns
+  the card into its own confirmation: remove / cancel, Esc backs out); a rail of chips with more than one app. MAIN KEEPS GUESTS IN A BOX
   (`guardWebviews`, for EVERY webview incl. YouTube's: preload stripped, no node; for the web partition: http(s)
   only, `window.open` → the browser, a context menu since Electron gives guests none — spelling, cut/copy/paste,
   a link's way out) and the partition answers permission requests from an allowlist (clipboard, fullscreen,

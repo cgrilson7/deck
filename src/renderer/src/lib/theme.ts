@@ -47,6 +47,8 @@ export function applyTheme(s: DeckSettings): void {
   // The diff colors in the changes tile are the terminal palette's green and red, so they sit with the theme.
   root.style.setProperty('--green', v.term.green)
   root.style.setProperty('--red', v.term.red)
+  // The rest of its hues: the picker's cards are colour-coded from them (--hue-* in styles.css).
+  for (const k of ['yellow', 'blue', 'magenta', 'cyan'] as const) root.style.setProperty(`--${k}`, v.term[k])
   root.dataset.theme = s.theme
   root.dataset.dark = String(isDark(s))
   root.classList.toggle('compact', s.compact)
