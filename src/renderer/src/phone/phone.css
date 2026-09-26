@@ -177,7 +177,8 @@ body {
   flex-direction: column;
   width: min(84vw, 360px);
   padding-top: env(safe-area-inset-top);
-  background: var(--overlay);
+  /* solid, like the sheets: --overlay is see-through under glass and the phone has no blur behind it */
+  background: var(--panel);
   box-shadow: 0 0 34px rgba(0, 0, 0, 0.25);
 }
 .ph-drawer-left {
