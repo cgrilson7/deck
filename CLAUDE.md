@@ -780,13 +780,20 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   TRACKER for the window (`posture()`), the Game Boy's plan: the camera (640×480, a hidden `<video>`) and MediaPipe's Pose Landmarker
   (lite, CPU delegate — the deck needs its WebGL contexts — 5 detections a second, ~15ms each) run IN THE RENDERER while the setting is
   on and it is not paused, whether or not the tile is scrolled to; App calls `enable()` on every `showPosture` change, off = camera off.
-  The math is Posture Pal's, typed and unchanged (`postureMath.ts`: head height, leaning in, slumping, side lean against a CALIBRATED
+  The math is Posture Pal's, typed (`postureMath.ts`: head height, leaning in, slumping, side lean against a CALIBRATED
   BASELINE, the median of 4s of samples after a 3s countdown, kept in localStorage `posture:baseline`; the smoothed worst check over 1.0
-  is bad, back under 0.8 is good). MAIN SERVES WHAT FILE:// CANNOT: MediaPipe injects its wasm loader as a `<script crossOrigin>` and
+  is bad, back under 0.8 is good) — PLUS A FIFTH CHECK OF THE DECK'S OWN, CHIN ON HAND (either side): the nearest visible
+  hand point (wrist, pinky, index, thumb) to a chin estimated below the mouth, in shoulder widths, fully bad at 0.35, nothing past
+  0.7; absolute, not in the baseline, the same grace and alert as the rest; the feed joins chin and hand amber → red as it closes.
+  THE HANDS COME FROM TWO MODELS: the pose model's four points a hand (visibility ≥ 0.3 — they go faint against a face) AND
+  MediaPipe's HAND LANDMARKER (`hand_landmarker.task`, 21 points, two hands, confidences 0.3, run each tick only with a body in view;
+  loaded after the pose model and optional — posture runs on without it), because the pose points alone were flaky, one side
+  especially. Which hand is whose goes by the wrist against the shoulders' middle. The pane reads each hand's distance ("hand to
+  chin: left 0.28 · right not seen") and the feed dots the hand model's points, faintly. MAIN SERVES WHAT FILE:// CANNOT: MediaPipe injects its wasm loader as a `<script crossOrigin>` and
   fetches the .wasm and the model, which Chromium refuses from the packaged window's file:// page, so the privileged `pose:` scheme
   (registered before `ready`, handled on the default session, CORS `*`) answers `pose://wasm/vision_wasm_internal.{js,wasm}` out of
-  `node_modules/@mediapipe/tasks-vision/wasm` and `pose://model/pose_landmarker_lite.task` out of `userData/posture/` (downloaded from
-  Google's model bucket on first use); the CSP carries `pose:` in default-src / script-src and `'wasm-unsafe-eval'`. `posture:camera`
+  `node_modules/@mediapipe/tasks-vision/wasm` and `pose://model/{pose_landmarker_lite,hand_landmarker}.task` out of `userData/posture/`
+  (each downloaded from Google's model bucket on first use); the CSP carries `pose:` in default-src / script-src and `'wasm-unsafe-eval'`. `posture:camera`
   is `askForMediaAccess('camera')`; while tracking, main turns the window's BACKGROUND THROTTLING OFF (`posture:tracking`), or a deck
   behind another app would look once a second. THE CAMERA DIES UNDER IT (sleep, a screen lock, another app, a replug) and
   nothing else would notice, since `stream` stays set: a track that ends, or stays muted 3s (`MUTED_MS`), is REOPENED (`revive`, from the
@@ -1277,7 +1284,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `mol/` — the Molecule tile: `cache/` (every structure fetched: `1UBQ.cif`, `AF-P0CG48.cif`, `name_caffeine.sdf`, `smiles_<hash>.sdf`, `cid_<n>.sdf`; delete freely) and `look.png` / `look-<n>.png`, each tile's last `look` snapshot
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `quixote/` — `pg58221.txt` (La Odisea) and `pg2000.txt` (Don Quijote), the reader's books as Gutenberg sent them (fetched once; delete to fetch again)
-- `posture/` — `pose_landmarker_lite.task`, the Posture tile's pose model (downloaded once; delete to fetch again)
+- `posture/` — `pose_landmarker_lite.task` + `hand_landmarker.task`, the Posture tile's models (downloaded once; delete to fetch again)
 - `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days

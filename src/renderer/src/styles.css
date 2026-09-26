@@ -7181,3 +7181,26 @@ button.foxlog-chip:hover {
 :root[data-theme='glass'] .tile-head {
   text-shadow: 0 0 6px color-mix(in srgb, var(--panel) 70%, transparent);
 }
+
+/* the Posture pane's hand readout: each hand's distance from the chin, for the chin-on-hand check */
+.posture-hands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.posture-hands > span:first-child {
+  color: var(--ink);
+}
+.posture-hands .warn {
+  color: var(--busy);
+}
+.posture-hands .bad {
+  color: var(--blocked);
+  font-weight: 600;
+}
+.posture-hands .dim {
+  opacity: 0.7;
+}

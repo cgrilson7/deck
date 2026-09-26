@@ -25,8 +25,26 @@ const CHECKS: { key: Check; label: string }[] = [
   { key: 'neck', label: 'Head height' },
   { key: 'lean', label: 'Leaning in' },
   { key: 'slump', label: 'Slumping' },
-  { key: 'tilt', label: 'Side lean' }
+  { key: 'tilt', label: 'Side lean' },
+  { key: 'chin', label: 'Chin on hand' }
 ]
+
+/**
+ * Each hand's distance from your chin, in shoulder widths (the chin check counts from 0.7 and is
+ * fully bad at 0.35): the way to see that a side is not being seen at all, or reads farther than it is.
+ */
+function HandsReadout({ v }: { v: PostureView }) {
+  const one = (d: number | undefined) => (d === undefined || !Number.isFinite(d) ? 'not seen' : d.toFixed(2))
+  const cls = (d: number | undefined) => (d !== undefined && d <= 0.35 ? 'bad' : d !== undefined && d <= 0.7 ? 'warn' : '')
+  return (
+    <div className="posture-hands" title="Each hand's nearest point to your chin, in shoulder widths. The chin check starts at 0.70 and counts fully at 0.35.">
+      <span>hand to chin</span>
+      <span className={cls(v.hands?.left)}>left {one(v.hands?.left)}</span>
+      <span className={cls(v.hands?.right)}>right {one(v.hands?.right)}</span>
+      {!v.handModel && <span className="dim">(pose points only)</span>}
+    </div>
+  )
+}
 
 /** The camera and the pose lines, drawn by the tracker into this canvas while it is mounted. */
 function Feed({ className }: { className: string }) {
@@ -277,6 +295,7 @@ export function PosturePane({ onClose }: { onClose: () => void }) {
                 )
               })}
             </div>
+            {(v.status === 'good' || v.status === 'bad') && <HandsReadout v={v} />}
             <div className="posture-actions">
               {v.calib ? (
                 <button className="pill" onClick={() => posture().cancelCalibration()}>

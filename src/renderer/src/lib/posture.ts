@@ -13,7 +13,7 @@
 // (main), again every REALERT_MS while it goes on.
 
 import { useEffect, useState } from 'react'
-import type { PoseLandmarker } from '@mediapipe/tasks-vision'
+import type { HandLandmarker, PoseLandmarker } from '@mediapipe/tasks-vision'
 import { assess, buildBaseline, computeMetrics, isBaseline, ISSUE_TEXT, LM, type Baseline, type Check, type Landmark, type Metrics } from './postureMath'
 
 export type PostureStatus = 'off' | 'starting' | 'error' | 'paused' | 'uncalibrated' | 'calibrating' | 'good' | 'bad' | 'away'
@@ -40,6 +40,10 @@ export interface PostureView {
   score: number
   checks: Record<Check, number> | null
   worst: Check | null
+  /** Each of your hands' distance from the chin (shoulder widths; Infinity = not seen), for the pane's readout. */
+  hands: { left: number; right: number } | null
+  /** Whether the hand model is running (false = the pose model's hand points only). */
+  handModel: boolean
   calibrated: boolean
   paused: boolean
   sensitivity: number
@@ -92,6 +96,7 @@ const save = (k: string, v: unknown): void => {
 
 const WASM = { wasmLoaderPath: 'pose://wasm/vision_wasm_internal.js', wasmBinaryPath: 'pose://wasm/vision_wasm_internal.wasm' }
 const MODEL = 'pose://model/pose_landmarker_lite.task'
+const HAND_MODEL = 'pose://model/hand_landmarker.task'
 
 class Tracker {
   private status: PostureStatus = 'off'
@@ -112,6 +117,11 @@ class Tracker {
   private stream: MediaStream | null = null
   private landmarker: PoseLandmarker | null = null
   private landmarkerJob: Promise<PoseLandmarker> | null = null
+  /** The hand landmarker, for the chin check: loaded after the pose model, and posture goes on without it if it fails. */
+  private handModel: HandLandmarker | null = null
+  private handJob: Promise<void> | null = null
+  private handPts: Landmark[][] = []
+  private hands: { left: number; right: number } | null = null
   private timer: number | undefined
   private saveTimer: number | undefined
   /** Bumped by every start / stop, so a start that finishes after a stop gives its camera back. */
@@ -140,7 +150,7 @@ class Tracker {
   private listeners = new Set<(v: PostureView) => void>()
   private canvases = new Set<HTMLCanvasElement>()
   private raf = 0
-  private colors = { good: '#3ecf8e', bad: '#d3402a', read: 0 }
+  private colors = { good: '#3ecf8e', bad: '#d3402a', warn: '#e0a526', read: 0 }
 
   constructor() {
     window.addEventListener('pagehide', () => this.flush())
@@ -163,6 +173,8 @@ class Tracker {
       score: this.score,
       checks: this.checks,
       worst: this.worst,
+      hands: this.hands,
+      handModel: !!this.handModel,
       calibrated: !!this.baseline,
       paused: this.paused,
       sensitivity: this.sensitivity,
@@ -254,6 +266,7 @@ class Tracker {
       this.set('starting', 'loading the pose model…')
       this.landmarker = await this.loadLandmarker()
       if (gen !== this.gen) return
+      this.loadHands()
     } catch (err) {
       if (gen !== this.gen) return
       this.release()
@@ -297,6 +310,8 @@ class Tracker {
     window.deck.postureTracking(false)
     this.calib = null
     this.lm = null
+    this.handPts = []
+    this.hands = null
     this.set(status, '')
   }
 
@@ -329,6 +344,29 @@ class Tracker {
         this.landmarkerJob = null
       })
     return this.landmarkerJob
+  }
+
+  private loadHands(): void {
+    if (this.handModel || this.handJob) return
+    this.handJob = import('@mediapipe/tasks-vision')
+      .then(({ HandLandmarker }) =>
+        HandLandmarker.createFromOptions(WASM, {
+          baseOptions: { modelAssetPath: HAND_MODEL, delegate: 'CPU' },
+          runningMode: 'VIDEO',
+          numHands: 2,
+          // A hand against the face is half hidden: take it on less certainty than the defaults (0.5).
+          minHandDetectionConfidence: 0.3,
+          minHandPresenceConfidence: 0.3,
+          minTrackingConfidence: 0.3
+        })
+      )
+      .then((h) => {
+        this.handModel = h
+      })
+      .catch((err) => console.warn('[posture] no hand model, the pose model\'s hand points only', err))
+      .finally(() => {
+        this.handJob = null
+      })
   }
 
   private set(status: PostureStatus, note: string): void {
@@ -415,7 +453,17 @@ class Tracker {
       return
     }
     this.lm = lm
-    const m = computeMetrics(lm)
+    // The hands, only with a body in view (nothing to rest a chin on otherwise).
+    this.handPts = []
+    if (lm && this.handModel) {
+      try {
+        this.handPts = (this.handModel.detectForVideo(video, performance.now()).landmarks as Landmark[][] | undefined) ?? []
+      } catch (err) {
+        console.warn('[posture] hand detect failed', err)
+      }
+    }
+    const m = computeMetrics(lm, this.handPts)
+    this.hands = m ? m.hands : null
     if (m) this.lastSeen = now
 
     if (this.calib) {
@@ -529,7 +577,7 @@ class Tracker {
     const now = performance.now()
     if (now - this.colors.read > 2000) {
       const cs = getComputedStyle(document.documentElement)
-      this.colors = { good: cs.getPropertyValue('--green').trim() || '#3ecf8e', bad: cs.getPropertyValue('--blocked').trim() || '#d3402a', read: now }
+      this.colors = { good: cs.getPropertyValue('--green').trim() || '#3ecf8e', bad: cs.getPropertyValue('--blocked').trim() || '#d3402a', warn: cs.getPropertyValue('--busy').trim() || '#e0a526', read: now }
     }
     const vw = video.videoWidth
     const vh = video.videoHeight
@@ -583,6 +631,27 @@ class Tracker {
       ctx.beginPath()
       ctx.arc(...P(i), lw * 1.6, 0, Math.PI * 2)
       ctx.fill()
+    }
+    // A hand near the chin: the chin and that hand point joined, amber on the way in, red once it counts.
+    const chin = this.checks?.chin ?? 0
+    // The hand model's points, faint, so you can see whether a hand is being seen at all.
+    ctx.fillStyle = 'rgba(255,255,255,.55)'
+    for (const hand of this.handPts)
+      for (const p of hand) {
+        ctx.beginPath()
+        ctx.arc(ox + p.x * dw, oy + p.y * dh, Math.max(1, lw * 0.7), 0, Math.PI * 2)
+        ctx.fill()
+      }
+    const m = chin >= 0.6 ? computeMetrics(lm, this.handPts) : null
+    if (m?.handAt) {
+      const at = (p: { x: number; y: number }): [number, number] => [ox + p.x * dw, oy + p.y * dh]
+      ctx.strokeStyle = ctx.fillStyle = chin >= 1 ? this.colors.bad : this.colors.warn
+      line(at(m.chinAt), at(m.handAt))
+      for (const p of [m.chinAt, m.handAt]) {
+        ctx.beginPath()
+        ctx.arc(...at(p), lw * 2.2, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
     // Where your head sat when you calibrated: a dashed line, so a sinking head shows.
     const b = this.baseline
