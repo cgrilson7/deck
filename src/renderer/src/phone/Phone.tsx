@@ -256,14 +256,14 @@ export function Phone() {
                 {view === 'screen' && p.id === cur ? (
                   <ScreenView id={p.s.id} active={p.id === cur} />
                 ) : (
-                  <ChatView id={p.s.id} cwd={p.s.cwd} status={p.s.status} attention={p.s.attention} onNeeds={() => setView('screen')} />
+                  <ChatView id={p.s.id} cwd={p.s.cwd} status={p.s.status} attention={p.s.attention} onNeeds={() => setView('screen')} jump />
                 )}
               </div>
             ) : (
               <div key={p.id} className={`ph-page ph-page-agent ${p.a.endedAt !== null ? 'status-idle' : 'status-busy'}`}>
                 {p.a.cancelled && <div className="ph-agent-note is-cancel">cancelled: {p.a.cancelled.reason}</div>}
                 {p.a.paused && !p.a.cancelled && <div className="ph-agent-note">{p.a.held ? 'paused: its tool call is waiting' : 'pausing: its next tool call will wait'}</div>}
-                <ChatView id={p.id} cwd={p.parent?.cwd ?? ''} status={p.a.endedAt !== null ? 'idle' : 'busy'} attention={false} />
+                <ChatView id={p.id} cwd={p.parent?.cwd ?? ''} status={p.a.endedAt !== null ? 'idle' : 'busy'} attention={false} jump />
               </div>
             )
           )}

@@ -604,3 +604,20 @@ body {
 .ph .doc-scrim {
   inset: 0;
 }
+
+/* ChatView's "jump to the bottom", raised when you have scrolled up: it rides the bottom edge of the scroller */
+.chat-jump {
+  position: sticky;
+  bottom: 10px;
+  display: block;
+  width: fit-content;
+  margin: 8px auto 0;
+  padding: 8px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}

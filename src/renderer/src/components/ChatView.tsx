@@ -10,12 +10,14 @@ import { renderMarkdown } from '../lib/markdown'
  * one line per tool call. Pinned to the end while you leave it there; scroll up and it stays
  * put until you come back down. The bar at the bottom is the TilePrompt; the padding is its room.
  * Every path in it is clickable and opens the preview pane over the grid; `cwd` is the session's
- * folder, which is what a relative one is resolved against.
+ * folder, which is what a relative one is resolved against. With `jump` (the phone), scrolling up
+ * raises a "jump to the bottom" button that brings it back down and pins it again.
  */
-export function ChatView({ id, cwd, status, attention, onNeeds }: { id: string; cwd: string; status: SessionStatus; attention: boolean; /** Given, the "needs you" note is a button that calls it (the phone opens the screen); else it says to click the tile. */ onNeeds?: () => void }) {
+export function ChatView({ id, cwd, status, attention, onNeeds, jump }: { id: string; cwd: string; status: SessionStatus; attention: boolean; /** Given, the "needs you" note is a button that calls it (the phone opens the screen); else it says to click the tile. */ onNeeds?: () => void; jump?: boolean }) {
   const [t, setT] = useState<Transcript | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
+  const [away, setAway] = useState(false)
 
   useEffect(() => {
     let live = true
@@ -36,7 +38,16 @@ export function ChatView({ id, cwd, status, attention, onNeeds }: { id: string; 
 
   const onScroll = () => {
     const el = box.current
-    if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+    if (!el) return
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+    if (jump) setAway(!pinned.current)
+  }
+  const toBottom = () => {
+    const el = box.current
+    if (!el) return
+    pinned.current = true
+    setAway(false)
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }
 
   const blocks = t?.blocks ?? []
@@ -73,6 +84,11 @@ export function ChatView({ id, cwd, status, attention, onNeeds }: { id: string; 
         ) : (
           <div className="chat-attn">Needs you in the terminal. Click to open.</div>
         ))}
+      {jump && away && (
+        <button type="button" className="chat-jump" onClick={toBottom} aria-label="Jump to the bottom">
+          ↓ Jump to bottom
+        </button>
+      )}
     </div>
   )
 }
