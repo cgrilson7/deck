@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,13 +93,14 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
   if (s.showStudio) out.push('studio')
   if (s.showPokemon) out.push('pokemon')
   if (s.showGit) out.push('git')
+  if (s.showFiles) out.push('files')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
   if (s.showQuixote) out.push('quixote')
@@ -662,6 +663,8 @@ export interface DeckSettings {
   spriteGagMoves: string
   /** The changes tile (the focused session's working tree as `git status` + diffs) takes the grid cell before the vocabulary tile. */
   showGit: boolean
+  /** The Files tile: a plain directory tree of the whole disk (disclosure triangles, a root you can move anywhere); a file opens in the preview pane. */
+  showFiles: boolean
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
   languagelogDb: string
   /** Foxtrot barks (slay's silent comic bursts) when a session starts needing you or finishes a turn. */
@@ -723,6 +726,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   spriteGag: false,
   spriteGagMoves: 'download',
   showGit: true,
+  showFiles: true,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true,
   remote: true
@@ -770,6 +774,25 @@ export interface FileDoc {
   entries?: { name: string; dir: boolean }[]
   /** Why there is nothing to draw (missing, binary, too big), or what was left out. */
   note?: string
+}
+
+/** One entry of a listed folder (the Files tile). A symlink is reported as what it points at (`dir`), and flagged. */
+export interface DirEntry {
+  name: string
+  dir: boolean
+  link: boolean
+  /** A dotfile: hidden unless the tile is told to show them. */
+  hidden: boolean
+}
+/** A folder listed for the Files tile (`main/files.ts` `listDir`): its entries, folders first, or why not. Never rejects. */
+export interface DirListing {
+  /** Absolute, resolved. */
+  path: string
+  entries: DirEntry[]
+  /** Unreadable, missing, not a folder: the reason, with `entries` empty. */
+  error?: string
+  /** How many entries past the cap were left off. */
+  more?: number
 }
 
 /** What a write from the preview pane came to (`main/files.ts`): the file read back, or why not. `stale` = it changed on disk since the pane read it. */
@@ -947,7 +970,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -1022,6 +1045,8 @@ export interface DeckApi {
    * file: URL. Never rejects — a missing or unshowable file comes back with a note.
    */
   readDoc(ref: string, cwd?: string): Promise<FileDoc>
+  /** The Files tile: one folder's entries (`~/x` or absolute), folders first; trouble comes back as `error`, never a rejection. Desktop only. */
+  listDir(path: string): Promise<DirListing>
   /** The preview pane's edit mode: write `text` over the file, which must not have changed since it was read at `mtime`. Desktop only. */
   writeDoc(path: string, text: string, mtime: number): Promise<DocWrite>
   /** A task-list checkbox in the preview pane: flip line `line` (0-based), which must still be a task that is `checked`. Desktop only. */

@@ -3,6 +3,8 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { PLUGIN_KEYS, lessonKey, lessonTileOf, molKey, molTileOf, nextLessonTile, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
 import { arrange, homeSide, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
+import { FilesTile } from './FilesTile'
+import { CellToolsContext } from '../lib/celltools'
 import { PLUGINS, PlusTile, type Placed } from './PlusTile'
 import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
@@ -273,6 +275,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <PokemonTile />
     case 'git':
       return <GitTile session={focused} />
+    case 'files':
+      return <FilesTile />
     case 'vocab':
       return <VocabTile />
     case 'translate':
@@ -309,7 +313,7 @@ function dragGhost(cell: HTMLElement | null, label: string): HTMLElement {
   const head = cell?.querySelector(':scope > .tile > .pane-head')
   if (head) {
     const copy = head.cloneNode(true) as HTMLElement
-    for (const b of copy.querySelectorAll('button:not(.slot), .spacer')) b.remove()
+    for (const b of copy.querySelectorAll('button:not(.slot), .spacer, .cell-tools')) b.remove()
     ghost.append(copy)
   } else ghost.textContent = label
   document.body.append(ghost)
@@ -335,6 +339,60 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
     const r = e.currentTarget.getBoundingClientRect()
     return (across ? e.clientX - r.left > r.width / 2 : e.clientY - r.top > r.height / 2) ? 'after' : 'before'
   }
+  // The cell's own controls: a mini app's × and the grip that drags it. A tile's head draws them
+  // as its rightmost buttons (`<CellTools />`); a tile without a head gets them floating.
+  const tools: ReactNode =
+    cell?.kind === 'plugin' ? (
+      <>
+        {webApp && (
+          <button
+            className="ct-x"
+            title={`Put ${webApp.name} away (a + brings it back; it stays signed in)`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              patchSettings({ webApps: webApps.map((a) => (a.id === webApp.id ? { ...a, show: false } : a)) })
+            }}
+          >
+            ×
+          </button>
+        )}
+        {plugin && (
+          <button
+            className="ct-x"
+            title={molTile !== null && molTiles.length > 1 ? 'Close this Molecule tile (its scene goes with it)' : lessonTile !== null && lessonTiles.length > 1 ? 'Close this Lesson tile (answers are kept with the lesson file)' : `Put ${plugin.label} away (a +, or the launcher, brings it back)`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              // One of several Molecule tiles closes for good; the last one is put away like any mini app.
+              if (molTile !== null && molTiles.length > 1) patchSettings({ molTiles: molTiles.filter((n) => n !== molTile) })
+              else if (lessonTile !== null && lessonTiles.length > 1) patchSettings({ lessonTiles: lessonTiles.filter((n) => n !== lessonTile) })
+              else patchSettings({ [plugin.setting]: false } as Partial<DeckSettings>)
+            }}
+          >
+            ×
+          </button>
+        )}
+        <span
+          className="ct-grip"
+          draggable
+          title="Drag to anywhere in this column"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => {
+            e.stopPropagation()
+            e.dataTransfer.setData(MIME, cell.key)
+            e.dataTransfer.setData(mimeOf(homeSide(cell.key)), '1')
+            e.dataTransfer.effectAllowed = 'move'
+            const ghost = dragGhost(el.current, plugin?.label ?? webApp?.name ?? cell.key)
+            e.dataTransfer.setDragImage(ghost, ghost.offsetWidth - 14, 12)
+            window.setTimeout(() => ghost.remove(), 0)
+          }}
+        >
+          ⠿
+        </span>
+      </>
+    ) : null
   return (
     <div
       ref={el}
@@ -360,54 +418,9 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
         onDrop(key, side, cell?.key ?? null, half(e) === 'after')
       }}
     >
-      {cell ? cell.node : children}
-      {webApp && (
-        <button
-          className="cell-x"
-          title={`Put ${webApp.name} away (a + brings it back; it stays signed in)`}
-          onClick={(e) => {
-            e.stopPropagation()
-            patchSettings({ webApps: webApps.map((a) => (a.id === webApp.id ? { ...a, show: false } : a)) })
-          }}
-        >
-          ×
-        </button>
-      )}
-      {plugin && (
-        <button
-          className="cell-x"
-          title={molTile !== null && molTiles.length > 1 ? 'Close this Molecule tile (its scene goes with it)' : lessonTile !== null && lessonTiles.length > 1 ? 'Close this Lesson tile (answers are kept with the lesson file)' : `Put ${plugin.label} away (a +, or the launcher, brings it back)`}
-          onClick={(e) => {
-            e.stopPropagation()
-            // One of several Molecule tiles closes for good; the last one is put away like any mini app.
-            if (molTile !== null && molTiles.length > 1) patchSettings({ molTiles: molTiles.filter((n) => n !== molTile) })
-            else if (lessonTile !== null && lessonTiles.length > 1) patchSettings({ lessonTiles: lessonTiles.filter((n) => n !== lessonTile) })
-            else patchSettings({ [plugin.setting]: false } as Partial<DeckSettings>)
-          }}
-        >
-          ×
-        </button>
-      )}
-      {cell?.kind === 'plugin' && (
-        <span
-          className="grip"
-          draggable
-          title="Drag to anywhere in this column"
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onDragStart={(e) => {
-            e.stopPropagation()
-            e.dataTransfer.setData(MIME, cell.key)
-            e.dataTransfer.setData(mimeOf(homeSide(cell.key)), '1')
-            e.dataTransfer.effectAllowed = 'move'
-            const ghost = dragGhost(el.current, plugin?.label ?? webApp?.name ?? cell.key)
-            e.dataTransfer.setDragImage(ghost, ghost.offsetWidth - 14, 12)
-            window.setTimeout(() => ghost.remove(), 0)
-          }}
-        >
-          ⠿
-        </span>
-      )}
+      <CellToolsContext.Provider value={tools}>{cell ? cell.node : children}</CellToolsContext.Provider>
+      {/* A tile without a head gets them floating top right; one with a head draws them inline (CSS hides this then). */}
+      {tools && <span className="cell-float">{tools}</span>}
     </div>
   )
 }

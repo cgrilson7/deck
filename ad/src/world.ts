@@ -358,6 +358,7 @@ class World {
       spotifyLibrary: no,
       spotifySearch: async () => [],
       readDoc: async (ref) => this.doc(ref),
+      listDir: async (path) => ({ path, entries: [] }),
       writeDoc: no,
       toggleTask: no,
       onDocOpen: nothing,

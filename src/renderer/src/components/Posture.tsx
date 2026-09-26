@@ -6,6 +6,7 @@ import { Fox } from './Fox'
 import { BarkBursts } from './FoxStatus'
 import { BARK_EVERY_MS, BARK_LIFE_MS } from '../lib/bark'
 import { useSettings } from '../lib/theme'
+import { CellTools } from '../lib/celltools'
 
 /** The status in a word (the head's badge). */
 const WORD: Record<PostureView['status'], string> = {
@@ -141,6 +142,7 @@ export function PostureTile() {
         <button className="ghost" title="The last two hours, full size in the center column (⌘⇧P)" onClick={openPosture}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
       <div className="posture-face" onClick={openPosture} title="The last two hours (⌘⇧P)">
         <div className="posture-left">

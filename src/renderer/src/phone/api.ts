@@ -2,10 +2,10 @@
 // one WebSocket to main/remote.ts (shared/remote.ts is the wire). Broadcasts fan out to the
 // same `on*` subscriptions the tile components already use, calls go by name and come back by
 // id, and keystrokes are fire-and-forget. What has no business on a phone (terminals, drops,
-// the plugin tiles) is a no-op or rejects. The socket reconnects on its own; a call made while
+// the Mac-only mini apps) is a no-op or rejects. The socket reconnects on its own; a call made while
 // it is down waits for the next connection (up to a bound) instead of failing at once.
 
-import type { AgentView, DeckApi, DeckSettings, DeckState, FileDoc, FoxEntry, Transcript } from '@shared/types'
+import type { AgentView, DeckApi, DeckSettings, DeckState, FileDoc, FoxEntry, Transcript, VocabChange } from '@shared/types'
 import { REMOTE_PORT, type RemoteDown, type RemoteMethod } from '@shared/remote'
 
 export type Link = 'unpaired' | 'connecting' | 'open' | 'closed' | 'unauthorized'
@@ -61,6 +61,7 @@ class Remote {
     settings: new Set<(s: DeckSettings) => void>(),
     fox: new Set<(e: FoxEntry) => void>(),
     agents: new Set<(a: AgentView[]) => void>(),
+    vocab: new Set<(c: VocabChange) => void>(),
     error: new Set<(m: string) => void>(),
     link: new Set<(l: Link) => void>()
   }
@@ -161,6 +162,9 @@ class Remote {
       case 'agents':
         for (const cb of this.subs.agents) cb(msg.agents)
         return
+      case 'vocab':
+        for (const cb of this.subs.vocab) cb(msg.change)
+        return
       case 'error':
         for (const cb of this.subs.error) cb(msg.error)
         return
@@ -243,12 +247,13 @@ export const api: DeckApi = {
   getTranscript: (id) => remote.call('getTranscript', [id]),
   onTranscript: (cb) => remote.on('transcript', cb),
   keepDroppedFile: () => Promise.resolve(null),
-  wikiPicture: notHere,
+  // The right drawer's apps: main fetches and stores for them, so they are the desktop's calls by name.
+  wikiPicture: (when) => remote.call('wikiPicture', [when ?? 'today']),
   wikiBackdrop: notHere,
-  wikiSearch: notHere,
-  wikiSummary: notHere,
-  weather: notHere,
-  weatherSearch: notHere,
+  wikiSearch: (q) => remote.call('wikiSearch', [q]),
+  wikiSummary: (key) => remote.call('wikiSummary', [key]),
+  weather: () => remote.call('weather'),
+  weatherSearch: (q) => remote.call('weatherSearch', [q]),
   onSpotify: nothing,
   spotify: noop,
   spotifyPlay: noop,
@@ -259,7 +264,8 @@ export const api: DeckApi = {
   spotifyLibrary: notHere,
   spotifySearch: notHere,
   readDoc: (ref, cwd) => remote.call<FileDoc & { bytesB64?: string }>('readDoc', [ref, cwd]).then(undoc),
-  // The phone reads files; writing them is the desktop's.
+  // The phone reads files; the directory tree and writing them are the desktop's.
+  listDir: notHere,
   writeDoc: notHere,
   toggleTask: notHere,
   onDocOpen: nothing,
@@ -267,23 +273,23 @@ export const api: DeckApi = {
   revealPath: noop,
   copyText: (text) => void navigator.clipboard?.writeText(text).catch(noop),
   openExternal: (url) => void window.open(url, '_blank', 'noopener'),
-  translate: notHere,
-  vocab: notHere,
-  vocabWords: () => Promise.resolve([]),
-  saveTranslation: notHere,
-  saveWord: notHere,
-  savedForms: () => Promise.resolve([]),
-  onVocabChanged: nothing,
-  quixoteIndex: notHere,
-  quixoteSection: notHere,
+  translate: (text, hint, fixed) => remote.call('translate', [text, hint, fixed]),
+  vocab: (word, hint, counterpart) => remote.call('vocab', [word, hint, counterpart]),
+  vocabWords: () => remote.call('vocabWords'),
+  saveTranslation: (r, supersede) => remote.call('saveTranslation', [r, supersede]),
+  saveWord: (r, translationId, extra) => remote.call('saveWord', [r, translationId, extra]),
+  savedForms: () => remote.call('savedForms'),
+  onVocabChanged: (cb) => remote.on('vocab', cb),
+  quixoteIndex: (book) => remote.call('quixoteIndex', [book]),
+  quixoteSection: (book, i) => remote.call('quixoteSection', [book, i]),
   postureCamera: () => Promise.resolve(false),
   postureTracking: () => {},
   postureAlert: () => {},
-  setWordLiked: notHere,
-  vocabDeck: () => Promise.resolve([]),
-  vocabList: () => Promise.resolve([]),
-  gradeWord: notHere,
-  vocabStats: notHere,
+  setWordLiked: (id, liked) => remote.call('setWordLiked', [id, liked]),
+  vocabDeck: (limit) => remote.call('vocabDeck', [limit]),
+  vocabList: (limit) => remote.call('vocabList', [limit]),
+  gradeWord: (id, grade) => remote.call('gradeWord', [id, grade]),
+  vocabStats: () => remote.call('vocabStats'),
   getSettings: () => remote.call('getSettings'),
   setSettings: (patch) => remote.call('setSettings', [patch]),
   onSettings: (cb) => remote.on('settings', cb),
@@ -298,8 +304,8 @@ export const api: DeckApi = {
   onUi: nothing,
   remoteInfo: notHere,
   screen: (id) => remote.call('screen', [id]),
-  gitChanges: notHere,
-  gitDiff: notHere,
+  gitChanges: (id) => remote.call('gitChanges', [id]),
+  gitDiff: (repo, path, untracked) => remote.call('gitDiff', [repo, path, untracked]),
   // The Studio is the desktop's (its images live in userData); the phone shows no tile for it.
   studioJobs: () => Promise.resolve([]),
   onStudio: nothing,

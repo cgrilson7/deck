@@ -3,13 +3,19 @@
 // (state, transcripts, settings, Foxtrot's entries, errors); the page calls a subset of the
 // DeckApi by name and gets a reply by request id. Keep this file dependency-free.
 
-import type { AgentView, DeckSettings, DeckState, FoxEntry, Transcript } from './types'
+import type { AgentView, DeckSettings, DeckState, FoxEntry, Transcript, VocabChange } from './types'
 
 /** Ports: `deck` (packaged) and everything else, so a dev instance never collides with the installed app. */
 export const REMOTE_PORT = { deck: 47810, other: 47811 } as const
 
 /** DeckApi methods the phone may call. Everything else is desktop-only and rejected. */
-export const REMOTE_METHODS = ['getState', 'command', 'getTranscript', 'getSettings', 'setSettings', 'readDoc', 'foxLog', 'screen', 'openPath', 'agents'] as const
+export const REMOTE_METHODS = [
+  'getState', 'command', 'getTranscript', 'getSettings', 'setSettings', 'readDoc', 'foxLog', 'screen', 'openPath', 'agents',
+  // the right drawer's apps: everything they ask for is fetched or stored by main, so it works the same from here
+  'wikiPicture', 'wikiSearch', 'wikiSummary', 'weather', 'weatherSearch',
+  'translate', 'vocab', 'vocabWords', 'saveTranslation', 'saveWord', 'setWordLiked', 'savedForms', 'vocabDeck', 'vocabList', 'gradeWord', 'vocabStats',
+  'quixoteIndex', 'quixoteSection', 'gitChanges', 'gitDiff'
+] as const
 export type RemoteMethod = (typeof REMOTE_METHODS)[number]
 
 export type RemoteUp =
@@ -25,6 +31,7 @@ export type RemoteDown =
   | { type: 'settings'; settings: DeckSettings }
   | { type: 'fox'; entry: FoxEntry }
   | { type: 'agents'; agents: AgentView[] }
+  | { type: 'vocab'; change: VocabChange }
   | { type: 'error'; error: string }
   | { type: 'reply'; id: number; ok: true; result: unknown }
   | { type: 'reply'; id: number; ok: false; error: string }

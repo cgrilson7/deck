@@ -29,6 +29,8 @@ import { LessonPane } from './components/LessonPane'
 import { onQuixote } from './lib/quixote'
 import { QuixotePane } from './components/QuixoteReader'
 import { onPosturePane, posture } from './lib/posture'
+import { onFilesPane } from './lib/files'
+import { FilesPane } from './components/FilesPane'
 import { PosturePane } from './components/Posture'
 import { onWebApp } from './lib/webapps'
 import { WebLayer } from './components/WebLayer'
@@ -66,6 +68,8 @@ export default function App() {
   const [bookOpen, setBookOpen] = useState(false)
   // The Posture tile full size (the feed, the streak, the last two hours), the same way.
   const [postureOpen, setPostureOpen] = useState(false)
+  // The Files pane (the tree at reading size beside the file it selected), the same way.
+  const [filesOpen, setFilesOpen] = useState(false)
   // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
   const [webOpen, setWebOpen] = useState<string | null>(null)
   // The session the Studio is talking to ("Ask Claude for help" starts one): shown INSIDE the Studio
@@ -107,6 +111,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setWebOpen(null)
         setLeash(null)
       }
@@ -123,6 +128,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setMolOpen((v) => (v === null ? (molTiles.current[0] ?? 1) : null))
       }
       if (ev.type === 'toggleLesson') {
@@ -133,6 +139,7 @@ export default function App() {
         setAgentOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setLessonOpen((v) => (v === null ? (lessonTiles.current[0] ?? 1) : null))
       }
       if (ev.type === 'toggleQuixote') {
@@ -143,7 +150,19 @@ export default function App() {
         setAgentOpen(null)
         setLessonOpen(null)
         setPostureOpen(false)
+        setFilesOpen(false)
         setBookOpen((v) => !v)
+      }
+      if (ev.type === 'toggleFiles') {
+        setWebOpen(null)
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+        setLessonOpen(null)
+        setBookOpen(false)
+        setPostureOpen(false)
+        setFilesOpen((v) => !v)
       }
       if (ev.type === 'togglePosture') {
         setWebOpen(null)
@@ -153,6 +172,7 @@ export default function App() {
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
+        setFilesOpen(false)
         setPostureOpen((v) => !v)
       }
       if (ev.type === 'toggleStudio') {
@@ -163,6 +183,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setStudioOpen((v) => !v)
       }
       if (ev.type === 'toggleWeb') {
@@ -174,6 +195,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setWebOpen((v) => (v === id ? null : id))
       }
       if (ev.type === 'togglePokemon') {
@@ -184,6 +206,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
         setPokemonOpen((v) => !v)
       }
     })
@@ -195,6 +218,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setFilesOpen(false)
       setMolOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? molTiles.current[0] ?? 1)))
     })
     const offLesson = onLessonPane((want) => {
@@ -205,6 +229,7 @@ export default function App() {
       setAgentOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setFilesOpen(false)
       setLessonOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? lessonTiles.current[0] ?? 1)))
     })
     const offBook = onQuixote((want) => {
@@ -215,6 +240,7 @@ export default function App() {
       setAgentOpen(null)
       setLessonOpen(null)
       setPostureOpen(false)
+      setFilesOpen(false)
       setBookOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offPosture = onPosturePane((want) => {
@@ -225,7 +251,19 @@ export default function App() {
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
+      setFilesOpen(false)
       setPostureOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offFiles = onFilesPane((want) => {
+      setWebOpen(null)
+      setMolOpen(null)
+      setStudioOpen(false)
+      setPokemonOpen(false)
+      setAgentOpen(null)
+      setLessonOpen(null)
+      setBookOpen(false)
+      setPostureOpen(false)
+      setFilesOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offStudio = onStudio((want) => {
       setWebOpen(null)
@@ -235,6 +273,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setFilesOpen(false)
       setStudioOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offPokemon = onPokemon((want) => {
@@ -245,6 +284,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setFilesOpen(false)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offWeb = onWebApp((want) => {
@@ -257,6 +297,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
       }
       setWebOpen((v) => (want.want === false || (want.want === 'toggle' && v === id) ? null : id))
     })
@@ -277,6 +318,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setFilesOpen(false)
       }
       setAgentOpen(id)
     })
@@ -296,6 +338,7 @@ export default function App() {
       offLesson()
       offBook()
       offPosture()
+      offFiles()
       offWeb()
       window.clearTimeout(t)
     }
@@ -310,6 +353,7 @@ export default function App() {
     setLessonOpen(null)
     setBookOpen(false)
     setPostureOpen(false)
+    setFilesOpen(false)
     setAgentOpen(null)
     setWebOpen(null)
   }, [focusSlot])
@@ -365,7 +409,7 @@ export default function App() {
   // A web app that was removed while showing gives the center back.
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort(byRecency(settings.attentionFirst))
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -421,6 +465,8 @@ export default function App() {
           <QuixotePane onClose={() => setBookOpen(false)} />
         ) : postureOpen ? (
           <PosturePane onClose={() => setPostureOpen(false)} />
+        ) : filesOpen ? (
+          <FilesPane onClose={() => setFilesOpen(false)} />
         ) : studioOpen ? (
           <StudioPane session={focused} chat={state.open.find((s) => s.id === studioChat) ?? null} onChat={setStudioChat} onClose={() => setStudioOpen(false)} />
         ) : (

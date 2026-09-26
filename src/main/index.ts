@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
 import { molBody } from '@shared/lesson'
-import { REMOTE_PORT } from '@shared/remote'
+import { REMOTE_PORT, type RemoteMethod } from '@shared/remote'
 import { resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
@@ -28,7 +28,7 @@ import { SpotifyAuth } from './spotifyauth'
 import { setupYoutubeSession } from './youtube'
 import { guardWebviews, setupWebSession, webSnap } from './webapps'
 import { keepDrop, type DroppedFile } from './drops'
-import { readDoc, resolveRef, toggleTask, writeDoc } from './files'
+import { listDir, readDoc, resolveRef, toggleTask, writeDoc } from './files'
 import { gitChanges, gitDiff } from './git'
 import { Foxtrot } from './foxtrot'
 import { RemoteServer } from './remote'
@@ -595,35 +595,41 @@ app.whenReady().then(async () => {
     return r.canceled || r.filePaths.length === 0 ? '' : r.filePaths[0]
   })
 
-  ipcMain.handle('wiki:picture', (_e, when: unknown) => wikiPicture(when === 'past' ? 'past' : 'today'))
+  // What the phone may call too (REMOTE_METHODS in shared/remote.ts): one function behind both doors.
+  const phoneCalls = new Map<RemoteMethod, (...args: any[]) => unknown>()
+  const both = (channel: string, method: RemoteMethod, fn: (...args: any[]) => unknown): void => {
+    ipcMain.handle(channel, (_e, ...args) => fn(...args))
+    phoneCalls.set(method, fn)
+  }
+  both('wiki:picture', 'wikiPicture', (when: unknown) => wikiPicture(when === 'past' ? 'past' : 'today'))
   ipcMain.handle('wiki:backdrop', (_e, date: unknown) => wikiBackdrop(typeof date === 'string' ? date : '', join(app.getPath('userData'), 'glass')))
-  ipcMain.handle('wiki:search', (_e, q: string) => wikiSearch(String(q ?? '')))
-  ipcMain.handle('wiki:summary', (_e, key: string) => wikiSummary(String(key ?? '')))
-  ipcMain.handle('weather:now', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))
-  ipcMain.handle('weather:search', (_e, q: string) => weatherSearch(String(q ?? '')))
+  both('wiki:search', 'wikiSearch', (q: string) => wikiSearch(String(q ?? '')))
+  both('wiki:summary', 'wikiSummary', (key: string) => wikiSummary(String(key ?? '')))
+  both('weather:now', 'weather', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))
+  both('weather:search', 'weatherSearch', (q: string) => weatherSearch(String(q ?? '')))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
-  ipcMain.handle('translate:run', (_e, text: string, hint: Lang, fixed?: boolean) => translate(text, hint, translateKey(), fixed === true))
-  ipcMain.handle('vocab:lookup', (_e, word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
+  both('translate:run', 'translate', (text: string, hint: Lang, fixed?: boolean) => translate(text, hint, translateKey(), fixed === true))
+  both('vocab:lookup', 'vocab', (word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
   store = new VocabStore(userData)
   // Liked words ride along with the user's own languagelog words: front of the queue, every pass.
-  ipcMain.handle('vocab:words', () => vocabWords(settings!.get().languagelogDb, env, store!.likedWords()))
+  both('vocab:words', 'vocabWords', () => vocabWords(settings!.get().languagelogDb, env, store!.likedWords()))
   // Every write is told to every tile (`vocab:changed`), so the translator, the vocabulary tile's
   // three faces and the reader's marks stay one store however a word got in.
   const changed = <T,>(c: VocabChange, v: T): T => (send('vocab:changed', c), v)
-  ipcMain.handle('store:translation', (_e, r: TranslateResult, supersede: number | null) =>
+  both('store:translation', 'saveTranslation', (r: TranslateResult, supersede: number | null) =>
     changed({ kind: 'translation', liked: false }, store!.saveTranslation(r, supersede ?? null))
   )
-  ipcMain.handle('store:word', (_e, r: VocabResult, translationId: number | null, extra?: WordExtra) =>
+  both('store:word', 'saveWord', (r: VocabResult, translationId: number | null, extra?: WordExtra) =>
     changed({ kind: 'word', liked: !!extra?.liked }, store!.saveWord(r, translationId ?? null, extra && typeof extra === 'object' ? extra : {}))
   )
-  ipcMain.handle('store:liked', (_e, id: number, liked: boolean) => changed({ kind: 'liked', liked: true }, store!.setLiked(id, !!liked)))
-  ipcMain.handle('store:forms', () => store!.savedForms())
-  ipcMain.handle('store:deck', (_e, limit?: number) => store!.deck(limit))
-  ipcMain.handle('store:list', (_e, limit?: number) => store!.list(limit))
-  ipcMain.handle('store:grade', (_e, id: number, grade: number) => changed({ kind: 'grade', liked: false }, store!.gradeWord(id, grade)))
+  both('store:liked', 'setWordLiked', (id: number, liked: boolean) => changed({ kind: 'liked', liked: true }, store!.setLiked(id, !!liked)))
+  both('store:forms', 'savedForms', () => store!.savedForms())
+  both('store:deck', 'vocabDeck', (limit?: number) => store!.deck(limit))
+  both('store:list', 'vocabList', (limit?: number) => store!.list(limit))
+  both('store:grade', 'gradeWord', (id: number, grade: number) => changed({ kind: 'grade', liked: false }, store!.gradeWord(id, grade)))
   const books = new ReaderBooks(userData)
-  ipcMain.handle('quixote:index', (_e, book: unknown) => books.index(book))
-  ipcMain.handle('quixote:section', (_e, book: unknown, i: number) => books.section(book, Number(i)))
+  both('quixote:index', 'quixoteIndex', (book: unknown) => books.index(book))
+  both('quixote:section', 'quixoteSection', (book: unknown, i: number) => books.section(book, Number(i)))
   // The Posture tile: MediaPipe's files over `pose:`, the camera prompt, full-speed timers while it
   // watches, and its one alert — ten seconds of slouching — as a Foxtrot bark and a macOS notification.
   const posture = new Posture(userData)
@@ -642,7 +648,7 @@ app.whenReady().then(async () => {
     })
     n.show()
   })
-  ipcMain.handle('store:stats', () => store!.stats())
+  both('store:stats', 'vocabStats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
@@ -650,6 +656,8 @@ app.whenReady().then(async () => {
   // A referenced file, for the preview pane over the grid: read it here, and let macOS open
   // or reveal it (a PDF lands in Preview, everything else in whatever owns the type).
   ipcMain.handle('file:read', (_e, ref: string, cwd?: string) => readDoc(String(ref ?? ''), typeof cwd === 'string' ? cwd : undefined))
+  // The Files tile's tree: one folder at a time, as it unfolds.
+  ipcMain.handle('file:list', (_e, path: string) => listDir(String(path ?? '')))
   // …and writes it back, for the pane's edit mode and its checkboxes: see files.ts for the rules (the mtime read is the lock).
   ipcMain.handle('file:write', (_e, path: string, text: string, mtime: number) => writeDoc(String(path ?? ''), String(text ?? ''), Number(mtime)))
   ipcMain.handle('file:task', (_e, path: string, line: number, checked: boolean, mtime: number) => toggleTask(String(path ?? ''), Math.max(0, Math.floor(Number(line) || 0)), !!checked, Number(mtime)))
@@ -667,7 +675,7 @@ app.whenReady().then(async () => {
 
   // The changes tile: the focused session's working tree. The pane's own folder is asked first, so
   // a --worktree session reads its worktree, not the folder it was started from.
-  ipcMain.handle('git:changes', async (_e, id: string) => {
+  both('git:changes', 'gitChanges', async (id: string) => {
     const sid = String(id ?? '')
     const name = manager?.tmuxNameOf(sid)
     const cwd = (name ? await tmux.paneCwd(name) : null) ?? manager?.cwdOf(sid) ?? settings!.get().defaultCwd
@@ -683,7 +691,7 @@ app.whenReady().then(async () => {
     const there = await readCurriculum(fallback)
     return there.data ? there : here
   })
-  ipcMain.handle('git:diff', (_e, repo: string, path: string, untracked: boolean) => gitDiff(String(repo ?? ''), String(path ?? ''), !!untracked, env))
+  both('git:diff', 'gitDiff', (repo: string, path: string, untracked: boolean) => gitDiff(String(repo ?? ''), String(path ?? ''), !!untracked, env))
 
   // The phone page and its socket, on the tailnet / LAN only, token-gated (main/remote.ts).
   remote = new RemoteServer({
@@ -716,6 +724,11 @@ app.whenReady().then(async () => {
           return shell.openPath(resolveRef(String(args[0] ?? '')))
         case 'agents':
           return agents!.list()
+        default: {
+          const fn = phoneCalls.get(method)
+          if (!fn) throw new Error(`not on the phone: ${method}`)
+          return fn(...args)
+        }
       }
     }
   })

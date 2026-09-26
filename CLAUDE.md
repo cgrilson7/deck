@@ -85,6 +85,7 @@ src/main/remote.ts         the phone: HTTP + WebSocket server (tailnet/LAN only,
 src/shared/remote.ts       the phone's wire: ports, the callable DeckApi subset, the frame types
 src/main/transcript.ts     TranscriptWatcher: tails ~/.claude/projects/*/<claudeSessionId>.jsonl into ChatBlocks for the tiles
 src/main/files.ts          reads a referenced path for the preview pane: text (capped), image / PDF bytes, a directory listing;
+                             `listDir` = one folder for the Files tile's tree (entries, folders first, symlinks flagged; never rejects);
                              and WRITES one back (`writeDoc` = the edit mode, `toggleTask` = a checkbox): the safety rules in the preview pane rule
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
@@ -144,6 +145,8 @@ src/renderer/src/lib/markdown.tsx   tiny markdown → React elements (no HTML) f
 src/renderer/src/lib/paths.ts       finds file references in text (tiles + terminal) and the one channel that opens one; the preview pane's
                                     unsaved-edits guard (`setDocGuard` / `docMayClose`), asked by whatever closes it from App
 src/renderer/src/lib/filerefs.tsx   a file reference as a clickable element (and linkifying a run of text)
+src/renderer/src/lib/files.ts       THE FILES TILE's state: one tree for the window (root, open folders, dotfiles, listings, the selected file; localStorage `deck.files`),
+                                    the poll while a view is up, openFiles()/onFilesPane() (the window event App listens to)
 src/renderer/src/lib/foxlog.ts      useFoxLog(): Foxtrot's entries (loaded + live), for his log
 src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) + the xterm decoration that covers Claude Code's banner mascot
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
@@ -159,7 +162,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     DocPane (the file preview in the center: read, tick task boxes, edit), FoxHead (Foxtrot large in the top bar, posed for the whole deck; no bubble, no barks), FoxLog (his whole log),
                                     TermHost, FoxStatus (the fox as the status indicator),
                                     QuixoteReader (the reader: QuixoteTile + QuixotePane over one Reader, and the translation pop),
-                                    WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
+                                    WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), FilesTile (a plain directory tree of the disk; FileTree + FileRoot are shared with FilesPane, the tree beside the reader in the center: DocPane embedded), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     FoxtrotTile (an endless runner: the fox holds the middle, obstacles to jump, clouds; stops + barks at a slouch; slay's name tag),
@@ -278,8 +281,12 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `(100cqh − gaps) / --rows`), `gridColumns` (1) how many sit side by side in one; past that the
   column scrolls (scrollbar hidden, `scroll-snap` proximity to tile tops; a tile's own chat
   scrolls first and chains to the column at its end). EVERY TILE DRAGS ANYWHERE in either column
-  by its grip (⠿, top right on hover; the whole tile is the drag image): a session, a beta, a
-  pack, a mini app. It lands before / after the tile under the pointer by which half it is over
+  by its grip (⠿; the whole tile is the drag image): a session, a beta, a
+  pack, a mini app. THE GRIP AND A MINI APP'S × ARE THE RIGHTMOST BUTTONS OF THE TILE'S OWN HEAD,
+  never floating over it: `GridCell` puts them in a context (`lib/celltools.tsx`) and every tile
+  with a head ends the head with `<CellTools />` (`.cell-tools`, after its ⤢ and the rest); a tile
+  with no head (Wikipedia, Music, the vocabulary and translator boxes) gets the same two floating
+  top right on hover (`.cell-float`), which CSS hides the moment a `.cell-tools` is in the cell. It lands before / after the tile under the pointer by which half it is over
   (left / right halves when a column is two wide; an accent bar shows where) or at the foot of
   a column on its `+`. What rides under the pointer is `dragGhost()`, a small DETACHED copy of
   the tile's head — never the live cell, which Chromium snapshots with its neighbours inside a
@@ -838,6 +845,21 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   focused = the fox and a hint; not a repo = says so with the folder; clean = the fox asleep.
   Diff colors are `--green` / `--red`, the theme's terminal palette, set by `lib/theme.ts`.
   Not on the phone (`gitChanges` / `gitDiff` reject there).
+- **Files** (`FilesTile`, `FilesPane`, `lib/files.ts`; `listDir` in `main/files.ts`; `showFiles`, on by default): A DIRECTORY
+  TREE, THE GOOD OLD KIND — one line per entry, folders first in natural order, a disclosure triangle that unfolds a folder IN
+  PLACE, nothing else (no icons, sizes, dates, previews or columns: Colin's rule, "not the new Finder"). ONE TREE FOR THE WINDOW
+  (`lib/files.ts`: root, open set, dotfile toggle, listings, the selected file), drawn by TWO VIEWS that follow each other, the
+  reader's way: the TILE (small) and the FILES PANE (⌘⇧F, View ▸ Files, the tile's ⤢, or a file's click in the tile), which
+  takes the CENTER like the Molecule and Lesson panes (they all take turns; a focus change or Esc closes it) and is the tree at
+  reading size on the left beside THE READER on the right — `DocPane` itself, `embedded` (no scrim, no ⤢ / ×, the pane's frame
+  is the frame), so a file here has everything the preview pane has: markdown, images, PDFs, folders, the edit mode and its task
+  boxes, and its unsaved-edits guard (with a file up the reader owns Esc; the pane's own Esc is for the empty state). The head
+  (both views: `FileRoot`) is the ROOT — its path as a button (click = type another, ⏎ goes, Esc cancels), ↑ up a level as far
+  as `/`, ⌂ home, and an eye that shows dotfiles (dimmed) — so the tree goes ANYWHERE on the disk; a double-click on a folder
+  makes it the root; the selected file is lit in both views. Main lists one folder at a time (`file:list` → `listDir`: `readdir`
+  with types, a symlink stat'ed to learn whether it unfolds, 2000 entries then "… n more"; an unreadable folder is a "No access."
+  row, never a rejection); the store re-reads the root and every open folder every 4s while a view is mounted and the window
+  is visible, and only a listing that changed re-renders. Not on the phone (`listDir` rejects there).
 - **Translator** (`TranslateTile`, last grid cell): languagelog (~/languagelog) boiled down to two
   boxes, English over Spanish. Typing into either box translates after a 700ms pause or ⏎ (⇧⏎ =
   newline); the API's detected language decides which box the text belongs in, so Spanish typed
@@ -1219,8 +1241,19 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   desktop-only methods are no-ops or reject) so `ChatView`, `TilePrompt`, `FoxStatus`, `DocPane`,
   `Fox` and the theme are the desktop's own components unchanged. That is why `lib/theme.ts` and
   `lib/paste.ts` take REGISTRATIONS from `lib/terminals.ts` (`setTerminalApplier`, `setPaster`)
-  instead of importing it: nothing the phone loads may pull xterm in. The page: a chip row (slot +
-  Foxtrot's pose + name, `+` for the new/resume sheet), the open sessions as snap-scrolled pages of
+  instead of importing it: nothing the phone loads may pull xterm in (so `Phone.tsx` keeps its own
+  copy of `byRecency` rather than import Grid). The page: a HEADER of ☰ · Foxtrot · ☰ on one center line —
+  the LEFT ☰ is the session drawer (the desktop's left column: open sessions by recency, `attentionFirst`
+  honoured, each alpha's betas and subagents indented under it, a new-session row, the parked to resume;
+  a badge counts who needs you), Foxtrot in the middle is the deck summed up like `FoxHead` (no posture
+  alarm: that is the Mac's) and opens his log, the RIGHT ☰ is the apps drawer: ONLY the mini apps whose
+  data main fetches or stores — Wikipedia + weather, the reader (`QuixotePane`), vocabulary, translator,
+  changes (the current page's session, a subagent's parent), Foxtrot's log — the desktop's own components,
+  in the pages' place until the strip's ✕. Their calls are in `REMOTE_METHODS`, registered in main ONCE
+  for both doors by `both(channel, method, fn)` in index.ts (IPC + `phoneCalls`); `vocab:changed` is
+  relayed as a `vocab` frame; the phone CSP takes Wikimedia / Spotify images. A reading place, the vocab
+  queue etc. are the phone's own localStorage, not the Mac's. Under the header a STRIP names the page under
+  your thumb (`n / m`; tap = the session drawer); then the open sessions as snap-scrolled pages of
   `ChatView`, a prompt bar (`TilePrompt`, textarea at 16px so iOS does not zoom), ⌨ a strip of the
   keys a TUI needs, ▤ the SCREEN VIEW: `tmux capture-pane -e` of the session's pane (`Tmux.screen`,
   never attaching, so the size is untouched) polled every 700ms while shown, SGR rendered by
@@ -1231,7 +1264,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A B E D P. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B E D P F. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -1255,7 +1288,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
-  translateApiKey, showGit, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
+  translateApiKey, showGit, showFiles, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
   showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)

@@ -8,6 +8,7 @@ import { Fox } from './Fox'
 import { BarkBursts } from './FoxStatus'
 import { plain } from '../lib/errors'
 import { openQuixote, paintSaved, readPosNow, sentenceAround, setBook, setReadPos, useBookIndex, useReadPos, useSavedForms, useSection } from '../lib/quixote'
+import { CellTools } from '../lib/celltools'
 /** What the translator takes in one go (main/translate.ts). */
 const MAX_SELECTION = 1000
 /** The pop's width, and roughly its height when choosing above or below the selection. */
@@ -198,6 +199,7 @@ function Reader({ big, onClose }: { big: boolean; onClose?: () => void }) {
             <Maximize2 size={12} />
           </button>
         )}
+        <CellTools />
       </header>
       <div
         ref={body}

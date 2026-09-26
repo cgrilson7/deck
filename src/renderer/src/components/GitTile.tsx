@@ -4,6 +4,7 @@ import type { GitChanges, GitFile, SessionView } from '@shared/types'
 import { plain } from '../lib/errors'
 import { openDoc } from '../lib/paths'
 import { Fox } from './Fox'
+import { CellTools } from '../lib/celltools'
 
 /** How often the working tree is re-read while the tile is showing. */
 const POLL_MS = 2000
@@ -155,6 +156,7 @@ export function GitTile({ session }: { session: SessionView | null }) {
       <button className={`gt-refresh ${busy ? 'busy' : ''}`} onClick={() => void refresh()} title="Re-read the working tree (it polls every 2s anyway)">
         <RefreshCw size={11} />
       </button>
+      <CellTools />
     </div>
   )
 

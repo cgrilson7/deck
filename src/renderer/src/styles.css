@@ -339,13 +339,9 @@ button {
   flex: 1 1 0;
   width: 100%;
 }
-/* Room in the head for the grip (and a mini app's ×), so they never sit on a tile's own buttons. */
 .cell-session > .tile > .pane-head,
 .cell-member > .tile > .pane-head {
   padding-right: 28px;
-}
-.cell-plugin > .tile > .pane-head {
-  padding-right: 48px;
 }
 /* Where a dragged tile will land: a bar in the gap before or after this cell. */
 .cell.drop-before::before,
@@ -432,54 +428,73 @@ button {
 .grid-needy-below {
   bottom: 6px;
 }
-.grip {
+/* A cell's own controls: a mini app's × and the grip (⠿) that drags it. INLINE, the rightmost
+   buttons of the tile's head (`<CellTools />` → `.cell-tools`); a tile with no head gets the same
+   two floating top right (`.cell-float`), which hides as soon as the head has them. */
+.cell-tools,
+.cell-float {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.cell-tools {
+  margin-left: 2px;
+}
+.cell-float {
   position: absolute;
   top: 3px;
   right: 6px;
   z-index: 3;
-  padding: 0 4px;
-  border-radius: 4px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 18px;
-  cursor: grab;
+  padding: 0 2px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
   opacity: 0;
   transition: opacity 120ms ease;
-  user-select: none;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
 }
-.cell:hover .grip {
-  opacity: 0.6;
+.cell:hover > .cell-float {
+  opacity: 1;
 }
-.grip:hover {
-  opacity: 1 !important;
-  color: var(--ink);
+.cell:has(.cell-tools) > .cell-float {
+  display: none;
 }
-.grip:active {
-  cursor: grabbing;
-}
-/* A plugin tile's ×, beside the grip. */
-.cell-x {
-  position: absolute;
-  top: 3px;
-  right: 26px;
-  z-index: 3;
+.ct-x,
+.ct-grip {
+  display: inline-grid;
+  place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
   color: var(--muted);
   font-size: 13px;
   line-height: 18px;
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 120ms ease;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  user-select: none;
 }
-.cell:hover .cell-x {
-  opacity: 0.6;
+.cell:hover .ct-x,
+.cell:hover .ct-grip {
+  opacity: 1;
 }
-.cell-x:hover {
-  opacity: 1 !important;
+.ct-x {
+  cursor: pointer;
+}
+.ct-x:hover {
+  background: var(--bg);
   color: var(--blocked);
+}
+.ct-grip {
+  cursor: grab;
+}
+.ct-grip:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.ct-grip:active {
+  cursor: grabbing;
 }
 .tile {
   cursor: pointer;
@@ -1633,6 +1648,7 @@ button {
 .hue-blue { --hue: var(--blue); }
 .hue-violet { --hue: color-mix(in oklab, var(--blue), var(--magenta)); }
 .hue-magenta { --hue: var(--magenta); }
+.hue-stone { --hue: color-mix(in oklab, var(--muted) 65%, var(--yellow)); }
 .hue-web { --hue: var(--muted); }
 .picker-card-icon {
   flex: none;
@@ -4380,6 +4396,180 @@ button.foxlog-chip:hover {
 }
 
 /* ---- the changes tile: the focused session's working tree ---- */
+/* Files: a plain directory tree (the Files tile). A head with the root as a button (click = type
+   a path), ↑ ⌂ and the dotfile eye; then one row per entry, indented by depth, a disclosure
+   triangle on folders. No icons, no columns. */
+.filestile {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  user-select: none;
+}
+.ft-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 4px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+.ft-head > svg {
+  flex: 0 0 auto;
+  margin-right: 2px;
+}
+.ft-root,
+.ft-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 500 11px/18px var(--mono);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0 4px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* the tail of a long root is the part that matters */
+  cursor: text;
+}
+.ft-root:hover {
+  border-color: var(--line);
+}
+.ft-path {
+  direction: ltr;
+  border-color: var(--accent);
+  background: var(--fill);
+  outline: none;
+}
+.ft-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ft-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.ft-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ft-btn.on {
+  color: var(--accent);
+}
+.ft-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 3px 4px 8px 0;
+  font-size: 11.5px;
+  line-height: 18px;
+}
+.ft-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--ink);
+  cursor: default;
+}
+.ft-row.file {
+  cursor: pointer;
+}
+.ft-row:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.ft-tri {
+  flex: 0 0 auto;
+  width: 12px;
+  font-size: 8px;
+  text-align: center;
+  color: var(--muted);
+  transition: transform 90ms ease;
+}
+.ft-row.open > .ft-tri {
+  transform: rotate(90deg);
+}
+.ft-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ft-row.dir > .ft-name {
+  font-weight: 600;
+}
+.ft-row.dot {
+  color: var(--muted);
+}
+.ft-row.link > .ft-name {
+  font-style: italic;
+}
+.ft-note {
+  color: var(--muted);
+  font-style: italic;
+}
+.ft-note:hover {
+  background: transparent;
+}
+.ft-row.sel,
+.ft-row.sel:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+/* The Files pane in the center: the tree beside the reader (DocPane, embedded). */
+.files-pane {
+  min-height: 0;
+  outline: none;
+}
+.files-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.files-tree {
+  flex: 0 0 clamp(180px, 32%, 320px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  user-select: none;
+}
+.files-tree .ft-list {
+  font-size: 12.5px;
+  line-height: 20px;
+}
+.files-read {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Embedded in the Files pane: no scrim, no shadow, no border — the pane's frame is the frame. */
+.doc.doc-embed {
+  grid-area: auto;
+  position: static;
+  flex: 1 1 auto;
+  z-index: auto;
+}
+.doc.doc-embed .doc-panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
 .gittile {
   display: flex;
   flex-direction: column;

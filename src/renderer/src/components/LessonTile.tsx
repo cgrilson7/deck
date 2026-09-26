@@ -4,6 +4,7 @@ import { LESSON_TILES_MAX, nextLessonTile, type SessionView } from '@shared/type
 import { lesson, openLesson, useLesson, type LessonState } from '../lib/lesson'
 import { patchSettings, useSettings } from '../lib/theme'
 import { LessonCardView, LessonHome } from './LessonCard'
+import { CellTools } from '../lib/celltools'
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
@@ -80,6 +81,7 @@ export function LessonTile({ tile, session }: { tile: number; session: SessionVi
         <button className="ghost" title="This lesson at reading size in the center column (⌘⇧E)" onClick={() => openLesson(tile)}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
       <div ref={body} className="lesson-body">
         {st.lesson ? (

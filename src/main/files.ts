@@ -13,11 +13,12 @@
 // line, so the rest of the file stays exactly as it was.
 
 import { chmod, open, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomBytes } from 'node:crypto'
-import type { DocWrite, FileDoc, FileKind } from '@shared/types'
+import type { DirEntry, DirListing, DocWrite, FileDoc, FileKind } from '@shared/types'
 
 /** Text is read up to here; the rest is dropped and the pane says so. */
 const TEXT_CAP = 1_500_000
@@ -226,3 +227,51 @@ export function toggleTask(path: string, line: number, checked: boolean, mtime: 
     return out
   })
 }
+
+// ---- the Files tile's tree ---------------------------------------------------------------
+
+/** Entries listed for one folder of the tree; past this the listing says how many were left off. */
+const TREE_CAP = 2000
+
+/**
+ * One folder for the Files tile, which unfolds the tree a folder at a time: every entry with
+ * whether it is a folder (a symlink counts as what it points at, and is flagged), folders
+ * first, names in natural order. Nothing else — no sizes, no dates — because the tile is a
+ * plain tree. Never rejects: a folder it cannot read comes back with `error` and no entries.
+ */
+export async function listDir(ref: string): Promise<DirListing> {
+  const path = resolveRef(ref)
+  try {
+    const s = await stat(path)
+    if (!s.isDirectory()) return { path, entries: [], error: 'Not a folder.' }
+  } catch (err) {
+    return { path, entries: [], error: (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'No such folder.' : plainError(err) }
+  }
+  let ents: Dirent[]
+  try {
+    ents = await readdir(path, { withFileTypes: true })
+  } catch (err) {
+    return { path, entries: [], error: (err as NodeJS.ErrnoException).code === 'EACCES' || (err as NodeJS.ErrnoException).code === 'EPERM' ? 'No access.' : plainError(err) }
+  }
+  const rows: DirEntry[] = await Promise.all(
+    ents.map(async (e) => {
+      const link = e.isSymbolicLink()
+      let dir = e.isDirectory()
+      if (link) {
+        // A symlinked folder unfolds like one; a dangling link is a file that will say "no such file".
+        try {
+          dir = (await stat(join(path, e.name))).isDirectory()
+        } catch {
+          dir = false
+        }
+      }
+      return { name: e.name, dir, link, hidden: e.name.startsWith('.') }
+    })
+  )
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+  rows.sort((a, b) => Number(b.dir) - Number(a.dir) || collator.compare(a.name, b.name))
+  const more = rows.length - TREE_CAP
+  return more > 0 ? { path, entries: rows.slice(0, TREE_CAP), more } : { path, entries: rows }
+}
+
+const plainError = (err: unknown): string => (err instanceof Error ? err.message : String(err))

@@ -492,6 +492,7 @@ const KEYS: [string, string][] = [
   ['⌘⇧A', 'Molecule viewer'],
   ['⌘⇧E', 'Lesson'],
   ['⌘⇧P', 'Posture'],
+  ['⌘⇧F', 'Files'],
   ['⌘⇧B', 'the first web app (Village)'],
   ['⌘J', "Foxtrot's log"],
   ['⌘,', 'theme'],

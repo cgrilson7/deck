@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Atom, PawPrint, BookOpen, Gamepad2, GitBranch, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
+import { Atom, PawPrint, BookOpen, FolderTree, Gamepad2, GitBranch, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
 import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { patchSettings, useSettings } from '../lib/theme'
@@ -60,6 +60,14 @@ export const PLUGINS: {
     icon: GitBranch,
     hue: 'green',
     setting: 'showGit'
+  },
+  {
+    key: 'files',
+    label: 'Files',
+    hint: 'A plain directory tree of the whole disk: unfold folders in place, click a file to read it in the center',
+    icon: FolderTree,
+    hue: 'stone',
+    setting: 'showFiles'
   },
   {
     key: 'vocab',

@@ -3,6 +3,7 @@ import { Gamepad2, Maximize2 } from 'lucide-react'
 import { gameboy, useGameBoy } from '../lib/gameboy'
 import { openPokemon } from '../lib/pokemon'
 import { Fox } from './Fox'
+import { CellTools } from '../lib/celltools'
 
 /**
  * The Game Boy as a grid cell: the screen, live, silent — an attract screen. It has no
@@ -36,6 +37,7 @@ export function PokemonTile() {
         <button className="ghost" title="Play, full size in the center column (⌘⇧G)" onClick={openPokemon}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
       <div className="pokemon-face" onClick={openPokemon} title="Play (⌘⇧G)">
         <canvas ref={canvas} className="pokemon-canvas" style={{ display: st.rom ? undefined : 'none' }} />

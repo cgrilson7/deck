@@ -27,7 +27,8 @@ import { setDocGuard, type DocRef } from '../lib/paths'
 /** Lines drawn with a number gutter; past this the text is one plain block (DOM cost). */
 const LINE_CAP = 4000
 
-export function DocPane({ target, onClose }: { target: DocRef; onClose: () => void }) {
+/** `embedded`: inside the Files pane — no scrim, no ⤢ / ×, filling whatever box holds it; Esc and the guard still go through `onClose`. */
+export function DocPane({ target, onClose, embedded = false }: { target: DocRef; onClose: () => void; embedded?: boolean }) {
   const [stack, setStack] = useState<DocRef[]>([target])
   const [doc, setDoc] = useState<FileDoc | null>(null)
   const [blob, setBlob] = useState<string | null>(null)
@@ -191,8 +192,8 @@ export function DocPane({ target, onClose }: { target: DocRef; onClose: () => vo
   const parent = doc && doc.path.includes('/') ? doc.path.slice(0, doc.path.lastIndexOf('/')) || '/' : null
 
   return (
-    <section ref={root} tabIndex={-1} className={`doc ${wide ? 'is-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <div className="doc-scrim" onClick={close} />
+    <section ref={root} tabIndex={-1} className={`doc ${embedded ? 'doc-embed' : wide ? 'is-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      {!embedded && <div className="doc-scrim" onClick={close} />}
       <div className="doc-panel">
         <header className="doc-head">
           {stack.length > 1 && (
@@ -238,12 +239,16 @@ export function DocPane({ target, onClose }: { target: DocRef; onClose: () => vo
           <button className="doc-btn" title="Copy the path" onClick={() => window.deck.copyText(doc?.path ?? cur.path)}>
             <Copy size={13} />
           </button>
-          <button className="doc-btn" title={wide ? 'Back over the grid only' : 'Take the whole window'} onClick={() => setWide((v) => !v)}>
-            {wide ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          </button>
-          <button className="doc-btn" title="Close (Esc)" onClick={close}>
-            <X size={14} />
-          </button>
+          {!embedded && (
+            <button className="doc-btn" title={wide ? 'Back over the grid only' : 'Take the whole window'} onClick={() => setWide((v) => !v)}>
+              {wide ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          )}
+          {!embedded && (
+            <button className="doc-btn" title="Close (Esc)" onClick={close}>
+              <X size={14} />
+            </button>
+          )}
         </header>
         {problem && (
           <div className="doc-problem">

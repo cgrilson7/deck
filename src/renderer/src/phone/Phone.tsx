@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import { BookOpen, GitBranch, Globe, Languages, Layers, Menu, Plus, X, type LucideIcon } from 'lucide-react'
 import { agentKind, agentName, type AgentView, type DeckState, type SessionView } from '@shared/types'
 import { MODELS, modelLabel } from '@shared/models'
 import { ChatView } from '../components/ChatView'
 import { DocPane } from '../components/DocPane'
-import { Fox } from '../components/Fox'
+import { Fox, type FoxAnim } from '../components/Fox'
+import { FoxLog } from '../components/FoxLog'
 import { FoxStatus } from '../components/FoxStatus'
+import { GitTile } from '../components/GitTile'
+import { QuixotePane } from '../components/QuixoteReader'
 import { TilePrompt } from '../components/TilePrompt'
+import { TranslateTile } from '../components/TranslateTile'
+import { VocabTile } from '../components/VocabTile'
+import { WikiTile } from '../components/WikiTile'
+import { useFoxLog } from '../lib/foxlog'
 import { shortPath } from '../lib/format'
 import { onOpenDoc, type DocRef } from '../lib/paths'
 import { useSettings } from '../lib/theme'
@@ -22,7 +30,33 @@ import { Keys, ScreenView } from './ScreenView'
  * the current one on the Mac. A tapped path opens the preview pane over everything. A
  * wolfpack's SUBAGENTS are pages too (a gold β chip after their parent): the conversation,
  * nothing to type into, and under ⋯ the leash — pause, resume, cancel with a reason.
+ *
+ * The header is the desktop's two columns folded away: ☰ on the LEFT is the session browser
+ * (every open session, most recently active first, its betas and subagents under it, then the
+ * parked ones), ☰ on the RIGHT the mini apps that work from here — the ones whose data main
+ * fetches or stores (Wikipedia + weather, the reader, vocabulary, translator, changes, Foxtrot's
+ * log); an app takes the pages' place until its ✕. Foxtrot stands between them, posed for the
+ * whole deck like the desktop's FoxHead; a tap opens his log. Under the header, a strip names
+ * the page under your thumb.
  */
+type AppId = 'wiki' | 'reader' | 'vocab' | 'translate' | 'changes' | 'foxlog'
+const APPS: { id: AppId; name: string; hint: string; icon: LucideIcon | null }[] = [
+  { id: 'wiki', name: 'Wikipedia', hint: 'Picture of the day, search, the weather', icon: Globe },
+  { id: 'reader', name: 'Reader', hint: 'La Odisea · Don Quijote; select a word to translate it', icon: BookOpen },
+  { id: 'vocab', name: 'Vocabulary', hint: 'Dictionary, flash cards, the review list', icon: Layers },
+  { id: 'translate', name: 'Translator', hint: 'English ⇄ Spanish', icon: Languages },
+  { id: 'changes', name: 'Changes', hint: "The current session's working tree", icon: GitBranch },
+  { id: 'foxlog', name: "Foxtrot's log", hint: "What he's seen and barked at", icon: null }
+]
+
+/** The session browser's order, the desktop's left column (`byRecency` in Grid.tsx, which the phone must not import: it pulls in xterm). */
+const byRecency =
+  (attentionFirst: boolean) =>
+  (a: SessionView, b: SessionView): number =>
+    (attentionFirst ? Number(b.attention) - Number(a.attention) : 0) || (b.activeAt ?? b.createdAt) - (a.activeAt ?? a.createdAt) || (a.slot ?? 0) - (b.slot ?? 0)
+
+const agentPose = (a: AgentView): FoxAnim => (a.cancelled ? 'down' : a.endedAt !== null ? 'sleep' : a.paused ? 'look' : 'run')
+
 type Page = { kind: 'session'; id: string; s: SessionView } | { kind: 'agent'; id: string; a: AgentView; parent: SessionView | null }
 
 export function Phone() {
@@ -36,6 +70,8 @@ export function Phone() {
   const [doc, setDoc] = useState<DocRef | null>(null)
   const [sheet, setSheet] = useState<'new' | 'more' | null>(null)
   const [agents, setAgents] = useState<AgentView[]>([])
+  const [drawer, setDrawer] = useState<'left' | 'right' | null>(null)
+  const [app, setApp] = useState<AppId | null>(null)
   const pages = useRef<HTMLDivElement>(null)
 
   useEffect(() => applyAnsiPalette(settings), [settings])
@@ -127,40 +163,82 @@ export function Phone() {
   useEffect(() => {
     const el = pages.current
     if (el && indexRef.current >= 0) el.scrollTo({ left: indexRef.current * el.clientWidth })
-  }, [open.length])
+  }, [open.length, app])
 
   if (link === 'unpaired' || link === 'unauthorized') return <Unpaired link={link} />
 
   const needs = !!current && (current.attention || current.status === 'blocked')
+  const needCount = sessions.filter((s) => s.attention || s.status === 'blocked').length
+  // Changes follows the page: a subagent's page reads its parent's tree.
+  const changesOf = current ?? (page?.kind === 'agent' ? page.parent : null)
+  const shownApp = APPS.find((a) => a.id === app) ?? null
+  const pick = (id: string) => {
+    setDrawer(null)
+    setApp(null)
+    goTo(id)
+  }
 
   return (
     <div className="ph">
       {link !== 'open' && <div className="ph-link">{link === 'connecting' ? 'connecting…' : 'reconnecting…'}</div>}
       {error && <div className="ph-link is-error">{error}</div>}
-      <div className="ph-top">
-        {open.map((p) =>
-          p.kind === 'session' ? (
-            <button key={p.id} type="button" className={`ph-chip ${p.id === cur ? 'on' : ''} ${p.s.attention ? 'attention' : ''} status-${p.s.status}`} onClick={() => goTo(p.id)}>
-              <span className={`slot ${p.s.pack ? 'slot-beta' : ''}`}>{p.s.pack ? 'β' : p.s.slot}</span>
-              <FoxStatus id={p.s.id} status={p.s.status} attention={p.s.attention} coat={p.s.pack ? 'gold' : undefined} />
-              <span className="name">{p.s.name}</span>
-            </button>
-          ) : (
-            <button key={p.id} type="button" className={`ph-chip ph-chip-agent ${p.id === cur ? 'on' : ''}`} onClick={() => goTo(p.id)}>
-              <span className="slot slot-beta">β</span>
-              <Fox anim={p.a.cancelled ? 'down' : p.a.endedAt !== null ? 'sleep' : p.a.paused ? 'look' : 'run'} scale={1} coat="gold" />
-              <span className="name">{agentName(p.a)}</span>
-            </button>
-          )
-        )}
-        {state && sessions.filter((s) => !s.pack).length < state.cap && (
-          <button type="button" className="ph-chip ph-plus" onClick={() => setSheet('new')} title="New session">
-            +
-          </button>
-        )}
-      </div>
+      <header className="ph-top">
+        <button type="button" className="ph-burger" onClick={() => setDrawer('left')} title="Sessions" aria-label="Sessions">
+          <Menu size={22} />
+          {needCount > 0 && <span className="ph-badge">{needCount}</span>}
+        </button>
+        <button type="button" className="ph-head-fox" onClick={() => setApp((a) => (a === 'foxlog' ? null : 'foxlog'))} title="Foxtrot's log">
+          <Fox anim={deckPose(sessions)} scale={2} />
+        </button>
+        <button type="button" className="ph-burger" onClick={() => setDrawer('right')} title="Apps" aria-label="Apps">
+          <Menu size={22} />
+        </button>
+      </header>
 
-      {open.length === 0 ? (
+      {shownApp ? (
+        <div className="ph-strip">
+          <span className="ph-strip-name">
+            {shownApp.icon ? <shownApp.icon size={15} /> : <Fox anim="idle" scale={1} />}
+            {shownApp.name}
+            {shownApp.id === 'changes' && changesOf ? <span className="ph-strip-sub"> · {changesOf.name}</span> : null}
+          </span>
+          <button type="button" className="ph-strip-close" onClick={() => setApp(null)} title="Back to the sessions">
+            <X size={18} />
+          </button>
+        </div>
+      ) : (
+        page && (
+          <button type="button" className="ph-strip" onClick={() => setDrawer('left')}>
+            {page.kind === 'session' ? (
+              <>
+                <span className={`slot ${page.s.pack ? 'slot-beta' : ''}`}>{page.s.pack ? 'β' : page.s.slot}</span>
+                <FoxStatus id={page.s.id} status={page.s.status} attention={page.s.attention} coat={page.s.pack ? 'gold' : undefined} />
+                <span className="ph-strip-name">{page.s.name}</span>
+              </>
+            ) : (
+              <>
+                <span className="slot slot-beta">β</span>
+                <Fox anim={agentPose(page.a)} scale={1} coat="gold" />
+                <span className="ph-strip-name">{agentName(page.a)}</span>
+              </>
+            )}
+            <span className="ph-strip-count">
+              {index + 1} / {open.length}
+            </span>
+          </button>
+        )
+      )}
+
+      {shownApp ? (
+        <div className="ph-app">
+          {app === 'wiki' && <WikiTile />}
+          {app === 'reader' && <QuixotePane onClose={() => setApp(null)} />}
+          {app === 'vocab' && <VocabTile />}
+          {app === 'translate' && <TranslateTile />}
+          {app === 'changes' && <GitTile session={changesOf} />}
+          {app === 'foxlog' && state && <PhoneFoxLog state={state} onClose={() => setApp(null)} />}
+        </div>
+      ) : open.length === 0 ? (
         <div className="ph-empty">
           <Fox anim={state ? 'sleep' : 'look'} scale={4} />
           <p>{state ? 'No open sessions.' : 'Waiting for the deck…'}</p>
@@ -192,7 +270,7 @@ export function Phone() {
         </div>
       )}
 
-      {page?.kind === 'agent' && (
+      {!shownApp && page?.kind === 'agent' && (
         <div className="ph-bar ph-bar-agent">
           <span className="ph-agent-who">
             {agentKind(page.a)}
@@ -204,7 +282,7 @@ export function Phone() {
           </button>
         </div>
       )}
-      {current && (
+      {!shownApp && current && (
         <>
           {keys && <Keys id={current.id} />}
           <div className="ph-bar">
@@ -222,11 +300,148 @@ export function Phone() {
         </>
       )}
 
+      {drawer === 'left' && state && (
+        <Drawer side="left" title="Sessions" onClose={() => setDrawer(null)}>
+          {sessions
+            .filter((s) => !s.pack)
+            .sort(byRecency(settings.attentionFirst))
+            .map((s) => (
+              <SessionGroup key={s.id} s={s} betas={sessions.filter((b) => b.pack?.alpha === s.id)} agents={agents.filter((a) => a.parent === s.id)} cur={app ? null : cur} focused={s.slot === state.focusSlot} pick={pick} />
+            ))}
+          {/* A beta whose alpha is not open any more still shows, at the foot. */}
+          {sessions
+            .filter((b) => b.pack && !sessions.some((s) => s.id === b.pack!.alpha))
+            .map((b) => (
+              <SessionRow key={b.id} s={b} on={!app && cur === b.id} focused={false} onClick={() => pick(b.id)} />
+            ))}
+          {sessions.length === 0 && <p className="ph-hint">No open sessions.</p>}
+          {sessions.filter((s) => !s.pack).length < state.cap && (
+            <button
+              type="button"
+              className="ph-drow ph-drow-new"
+              onClick={() => {
+                setDrawer(null)
+                setSheet('new')
+              }}
+            >
+              <Plus size={18} /> New session
+            </button>
+          )}
+          {state.parked.length > 0 && <h3>Parked</h3>}
+          {state.parked.slice(0, 12).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="ph-drow ph-drow-parked"
+              onClick={() => {
+                setDrawer(null)
+                void window.deck.command({ type: 'resume', id: s.id })
+              }}
+            >
+              <span className="ph-drow-text">
+                <span className="name">{s.name}</span>
+                <span className="sub">{shortPath(s.cwd)}</span>
+              </span>
+              <span className="ph-drow-tag">resume</span>
+            </button>
+          ))}
+        </Drawer>
+      )}
+      {drawer === 'right' && (
+        <Drawer side="right" title="Apps" onClose={() => setDrawer(null)}>
+          {APPS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className={`ph-drow ph-drow-app ${app === a.id ? 'on' : ''}`}
+              disabled={a.id === 'changes' && !changesOf}
+              onClick={() => {
+                setDrawer(null)
+                setApp(a.id)
+              }}
+            >
+              <span className="ph-app-icon">{a.icon ? <a.icon size={20} /> : <Fox anim="idle" scale={1} />}</span>
+              <span className="ph-drow-text">
+                <span className="name">{a.name}</span>
+                <span className="sub">{a.id === 'changes' && changesOf ? `${changesOf.name}'s working tree` : a.hint}</span>
+              </span>
+            </button>
+          ))}
+          <p className="ph-hint ph-drawer-foot">The Game Boy, Molecule, Studio, Posture, music and the web apps stay on the Mac.</p>
+        </Drawer>
+      )}
       {doc && <DocPane target={doc} onClose={() => setDoc(null)} />}
       {sheet === 'new' && state && <NewSheet state={state} worktree={settings.worktreeByDefault} model={settings.defaultModel} onClose={() => setSheet(null)} />}
       {sheet === 'more' && current && <MoreSheet s={current} onClose={() => setSheet(null)} />}
       {sheet === 'more' && page?.kind === 'agent' && <AgentSheet a={page.a} parent={page.parent} onClose={() => setSheet(null)} />}
     </div>
+  )
+}
+
+/** Foxtrot for the whole deck, the desktop's FoxHead rule: trots while any session works, sleeps when all rest, else looks around. (The posture alarm is the Mac's.) */
+function deckPose(sessions: SessionView[]): FoxAnim {
+  if (sessions.some((s) => s.status === 'busy')) return 'run'
+  return sessions.every((s) => s.status === 'idle' && !s.attention) ? 'sleep' : 'look'
+}
+
+function PhoneFoxLog({ state, onClose }: { state: DeckState; onClose: () => void }) {
+  const entries = useFoxLog()
+  return <FoxLog state={state} entries={entries} onClose={onClose} />
+}
+
+function Drawer({ side, title, onClose, children }: { side: 'left' | 'right'; title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <>
+      <div className="ph-drawer-scrim" onClick={onClose} />
+      <nav className={`ph-drawer ph-drawer-${side}`}>
+        <div className="ph-drawer-head">
+          <h2>{title}</h2>
+          <button type="button" className="ph-strip-close" onClick={onClose} title="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="ph-drawer-body">{children}</div>
+      </nav>
+    </>
+  )
+}
+
+/** A session in the drawer, then its betas and subagents indented under it, the way its pack sits under it in the desktop's left column. */
+function SessionGroup({ s, betas, agents, cur, focused, pick }: { s: SessionView; betas: SessionView[]; agents: AgentView[]; cur: string | null; focused: boolean; pick: (id: string) => void }) {
+  return (
+    <>
+      <SessionRow s={s} on={cur === s.id} focused={focused} onClick={() => pick(s.id)} />
+      {betas.map((b) => (
+        <SessionRow key={b.id} s={b} on={cur === b.id} focused={false} member onClick={() => pick(b.id)} />
+      ))}
+      {agents.map((a) => (
+        <button key={a.id} type="button" className={`ph-drow ph-drow-member ${cur === `agent:${a.id}` ? 'on' : ''}`} onClick={() => pick(`agent:${a.id}`)}>
+          <span className="slot slot-beta">β</span>
+          <Fox anim={agentPose(a)} scale={1} coat="gold" />
+          <span className="ph-drow-text">
+            <span className="name">{agentName(a)}</span>
+            <span className="sub">
+              {agentKind(a)} · {a.cancelled ? 'cancelled' : a.endedAt !== null ? 'done' : a.paused ? 'paused' : 'working'}
+            </span>
+          </span>
+        </button>
+      ))}
+    </>
+  )
+}
+
+function SessionRow({ s, on, focused, member, onClick }: { s: SessionView; on: boolean; focused: boolean; member?: boolean; onClick: () => void }) {
+  const needs = s.attention || s.status === 'blocked'
+  return (
+    <button type="button" className={`ph-drow ${member ? 'ph-drow-member' : ''} ${on ? 'on' : ''} ${needs ? 'attention' : ''}`} onClick={onClick}>
+      <span className={`slot ${s.pack ? 'slot-beta' : ''}`}>{s.pack ? 'β' : s.slot}</span>
+      <FoxStatus id={s.id} status={s.status} attention={s.attention} coat={s.pack ? 'gold' : undefined} />
+      <span className="ph-drow-text">
+        <span className="name">{s.name}</span>
+        <span className="sub">{shortPath(s.cwd)}</span>
+      </span>
+      {needs ? <span className="ph-drow-tag is-needs">needs you</span> : focused ? <span className="ph-drow-tag">on the Mac</span> : null}
+    </button>
   )
 }
 

@@ -7,6 +7,7 @@ import { onFoxtrotAct, type FoxtrotAct } from '../lib/foxact'
 import { FoxField } from '../lib/foxfield'
 import { POSTURE_BARK, POSTURE_LEAP_MS, usePostureAlarm } from '../lib/posture'
 import { useSettings } from '../lib/theme'
+import { CellTools } from '../lib/celltools'
 
 /** Css px per sheet px: the fox is 66×54. */
 const SCALE = 3
@@ -108,6 +109,7 @@ export function FoxtrotTile() {
         <span className="name">Foxtrot</span>
         {alarm && <span className="badge foxtrot-badge alarm">sit up!</span>}
         <span className="spacer" />
+      <CellTools />
       </header>
       <div className={`foxtrot-field ${stopped ? 'is-stopped' : ''}`} ref={fieldEl}>
         <div className="foxtrot-sky" ref={skyEl} />

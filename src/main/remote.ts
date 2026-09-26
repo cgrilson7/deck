@@ -51,9 +51,9 @@ const MIME: Record<string, string> = {
   '.ttf': 'font/ttf',
   '.map': 'application/json'
 }
-/** The phone page fetches nothing but itself and its socket. */
+/** The phone page fetches nothing but itself and its socket; images also from Wikimedia (the Wikipedia app) and Spotify's artwork host, as the desktop's CSP. */
 const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' blob:"
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://i.scdn.co; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' blob:"
 
 export class RemoteServer {
   private server: Server | null = null
@@ -130,6 +130,8 @@ export class RemoteServer {
         return this.publish({ type: 'fox', entry: args[0] as never })
       case 'agents:update':
         return this.publish({ type: 'agents', agents: args[0] as never })
+      case 'vocab:changed':
+        return this.publish({ type: 'vocab', change: args[0] as never })
       case 'deck:error':
         return this.publish({ type: 'error', error: String(args[0] ?? '') })
     }

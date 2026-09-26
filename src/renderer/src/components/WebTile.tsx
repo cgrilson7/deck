@@ -2,6 +2,7 @@ import { Globe, Maximize2 } from 'lucide-react'
 import type { WebApp } from '@shared/types'
 import { openWebApp, shortUrl, useWebSnap } from '../lib/webapps'
 import { Fox } from './Fox'
+import { CellTools } from '../lib/celltools'
 
 /**
  * A web app as a grid cell: its name and the last snapshot of its page. The page itself lives
@@ -23,6 +24,7 @@ export function WebTile({ app }: { app: WebApp }) {
         <button className="ghost" title={`Open ${app.name} in the center column`} onClick={open}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
       <div className="webapp-face" onClick={open} title={`Open ${app.name}`}>
         {snap ? (

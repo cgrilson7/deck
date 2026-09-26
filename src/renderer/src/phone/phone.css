@@ -33,67 +33,292 @@ body {
   background: color-mix(in srgb, var(--blocked) 18%, var(--panel));
 }
 
-/* the chip row: one per open session, plus + */
+/* the header: ☰ sessions · Foxtrot · ☰ apps, all three on one center line */
 .ph-top {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 52px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.ph-top > .ph-burger:last-child {
+  justify-self: end;
+}
+.ph-burger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ink);
+}
+.ph-burger:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
+}
+.ph-badge {
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--blocked);
+  color: var(--panel);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+/* Foxtrot: the art box's own size, so he sits on the burgers' center line */
+.ph-head-fox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+}
+
+/* the strip under it: the page under your thumb (tap = the sessions drawer), or the open app and its ✕ */
+.ph-strip {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border: 0;
   border-bottom: 1px solid var(--line);
-  background: var(--bg);
-  -webkit-overflow-scrolling: touch;
-}
-.ph-top::-webkit-scrollbar {
-  display: none;
-}
-.ph-chip {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  max-width: 52vw;
-  padding: 0 12px 0 6px;
-  border-radius: 17px;
-  border: 1.5px solid var(--line);
   background: var(--panel);
-  color: var(--muted);
-  font-size: 13px;
-  white-space: nowrap;
-}
-.ph-chip.on {
-  border-color: var(--ink);
   color: var(--ink);
+  font-size: 14px;
+  text-align: left;
 }
-.ph-chip.attention {
-  border-color: var(--accent);
-}
-.ph-chip.attention.on {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.ph-chip .slot {
+.ph-strip .slot {
   min-width: 20px;
   height: 20px;
   font-size: 12px;
 }
-.ph-chip .name {
+.ph-strip-name {
+  flex: 1;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
-/* A subagent's chip: gold, like its fox. */
-.ph-chip.ph-chip-agent {
-  border-color: color-mix(in srgb, #e5b843 55%, var(--line));
+.ph-strip-sub,
+.ph-strip-count {
+  color: var(--muted);
+  font-size: 12px;
 }
-.ph-chip.ph-plus {
-  width: 34px;
-  padding: 0;
+.ph-strip-close {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  font-size: 20px;
-  line-height: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+
+/* an app from the right drawer, in the pages' place: the desktop's tile or pane filling it */
+.ph-app {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ph-app > .tile,
+.ph-app > .focus {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: auto;
+}
+.ph-app input,
+.ph-app textarea {
+  font-size: 16px; /* iOS zooms into anything smaller */
+}
+
+/* the drawers: sessions from the left, apps from the right */
+.ph-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+  animation: ph-fade 160ms ease;
+}
+.ph-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: min(84vw, 360px);
+  padding-top: env(safe-area-inset-top);
+  background: var(--overlay);
+  box-shadow: 0 0 34px rgba(0, 0, 0, 0.25);
+}
+.ph-drawer-left {
+  left: 0;
+  border-right: 1px solid var(--line);
+  animation: ph-in-left 200ms ease;
+}
+.ph-drawer-right {
+  right: 0;
+  border-left: 1px solid var(--line);
+  animation: ph-in-right 200ms ease;
+}
+@keyframes ph-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes ph-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes ph-fade {
+  from {
+    opacity: 0;
+  }
+}
+.ph-drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ph-drawer-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+.ph-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 8px calc(16px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+.ph-drawer-body h3 {
+  margin: 12px 8px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ph-drawer-foot {
+  margin: 12px 8px 0;
+}
+.ph-drow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 50px;
+  padding: 4px 10px;
+  border: 1.5px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  text-align: left;
+}
+.ph-drow:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--fill));
+}
+.ph-drow.on {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 6%, var(--fill));
+}
+.ph-drow.attention {
+  border-color: color-mix(in srgb, var(--blocked) 55%, transparent);
+}
+.ph-drow:disabled {
+  opacity: 0.45;
+}
+.ph-drow .slot {
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+.ph-drow-member {
+  min-height: 42px;
+  padding-left: 30px;
+  font-size: 14px;
+}
+.ph-drow-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ph-drow-text .name,
+.ph-drow-text .sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ph-drow-text .sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ph-drow-tag {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.ph-drow-tag.is-needs {
+  color: var(--blocked);
+  font-weight: 600;
+}
+.ph-drow-new {
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 4px;
+  border: 1.5px dashed var(--line);
+  color: var(--muted);
+}
+.ph-app-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--fill));
+  color: var(--accent);
 }
 
 /* pages: one per session, snap-scrolled sideways */

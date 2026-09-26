@@ -4,6 +4,7 @@ import { MOL_TILES_MAX, nextMolTile, type MolLibraryItem } from '@shared/types'
 import { mol, openMol, useMol, type AtomInfo } from '../lib/mol'
 import { patchSettings, useSettings } from '../lib/theme'
 import { Fox } from './Fox'
+import { CellTools } from '../lib/celltools'
 
 /** The built-in library, for the chips of an empty viewer (the tile's and the pane's). */
 export function useMolLibrary(): MolLibraryItem[] {
@@ -78,6 +79,7 @@ export function MolTile({ tile }: { tile: number }) {
         <button className="ghost" title="This viewer, full size in the center column, with its controls (⌘⇧A)" onClick={() => openMol(tile)}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
       <div className="mol-face">
         <MolStage tile={tile} name="tile" rank={0} />

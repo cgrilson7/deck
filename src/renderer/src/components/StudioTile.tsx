@@ -6,6 +6,7 @@ import { plain } from '../lib/errors'
 import { dropEffectFor, droppedPaths, hasFiles } from '../lib/drop'
 import { openStudio, useStudioJobs } from '../lib/studio'
 import { Fox } from './Fox'
+import { CellTools } from '../lib/celltools'
 
 /**
  * What the tile and the pane both remember between openings, under the same keys on purpose:
@@ -183,6 +184,7 @@ export function StudioTile() {
         <button className="ghost" title="Open the Studio (⌘⇧I)" onClick={openStudio}>
           <Maximize2 size={12} />
         </button>
+      <CellTools />
       </header>
 
       <div className="studio-face" onClick={openStudio} title="Open the Studio (⌘⇧I)">
