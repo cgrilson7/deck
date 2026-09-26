@@ -65,6 +65,11 @@ const KEEP_MS = 3 * 60 * 60_000
 /** Ticks further apart than this leave the time between untracked. */
 const GAP_MS = 5000
 const SAVE_MS = 15_000
+/** A camera muted (no frames) this long is treated as gone, and reopened. */
+const MUTED_MS = 3000
+/** Reopening a camera that failed: the first retry after this, doubling to RETRY_MAX. */
+const RETRY_MS = 5000
+const RETRY_MAX = 60_000
 
 const K_BASELINE = 'posture:baseline'
 const K_HISTORY = 'posture:history'
@@ -111,6 +116,12 @@ class Tracker {
   private saveTimer: number | undefined
   /** Bumped by every start / stop, so a start that finishes after a stop gives its camera back. */
   private gen = 0
+  /** Since when the camera's track has been muted (delivering no frames), null = it is not. */
+  private mutedSince: number | null = null
+  private retryTimer: number | undefined
+  private retryMs = RETRY_MS
+  /** A calibration asked for while the camera was being reopened: run it once it is up. */
+  private calibWanted = false
 
   private lm: Landmark[] | null = null
   private lastSeen = 0
@@ -198,15 +209,44 @@ class Tracker {
     if (!want) this.stop(this.enabled ? 'paused' : 'off')
   }
 
-  private async start(): Promise<void> {
+  /** The camera is open and live (not ended by sleep, a lock, another app, a replug). */
+  private alive(): boolean {
+    return !!this.stream && this.stream.getVideoTracks().some((t) => t.readyState === 'live')
+  }
+
+  /**
+   * The camera went away under us: macOS ends a capture across sleep and a screen lock, and a
+   * track can end or stop sending frames when another app takes the camera or it is replugged.
+   * Nothing else would notice (`stream` is still set, so `sync` thinks all is well): close it and
+   * open it again, keeping the history.
+   */
+  private revive(why: string): void {
+    if (!this.enabled || this.paused || this.status === 'starting') return
+    console.warn('[posture] camera lost, reopening:', why)
+    this.stop('starting')
+    void this.start('the camera went away, reconnecting…')
+  }
+
+  private async start(note = 'asking for the camera…'): Promise<void> {
     const gen = ++this.gen
-    this.set('starting', 'asking for the camera…')
+    window.clearTimeout(this.retryTimer)
+    this.set('starting', note)
     window.deck.postureTracking(true)
+    let denied = false
     try {
-      if (!(await window.deck.postureCamera())) throw new Error('No camera access: System Settings ▸ Privacy & Security ▸ Camera')
+      if (!(await window.deck.postureCamera())) {
+        denied = true
+        throw new Error('No camera access: System Settings ▸ Privacy & Security ▸ Camera')
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: false })
       if (gen !== this.gen) return stream.getTracks().forEach((t) => t.stop())
       this.stream = stream
+      this.mutedSince = null
+      for (const t of stream.getVideoTracks()) {
+        t.addEventListener('ended', () => gen === this.gen && this.revive('the track ended'))
+        t.addEventListener('mute', () => gen === this.gen && (this.mutedSince ??= Date.now()))
+        t.addEventListener('unmute', () => gen === this.gen && (this.mutedSince = null))
+      }
       const video = this.videoEl()
       video.srcObject = stream
       await video.play()
@@ -218,20 +258,36 @@ class Tracker {
       if (gen !== this.gen) return
       this.release()
       window.deck.postureTracking(false)
-      this.set('error', String((err as Error)?.message ?? err))
+      // A camera that is busy or not back from sleep yet is tried again, less and less often;
+      // a refusal waits for System Settings (and a click on calibrate, or the setting).
+      const wait = this.retryMs
+      if (!denied) {
+        this.retryMs = Math.min(RETRY_MAX, this.retryMs * 2)
+        this.retryTimer = window.setTimeout(() => {
+          if (gen === this.gen && this.enabled && !this.paused && !this.stream) void this.start()
+        }, wait)
+      }
+      this.set('error', String((err as Error)?.message ?? err) + (denied ? '' : ` — trying again in ${span(wait)}`))
       return
     }
+    this.retryMs = RETRY_MS
     this.lastSeen = Date.now()
+    this.lastTick = 0
     this.status = this.baseline ? 'away' : 'uncalibrated'
     this.note = ''
     this.timer = window.setInterval(() => this.tick(), FRAME_MS)
     this.saveTimer = window.setInterval(() => this.flush(), SAVE_MS)
     this.draw()
     this.emit()
+    if (this.calibWanted) {
+      this.calibWanted = false
+      this.calibrate()
+    }
   }
 
   private stop(status: PostureStatus): void {
     this.gen++
+    window.clearTimeout(this.retryTimer)
     window.clearInterval(this.timer)
     window.clearInterval(this.saveTimer)
     this.timer = this.saveTimer = undefined
@@ -247,6 +303,7 @@ class Tracker {
   private release(): void {
     this.stream?.getTracks().forEach((t) => t.stop())
     this.stream = null
+    this.mutedSince = null
     if (this.video) this.video.srcObject = null
   }
 
@@ -284,6 +341,15 @@ class Tracker {
 
   calibrate(): void {
     if (this.paused) this.setPaused(false)
+    // No camera to calibrate against (it died, or failed to open): open it, then calibrate.
+    if (!this.alive()) {
+      if (!this.enabled) return
+      this.calibWanted = true
+      if (this.status === 'starting') return
+      this.stop('starting')
+      void this.start('reopening the camera…')
+      return
+    }
     this.calib = { phase: 'countdown', start: Date.now(), samples: [] }
     this.endStreak(Date.now())
     this.status = 'calibrating'
@@ -329,8 +395,12 @@ class Tracker {
 
   private tick(): void {
     const video = this.video
-    if (!this.landmarker || !video || video.readyState < 2) return
     const now = Date.now()
+    // The watchdog: a dead track, or one sending no frames for MUTED_MS, is reopened.
+    if (!this.alive()) return this.revive('no live track')
+    if (this.mutedSince !== null && now - this.mutedSince > MUTED_MS) return this.revive('muted')
+    if (video && video.paused) void video.play().catch(() => {})
+    if (!this.landmarker || !video || video.readyState < 2) return
     // A long gap (the Mac slept, the window was throttled after all) is untracked: nothing carries across it.
     if (this.lastTick && now - this.lastTick > GAP_MS && (this.status === 'good' || this.status === 'bad')) {
       this.endStreak(this.lastTick)

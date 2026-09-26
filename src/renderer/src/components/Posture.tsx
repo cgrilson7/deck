@@ -237,7 +237,7 @@ export function PosturePane({ onClose }: { onClose: () => void }) {
                   cancel
                 </button>
               ) : (
-                <button className="pill" disabled={v.status === 'off' || v.status === 'error' || v.status === 'starting'} onClick={() => posture().calibrate()} title="Sit the way you want to sit, then hold still for a few seconds">
+                <button className="pill" disabled={v.status === 'off' || v.status === 'starting'} onClick={() => posture().calibrate()} title="Sit the way you want to sit, then hold still for a few seconds">
                   <Target size={12} /> {v.calibrated ? 'recalibrate' : 'calibrate'}
                 </button>
               )}

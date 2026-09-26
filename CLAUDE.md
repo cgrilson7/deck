@@ -778,7 +778,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `node_modules/@mediapipe/tasks-vision/wasm` and `pose://model/pose_landmarker_lite.task` out of `userData/posture/` (downloaded from
   Google's model bucket on first use); the CSP carries `pose:` in default-src / script-src and `'wasm-unsafe-eval'`. `posture:camera`
   is `askForMediaAccess('camera')`; while tracking, main turns the window's BACKGROUND THROTTLING OFF (`posture:tracking`), or a deck
-  behind another app would look once a second. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
+  behind another app would look once a second. THE CAMERA DIES UNDER IT (sleep, a screen lock, another app, a replug) and
+  nothing else would notice, since `stream` stays set: a track that ends, or stays muted 3s (`MUTED_MS`), is REOPENED (`revive`, from the
+  track's events and a watchdog in `tick`); a failed open retries 5s → 60s (not a refusal); calibrate with no live camera reopens it
+  first and calibrates once it is up. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
   (no body for 2.5s = away, counted from the last frame you were in); a slouch must last 3s (`GRACE_MS`) to break a streak, and then
   counts from where it began. THE HISTORY is good / bad / away segments (epoch ms), 3h kept in localStorage `posture:history` (saved
   every 15s and on pagehide); ticks more than 5s apart leave the time between untracked. TEN SECONDS OF SLOUCHING in one go (`ALERT_MS`; the 3s grace is inside it, since a slouch counts from its start)
