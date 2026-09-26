@@ -656,6 +656,11 @@ export function span(ms: number): string {
 
 // ---- the head's bark ---------------------------------------------------------------
 
+/** What Foxtrot barks at a slouch, in the Posture tile and the Foxtrot tile. */
+export const POSTURE_BARK = ['SIT UP!', 'STOP SLOUCHING!', 'ARF!'] as const
+/** How long he leaps for it (two of the `leap` row's 750ms cycles) before he stands looking at you. */
+export const POSTURE_LEAP_MS = 1500
+
 /** Fired with every alert: Foxtrot in the top bar barks it (FoxHead). */
 const BARK_EVENT = 'deck:posture-bark'
 

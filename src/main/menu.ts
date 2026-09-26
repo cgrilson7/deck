@@ -106,6 +106,7 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
       submenu: [
         { label: 'Compact Mode', accelerator: 'CmdOrCtrl+Shift+M', type: 'checkbox', checked: s.compact, click: () => patch({ compact: !settings().compact }) },
         { label: 'Fox Barks', type: 'checkbox', checked: s.foxBark, click: () => patch({ foxBark: !settings().foxBark }) },
+        { label: 'Show Foxtrot Tile', type: 'checkbox', checked: s.showFoxtrot, click: () => patch({ showFoxtrot: !settings().showFoxtrot }) },
         { label: 'Grid', submenu: gridItems },
         {
           label: 'Music',

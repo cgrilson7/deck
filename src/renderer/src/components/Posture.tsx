@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Maximize2, Pause, PersonStanding, Play, Target } from 'lucide-react'
-import { ALERT_MS, WINDOW_MS, openPosture, posture, span, stopwatch, summarize, useNow, usePosture, type PostureView, type Seg } from '../lib/posture'
+import { ALERT_MS, POSTURE_BARK, POSTURE_LEAP_MS, WINDOW_MS, openPosture, usePostureAlarm, posture, span, stopwatch, summarize, useNow, usePosture, type PostureView, type Seg } from '../lib/posture'
 import { ISSUE_TEXT, type Check } from '../lib/postureMath'
 import { Fox } from './Fox'
+import { BarkBursts } from './FoxStatus'
+import { BARK_EVERY_MS, BARK_LIFE_MS } from '../lib/bark'
+import { useSettings } from '../lib/theme'
 
 /** The status in a word (the head's badge). */
 const WORD: Record<PostureView['status'], string> = {
@@ -71,6 +74,41 @@ function Streak({ v, now, big }: { v: PostureView; now: number; big?: boolean })
   )
 }
 
+/**
+ * Foxtrot beside the streak: running in place, always — until the alert. Then he leaps twice
+ * where he stands barking "SIT UP! STOP SLOUCHING!" (the Foxtrot tile's act, without the field),
+ * and stands looking at you until you sit up. The sound is the top bar's fox (FoxHead); `foxBark`
+ * off keeps the leap and drops the words.
+ */
+function PostureFox({ big }: { big?: boolean }) {
+  const { foxBark } = useSettings()
+  const { alarm, barks } = usePostureAlarm()
+  const [leap, setLeap] = useState(0)
+  const [words, setWords] = useState(false)
+  useEffect(() => {
+    if (!barks) return
+    setLeap(barks)
+    setWords(true)
+    const a = window.setTimeout(() => setLeap(0), POSTURE_LEAP_MS)
+    const b = window.setTimeout(() => setWords(false), BARK_EVERY_MS * (POSTURE_BARK.length - 1) + BARK_LIFE_MS)
+    return () => {
+      window.clearTimeout(a)
+      window.clearTimeout(b)
+    }
+  }, [barks])
+  const pose = leap ? 'leap' : alarm ? 'look' : 'run'
+  return (
+    <div className={`posture-fox ${big ? 'big' : ''}`} title={alarm ? 'Sit up!' : 'Foxtrot'}>
+      {words && foxBark && (
+        <div className="posture-fox-bursts">
+          <BarkBursts run={barks} words={POSTURE_BARK} />
+        </div>
+      )}
+      <Fox key={pose === 'leap' ? `leap-${leap}` : pose} anim={pose} scale={big ? 3 : 2} />
+    </div>
+  )
+}
+
 /** The calibration overlay over a feed: a countdown, then a bar while it samples. */
 function Calib({ v }: { v: PostureView }) {
   if (!v.calib) return null
@@ -106,7 +144,10 @@ export function PostureTile() {
       </header>
       <div className="posture-face" onClick={openPosture} title="The last two hours (⌘⇧P)">
         <div className="posture-left">
-          <Streak v={v} now={now} />
+          <div className="posture-streak-row">
+            <Streak v={v} now={now} />
+            <PostureFox />
+          </div>
           {v.status === 'uncalibrated' ? (
             <button
               className="pill"
@@ -215,7 +256,10 @@ export function PosturePane({ onClose }: { onClose: () => void }) {
             <Calib v={v} />
           </div>
           <div className="posture-side">
-            <Streak v={v} now={now} big />
+            <div className="posture-streak-row">
+              <Streak v={v} now={now} big />
+              <PostureFox big />
+            </div>
             {v.status === 'bad' && <div className="posture-issue">{v.note}</div>}
             <div className="posture-checks">
               {CHECKS.map((c) => {

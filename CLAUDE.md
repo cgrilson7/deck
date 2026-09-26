@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture, Foxtrot),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -149,6 +149,8 @@ src/renderer/src/lib/fox.ts         Foxtrot: the sprite sheet (assets/fox.png) +
 src/renderer/src/lib/bark.ts        Foxtrot's yip (WebAudio) + useBark, the edge detector behind a bark
 src/renderer/src/lib/barks.ts       THE BARK LIBRARY: real red fox clips in assets/barks/ (credits in CREDITS.md there), playBark() picks one at random
 src/renderer/src/lib/usage.ts       useUsage() (one store for the header's meters and the tiles' context badges), the 70 / 90 thresholds, left()
+src/renderer/src/lib/foxfield.ts    the Foxtrot tile's world: FoxField (a rAF loop: ground, hills, obstacles + jumps, clouds painted on canvases)
+src/renderer/src/lib/foxact.ts      foxtrotAct(): ask the Foxtrot tile's fox for a one-off act (a pose held a while + bursts), a window event
 src/renderer/src/lib/leash.ts       the leash from the renderer: askLeash() raises the dialog (a window event), resumeLeash() goes straight to main
 src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, built out: see the launcher rule), SessionForm (its start-a-session + parked cards, shared with the + picker), Grid (two scrolling side columns + drag anywhere), Tile, ChatView (a tile's conversation), TilePrompt (its prompt bar), PlusTile (+ menu),
                                     PackTile (a session's subagents as one cell: a roster of miniature foxes), AgentPane (a subagent full size in the center column), AgentStatus (pip + word + clock),
@@ -160,6 +162,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     WikiTile (+ Weather: the strip under its clock and the places editor), MusicTile (SpotifyTile | YouTubeTile (<webview>), by the `music` setting), GitTile (the focused session's changes), TranslateTile, VocabTile, useDropTarget (file drops),
                                     StudioTile (the Studio as a plugin cell), StudioPane (the Studio over the center column: composer, viewer, gallery),
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
+                                    FoxtrotTile (an endless runner: the fox holds the middle, obstacles to jump, clouds; stops + barks at a slouch; slay's name tag),
                                     Posture (PostureTile: the streak + a small feed; PosturePane: the feed large, the checks, the last two hours),
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
                                     LessonTile (a lesson's card as a plugin cell, or HOME: the curriculum), LessonPane (it at reading size in the center column: a rail of the cards, the sources),
@@ -781,7 +784,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   behind another app would look once a second. THE CAMERA DIES UNDER IT (sleep, a screen lock, another app, a replug) and
   nothing else would notice, since `stream` stays set: a track that ends, or stays muted 3s (`MUTED_MS`), is REOPENED (`revive`, from the
   track's events and a watchdog in `tick`); a failed open retries 5s → 60s (not a refusal); calibrate with no live camera reopens it
-  first and calibrates once it is up. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
+  first and calibrates once it is up. FOXTROT SITS BESIDE THE STREAK in the tile (`PostureFox`, no name tag, no field): running in place, always, until the alert —
+  then two leaps where he stands with "SIT UP!" "STOP SLOUCHING!" "ARF!" (`POSTURE_BARK`), and he looks at you until you sit up. THE STREAK counts up while you sit well and stops when you slouch or leave the frame
   (no body for 2.5s = away, counted from the last frame you were in); a slouch must last 3s (`GRACE_MS`) to break a streak, and then
   counts from where it began. THE HISTORY is good / bad / away segments (epoch ms), 3h kept in localStorage `posture:history` (saved
   every 15s and on pagehide); ticks more than 5s apart leave the time between untracked. TEN SECONDS OF SLOUCHING in one go (`ALERT_MS`; the 3s grace is inside it, since a slouch counts from its start)
@@ -934,6 +938,20 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `liked` (added by a guarded `alter table` in `MIGRATIONS`, like `context` / `origin`, the sentence a word was saved from in the reader); liked words are merged into the
   vocabulary supply as if they were the user's own, so they lead every pass. Counts show in the
   vocab tile's stats chip, which is also how you get to the cards. Inspect: `sqlite3 ~/Library/Application\ Support/deck/vocab.db`.
+- **Foxtrot tile** (`FoxtrotTile.tsx`, `lib/foxfield.ts`, `lib/foxact.ts`, `assets/obstacles/`; `showFoxtrot`, OFF by default — the Posture tile carries him now; View ▸
+  Show Foxtrot Tile): AN ENDLESS RUNNER. Foxtrot holds the MIDDLE of the tile running left to right and GAINS NO GROUND; the world
+  moves right to left under him — grass tufts (`--scroll` on the ground) and far hills (`--hills`, 0.15×) by background position,
+  OBSTACLES in from the right every 2.6–6.2s at 120 px/s (six 18×18 tiles of Kenney's Pixel Platformer, CC0, drawn 2×; credits in
+  `assets/obstacles/CREDITS.md`), which he JUMPS (the `leap` row's 750ms cycle + a 56px parabola on `.foxtrot-lift`, taking off half a
+  jump's travel before one reaches him), and CLOUDS drifting slower (pixel-art puffs on a flat bottom, painted on a canvas by a
+  seeded PRNG so a theme change repaints the same shapes; NOT cumulonimbus — Colin found those terrible). `FoxField` is imperative:
+  one rAF loop moves plain DOM nodes, React hears only a jump's start and end; it rests while the tile is out of view. HE STOPS
+  ONLY FOR YOUR POSTURE (and any `foxtrotAct`): the Posture alert (`usePostureAlarm`'s bark count) freezes the world, he leaps twice
+  where he stands with "SIT UP!" "STOP SLOUCHING!" "ARF!" in `--blocked`, then looks around while the alarm lasts, then runs on. The
+  SOUND stays the top bar's (`FoxHead`); `foxBark` off drops the bursts, not the leap. Sessions do not drive him. A click on him is a
+  jump and a "YIP!". Every colour is a theme colour mixed toward `--panel` (sky `--blue`, hills and grass `--green`; clouds the
+  panel in a light theme, lifted toward the ink in a dark one), so it stays pastel. Under his feet SLAY'S NAME TAG (the Village
+  path's grass foxes: Press Start 2P 10px, 4px under the feet, an 8-way 1px text-shadow outline — `--ink` on a `--panel` outline).
 - **THE ALERT POSE IS NEVER USED** (the sheet's row 4, "alert tail-up"): Colin's rule, it reads badly. It is not in `FoxAnim`
   and has no CSS class; needing you, a held agent and an error all show `look`, a cancel `down`. Do not bring it back.
 - **Foxtrot** (`lib/fox.ts`, `components/Fox.tsx`, `.fox*` in styles.css): slay's Village fox (Elthen's

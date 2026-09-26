@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -106,6 +106,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showMol) out.push('mol')
   if (s.showLesson) out.push('lesson')
   if (s.showPosture) out.push('posture')
+  if (s.showFoxtrot) out.push('foxtrot')
   return out
 }
 
@@ -645,6 +646,8 @@ export interface DeckSettings {
   showLesson: boolean
   /** The Posture tile: the camera watching how you sit — a good-posture streak, a small feed, the last two hours (off by default: it turns the camera on). */
   showPosture: boolean
+  /** The Foxtrot tile: the fox in a field — he runs while a session works, idles when none does, and leaps and barks at a slouch. */
+  showFoxtrot: boolean
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -712,6 +715,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   molTiles: [1],
   showLesson: false,
   showPosture: false,
+  showFoxtrot: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
