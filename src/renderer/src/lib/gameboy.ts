@@ -11,9 +11,18 @@
 // pairs per iteration = 44150 Hz, which is what the AudioContext is opened at so nothing is
 // resampled. Keys are pressed per iteration (the core releases them at the end of each), so a
 // held key is re-pressed every step from `held`.
+//
+// The door's VRAM / OAM / palette / patch-set ops are plugin/scripts/lib/gbcore.mjs, the SAME module
+// the headless door runs, so a headless preview is byte for byte what the tile does. Patch sets are
+// named, reversible bytes in the LOADED ROM image, bound to a pristine copy of the file's bytes kept
+// here: a save state carries the whole ROM, patches and all, so after every state load the image is
+// RECONCILED (pristine + the sets that are on) — a state saved mid-gag never bakes the gag in, and a
+// set that is on survives a load.
 
 import { useEffect, useState } from 'react'
 import { readSavedRom, writeSavedRom } from './pokemon'
+import { b64dec, b64enc, OPS, oamRead, paletteRead, paletteSet, PatchSets, vramRead, vramWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
+import type { GbColour, GbCore, PatchWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
 
 export const GB_W = 160
 export const GB_H = 144
@@ -49,8 +58,8 @@ export interface GbStatus {
   note: string
 }
 
-/** What serverboy's private core exposes that we touch. */
-interface Core {
+/** What serverboy's private core exposes that we touch: gbcore's slice (VRAM, STAT, palettes, …) and ours. */
+interface Core extends GbCore {
   canvasBuffer: { data: Uint8ClampedArray }
   /** The core's own read: Yellow runs in GBC mode and D000–DFFF is banked, so `memory[]` is not the truth there. */
   memoryRead(addr: number): number
@@ -100,6 +109,9 @@ interface Job {
 }
 
 type SbCtor = new () => Serverboy
+
+/** A patch set's name, as the door takes it (the CLI's: `boring`, `quiz`, `species-palette`). */
+const SET_NAME = /^[a-z0-9:_-]{1,40}$/
 
 const MUTED_KEY = 'deck.pokemon.muted'
 const SPEED_KEY = 'deck.pokemon.speed'
@@ -205,6 +217,10 @@ class GameBoy {
   private autoloaded = false
   private loadSeq = 0
   private job: Job | null = null
+  /** The cartridge FILE's bytes as read at load, before serverboy saw them: what `reconcile` restores. */
+  private pristine: Uint8Array | null = null
+  /** The door's patch sets for this cartridge (a different cartridge starts an empty one). */
+  private sets: PatchSets | null = null
   private chain: Promise<unknown> = Promise.resolve()
 
   constructor() {
@@ -342,9 +358,16 @@ class GameBoy {
       const { bytes, name } = await window.deck.pokemonLoadRom(rom.path)
       const sram = await window.deck.pokemonLoadSram(name)
       if (seq !== this.loadSeq) return
+      const pristine = bytes.slice()
       const sb = new Sb()
       sb.loadRom(bytesToString(bytes), sram && sram.length ? Array.from(sram) : undefined)
       this.mount(sb)
+      // The same cartridge again (reset, or the door's `rom` op on it) keeps its sets, so a running
+      // sprite watch that installed them once is not undone by a power cycle; another one starts clean.
+      if (!this.sets || !this.pristine || !GameBoy.same(this.pristine, pristine)) this.sets = new PatchSets(pristine)
+      this.pristine = this.sets.pristine
+      // A fresh image: 0 bytes change unless kept sets go back on. The invariant, either way.
+      this.sets.reconcile(this.core!)
       this.set({ rom: { file: rom.name, path: rom.path, name }, loading: false, paused: false, note: sram ? 'battery save loaded' : '' })
       writeSavedRom(rom.path)
       this.sramAt = performance.now()
@@ -427,6 +450,7 @@ class GameBoy {
         return
       }
       this.core.saving(JSON.parse(new TextDecoder().decode(bytes)) as unknown[])
+      this.sets?.reconcile(this.core)
       this.blit()
       this.note(`state ${slot + 1} loaded`)
     } catch (e) {
@@ -493,7 +517,8 @@ class GameBoy {
 
   private async driveNow(body: Record<string, unknown>): Promise<Record<string, unknown>> {
     const op = String(body.op ?? '')
-    if (op === 'info') return { rom: this.status.rom?.path ?? null, name: this.status.rom?.name ?? null, speed: this.status.speed, paused: this.status.paused, running: this.status.running }
+    if (op === 'info')
+      return { rom: this.status.rom?.path ?? null, name: this.status.rom?.name ?? null, speed: this.status.speed, paused: this.status.paused, running: this.status.running, ops: [...OPS] }
     if (op === 'rom') {
       const path = String(body.path ?? '')
       await this.load({ name: path.slice(path.lastIndexOf('/') + 1), path })
@@ -514,9 +539,41 @@ class GameBoy {
         this.blit()
         return {}
       }
+      case 'vram': {
+        // Forced writes (STAT held at mode 0 around each, the bank selected): they land whole, no read-back.
+        for (const [a, b64, bank] of (body.writes as [number, string, number?][]) ?? []) vramWrite(this.core, a, b64dec(b64), bank ?? 0)
+        const data = ((body.reads as [number, number, number?][]) ?? []).map(([a, n, bank]) => {
+          if (!(a >= 0x8000 && n >= 0 && a + n <= 0xa000)) throw new Error(`vram: 0x${a.toString(16)}+${n} is outside $8000–$9FFF`)
+          return b64enc(vramRead(this.core!, a, n, bank ?? 0))
+        })
+        this.blit()
+        return { data }
+      }
+      case 'oam':
+        return { data: b64enc(oamRead(this.core)) }
+      case 'palette': {
+        const bg = body.bg as Array<[number, GbColour[]]> | undefined
+        const obj = body.obj as Array<[number, GbColour[]]> | undefined
+        if (bg || obj) paletteSet(this.core, { bg, obj })
+        const raw = paletteRead(this.core)
+        return { bg: b64enc(raw.bg), obj: b64enc(raw.obj) }
+      }
+      case 'patchset': {
+        // Named, reversible ROM patches (gbcore's PatchSets over this cartridge's pristine bytes).
+        const sets = this.sets
+        if (!sets) throw new Error('patchset: no cartridge bytes kept')
+        if (body.list) return { sets: sets.list() }
+        if (body.reconcile) return { changed: sets.reconcile(this.core) }
+        const name = String(body.name ?? '')
+        if (!SET_NAME.test(name)) throw new Error(`patchset: bad name “${name}” (a-z 0-9 : _ -, 1–40)`)
+        if (body.off) return { changed: sets.off(this.core, name) }
+        const writes = ((body.writes as [number, string][]) ?? []).map(([o, b64]): PatchWrite => [o, b64dec(b64)])
+        return { changed: sets.set(this.core, name, writes) }
+      }
       case 'patch': {
         // The trainer's ROM patch (the sprite gag's "A boring …" text): bytes into the LOADED image only —
-        // the file is never written, and a state load brings the original back.
+        // the file is never written, and a state load brings the original back. The old CLI's path: these
+        // bytes belong to no patch set, so the reconcile after any state load removes them too.
         let changed = 0
         for (const [o, b64] of (body.writes as [number, string][]) ?? []) {
           const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
@@ -611,6 +668,7 @@ class GameBoy {
         const bytes = await window.deck.pokemonLoadState(this.status.rom!.name, `t-${name}`)
         if (!bytes) throw new Error(`no save state named ${name}`)
         this.core.saving(JSON.parse(new TextDecoder().decode(bytes)) as unknown[])
+        this.sets?.reconcile(this.core)
         this.blit()
         this.note(`state “${name}” loaded`)
         return {}

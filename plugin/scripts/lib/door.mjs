@@ -2,11 +2,26 @@
 // the DECK (POST /gameboy on the hooks server: main relays it to the renderer's emulator, so
 // the game you drive is the one on the Pokemon tile) and HEADLESS (serverboy in this process,
 // for tests and for running without the app). Every op is a plain object in, a plain object out:
-//   info                                      → { rom, name, speed, paused }
+//   info                                      → { rom, name, speed, paused, ops }
+//         `ops` = the gbcore ops this end has (gbcore.mjs's OPS); an older deck reports none, and
+//         `door.ops()` is the memoized Set the CLI feature-detects on
 //   ram   { ranges: [[addr, len], …] }        → { data: [base64, …] }
 //   poke  { writes: [[addr, base64], …] }      → write bytes (the party forge, the warp table)
 //   patch { writes: [[offset, base64], …] }    → { changed }   bytes into the LOADED ROM image, by file offset
-//         (the sprite gag's text); the file is never written, and a state load brings the original back
+//         (the sprite gag's text); the file is never written. RAW: they belong to no patch set, so the
+//         reconcile after a state load (below) takes them out again — the old CLI path renews them itself
+//   vram  { writes?: [[addr, b64, bank?]], reads?: [[addr, len, bank?]] } → { data: [b64, …] }
+//         $8000–$9FFF only; writes with STAT forced to mode 0 so they always land, reads answered after
+//   oam   {}                                  → { data: b64 }   the 160 bytes, read only
+//   palette { bg?: [[i, [4 colours]]], obj?: … } → { bg: b64(64), obj: b64(64) }   CGB palette RAM after
+//         the writes (through updateGBC*Palette: BCPS / OCPS untouched); a colour is BGR555 or '#rrggbb'
+//   patchset { name, writes: [[offset, b64]] } | { name, off: true } → { changed }
+//            { list: true } → { sets: [{ name, bytes }] }   { reconcile: true } → { changed }
+//         NAMED, reversible patches over a PRISTINE copy of the cartridge (the file's bytes as loaded).
+//         RECONCILE = pristine over the whole image, then every set that is on, in install order; it runs
+//         after a ROM mount and after EVERY state load (a state carries the whole ROM image, patches baked
+//         in), which is what keeps an old state from bringing stale bytes back. Headless, the sets live in
+//         <dir>/patchsets.json between calls (per cartridge: another ROM starts with none)
 //   hold  { keys, iterations, stop, every }   → { iterations, stopped, values }
 //         keys are held for up to `iterations` (8ms core steps); every `every` steps each
 //         `stop` — { addr, len, when: 'changed' | 'eq' | 'ne', value } — is tested, and the
@@ -22,6 +37,7 @@ import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deflateSync } from 'node:zlib'
+import { OPS, PatchSets, b64dec, b64enc, oamRead, paletteRead, paletteSet, vramRead, vramWrite } from './gbcore.mjs'
 
 const KEYS = ['RIGHT', 'LEFT', 'UP', 'DOWN', 'A', 'B', 'SELECT', 'START']
 
@@ -90,6 +106,18 @@ export class DeckDoor {
     if (!out.ok) throw new Error(out.error ?? 'the deck refused')
     return out
   }
+  /** The gbcore ops this deck's Game Boy has (`info.ops`), asked once: an older deck answers an empty Set. */
+  async ops() {
+    this._ops ??= new Set((await this.call({ op: 'info' })).ops ?? [])
+    return this._ops
+  }
+}
+
+/** A cartridge's identity for patchsets.json: title, global checksum, size — sets are per cartridge. */
+function cartId(bytes) {
+  let title = ''
+  for (let i = 0x134; i < 0x144 && bytes[i]; i++) title += String.fromCharCode(bytes[i])
+  return `${title.trim()}:${((bytes[0x14e] << 8) | bytes[0x14f]).toString(16)}:${bytes.length}`
 }
 
 // ---- headless --------------------------------------------------------------------------
@@ -121,6 +149,16 @@ export class HeadlessDoor {
 
   loadRom(path, sram) {
     const bytes = readFileSync(path)
+    // The PRISTINE copy is the file's bytes as read, never the (possibly patched) image; a new cartridge
+    // gets its own sets, restored from <dir>/patchsets.json when that file was written for this one.
+    this.pristine = new Uint8Array(bytes)
+    this.cart = cartId(this.pristine)
+    this.sets = new PatchSets(this.pristine)
+    const saved = join(this.dir, 'patchsets.json')
+    if (existsSync(saved)) {
+      const data = JSON.parse(readFileSync(saved, 'utf8'))
+      if (data.cart === this.cart) this.sets = PatchSets.fromJSON(this.pristine, data)
+    }
     const sb = new this.Serverboy()
     sb.loadRom(toRomString(bytes), sram ? Array.from(sram) : undefined)
     const priv = Object.keys(sb).find((k) => k.startsWith('_'))
@@ -128,6 +166,17 @@ export class HeadlessDoor {
     this.core.graphicsBlit = () => {}
     this.sb = sb
     this.rom = path
+    this.sets.reconcile(this.core)
+  }
+
+  saveSets() {
+    writeFileSync(join(this.dir, 'patchsets.json'), JSON.stringify({ cart: this.cart, ...this.sets.toJSON() }))
+  }
+
+  /** Same as the deck's: this end always has the gbcore ops. */
+  async ops() {
+    this._ops ??= new Set((await this.call({ op: 'info' })).ops ?? [])
+    return this._ops
   }
 
   step(keys) {
@@ -145,7 +194,7 @@ export class HeadlessDoor {
 
   async call(body) {
     const op = body.op
-    if (op === 'info') return { ok: true, rom: this.rom, name: this.rom ? this.rom.slice(this.rom.lastIndexOf('/') + 1) : null, speed: 0, paused: false }
+    if (op === 'info') return { ok: true, rom: this.rom, name: this.rom ? this.rom.slice(this.rom.lastIndexOf('/') + 1) : null, speed: 0, paused: false, ops: [...OPS] }
     if (!this.core && op !== 'rom') throw new Error('no ROM loaded')
     switch (op) {
       case 'rom':
@@ -191,7 +240,31 @@ export class HeadlessDoor {
         const path = join(this.dir, `${sanitize(body.name)}.state`)
         if (!existsSync(path)) throw new Error(`no save state named ${body.name}`)
         this.core.saving(JSON.parse(readFileSync(path, 'utf8')))
+        this.sets.reconcile(this.core) // the state brought its own ROM image back: pristine + the sets that are on
         return { ok: true }
+      }
+      case 'vram': {
+        for (const [a, b64, bank = 0] of body.writes ?? []) vramWrite(this.core, a, b64dec(b64), bank)
+        return { ok: true, data: (body.reads ?? []).map(([a, n, bank = 0]) => b64enc(vramRead(this.core, a, n, bank))) }
+      }
+      case 'oam':
+        return { ok: true, data: b64enc(oamRead(this.core)) }
+      case 'palette': {
+        paletteSet(this.core, { bg: body.bg, obj: body.obj })
+        const p = paletteRead(this.core)
+        return { ok: true, bg: b64enc(p.bg), obj: b64enc(p.obj) }
+      }
+      case 'patchset': {
+        if (body.list) return { ok: true, sets: this.sets.list() }
+        if (body.reconcile) return { ok: true, changed: this.sets.reconcile(this.core) }
+        if (body.off) {
+          const changed = this.sets.off(this.core, body.name)
+          this.saveSets()
+          return { ok: true, changed }
+        }
+        const changed = this.sets.set(this.core, body.name, (body.writes ?? []).map(([o, b64]) => [o, b64dec(b64)]))
+        this.saveSets()
+        return { ok: true, changed }
       }
       case 'speed':
       case 'pause':

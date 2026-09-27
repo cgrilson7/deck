@@ -339,7 +339,9 @@ try {
       S.encodeName(want.back.name)
       if ([...S.encodeName(want.front.name)].filter((b) => b !== 0x50).length > S.FRONT_NAME_MAX) die(`the front name is at most ${S.FRONT_NAME_MAX} characters: "A boring " goes before it`)
       const told = (r) => (r.battle ? ['front', 'back'].map((k) => `${k}: picture ${r[k].pic}, name ${r[k].name}`).join(' · ') : 'not in a battle')
-      // The text patch first: it is in the loaded ROM, which a state load resets, so the watch renews it as each battle starts.
+      // The text patch first. It is in the loaded ROM, which a state load resets: a door with `patchset`
+      // keeps it as named sets and re-applies them itself after every load, so it is installed once;
+      // an older door only has the raw `patch`, and the watch renews it as each battle starts.
       const set = flags.moves ?? Object.keys(S.MOVESETS)[0]
       S.moveset(set)
       const name = (flags.name ?? S.PLAYER_NAME).toUpperCase()
@@ -353,7 +355,9 @@ try {
         await finish(`sprite — ${told(r)} · ${text}${r.battle ? ` · ${quiz(q)}` : o ? ` · Foxtrot ${o.pic}` : ''}`)
         break
       }
-      console.error(`watching: repainting the battle pictures and names every ${SPRITE_POLL_MS}ms (^C to stop) · ${await boring()}`)
+      const ops = await S.doorOps(door)
+      const sets = ops.has('patchset')
+      console.error(`watching: repainting the battle pictures and names every ${SPRITE_POLL_MS}ms (^C to stop) · ${await boring()} · door ${ops.size ? `ops: ${[...ops].join(' ')}` : 'without ops (retries, renewal)'}`)
       let last = ''
       let inBattle = false
       let foxLast = ''
@@ -361,7 +365,7 @@ try {
       let patchedAt = Date.now()
       for (;;) {
         const r = await S.apply(door, want).catch((err) => ({ error: err.message }))
-        if (!r.error && r.battle && (!inBattle || Date.now() - patchedAt > 2000)) {
+        if (!sets && !r.error && r.battle && (!inBattle || Date.now() - patchedAt > 2000)) {
           patchedAt = Date.now()
           // A state load restores the whole ROM: renew EVERY patch, not just the wild text, or the donor ids in wBattleMon are the real moves.
           const n = (await S.boring(door).catch(() => 0)) + (await S.quizPatch(door, { set, name }).catch(() => 0))

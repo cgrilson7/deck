@@ -190,8 +190,10 @@ export function encodeName(name) {
 // offset $9fb65 (TX_START "Wild " … TX_RAM wEnemyMonNick TX_START <LINE> "appeared!" <PROMPT>), reached
 // through a text_far in the battle bank at $f40c7 (17 65 7b 27). "A boring " is longer, so the new
 // text goes into the bank's padding at $9fb97 (1129 zero bytes to the bank's end) and the far
-// pointer is turned to it. Both are pokes into the LOADED image (`patch`): the file is never
-// written, and a state load (which carries the ROM) brings "Wild" back, so the watch reapplies it.
+// pointer is turned to it. Both are pokes into the LOADED image, never the file. A door with
+// `patchset` keeps them as the set named `boring`, which it re-applies after every state load (a
+// state carries the whole ROM) and takes off by putting the pristine bytes back; an older door
+// only has the raw `patch`, which a state load undoes, so the watch renews it there.
 // With this on, the front name + "A boring " must fit the line: nine characters at most.
 const TEXT_AT = 0x9fb97
 const TEXT_PTR = 0xf40c7
@@ -210,10 +212,13 @@ export function boringText() {
 
 /** Patch the loaded ROM's wild-encounter text. Returns how many bytes changed (0 = it was already on). */
 export async function boring(door, on = true) {
+  const sets = (await doorOps(door)).has('patchset')
+  if (sets && !on) return (await door.call({ op: 'patchset', name: SET_BORING, off: true })).changed ?? 0
   const text = boringText()
   const addr = TEXT_AT - 0x9c000 + 0x4000 // bank-relative
   const ptr = on ? Buffer.from([0x17, addr & 0xff, addr >> 8, 0x27]) : TEXT_ORIGINAL
-  const r = await door.call({ op: 'patch', writes: [[TEXT_AT, b64(text)], [TEXT_PTR, b64(ptr)]] })
+  const writes = [[TEXT_AT, b64(text)], [TEXT_PTR, b64(ptr)]]
+  const r = await door.call(sets ? { op: 'patchset', name: SET_BORING, writes } : { op: 'patch', writes })
   return r.changed ?? 0
 }
 
@@ -589,6 +594,8 @@ async function cartridge(door) {
 export async function quizPatch(door, { set = 'update', on = true, name = PLAYER_NAME } = {}) {
   const names4 = moveset(set)
   if (!/^[A-Z0-9 .!-]{1,12}$/.test(name)) throw new Error(`a player name is 1–${PLAYER_NAME_MAX} capitals, digits or spaces: “${name}”`)
+  const sets = (await doorOps(door)).has('patchset')
+  if (sets && !on) return (await door.call({ op: 'patchset', name: SET_QUIZ, off: true })).changed ?? 0
   const { rom, t } = await cartridge(door)
   const { moves, names, bird, selector, used, stub, fired, bugs, pics, lookup, speaker, trainers, charge, named, player } = t
   const record = Buffer.from(RECORD)
@@ -629,7 +636,7 @@ export async function quizPatch(door, { set = 'update', on = true, name = PLAYER
   writes.push([charge, b64(line)])
   const nick = Buffer.from([0x01, A.wBattleMonNick & 0xff, A.wBattleMonNick >> 8])
   for (const i of named) writes.push([i, b64(on ? nick : SCRATCH)])
-  return (await door.call({ op: 'patch', writes })).changed ?? 0
+  return (await door.call(sets ? { op: 'patchset', name: SET_QUIZ, writes } : { op: 'patch', writes })).changed ?? 0
 }
 
 /**
@@ -700,6 +707,7 @@ const PALETTE_EVERY_MS = 1000
 let paletteAt = 0
 
 async function foxPalette(door) {
+  if ((await doorOps(door)).has('palette')) return void (await door.call({ op: 'palette', obj: [[0, FOX_COAT]] }))
   const writes = [[OCPS, b64(Buffer.from([0x80]))]]
   for (const c of FOX_COAT) writes.push([OCPD, b64(Buffer.from([c & 0xff]))], [OCPD, b64(Buffer.from([c >> 8]))])
   await door.call({ op: 'poke', writes })
@@ -770,15 +778,35 @@ export async function overworld(door, fox, now = Date.now()) {
 const b64 = (bytes) => Buffer.from(bytes).toString('base64')
 const read = async (door, ranges) => (await door.call({ op: 'ram', ranges })).data.map((d) => Buffer.from(d, 'base64'))
 
+// WHAT THE DOOR CAN DO beyond the old ops: `door.ops()` is the set `info.ops` reports (vram, oam,
+// palette, patchset — gbcore's, in both door ends). A door without the method, or a deck from
+// before them, is an empty set, and every caller below then takes the old road: ram / poke with
+// retries, BCPS / OCPS pokes, raw `patch`. Asked once per door; a failure is not remembered.
+const opsOf = new WeakMap()
+export async function doorOps(door) {
+  if (opsOf.has(door)) return opsOf.get(door)
+  if (typeof door.ops !== 'function') return new Set()
+  const ops = await door.ops().catch(() => null)
+  if (!ops) return new Set()
+  opsOf.set(door, ops)
+  return ops
+}
+/** The patch sets this module installs: named so a door's reconcile re-applies them after a state load. */
+export const SET_BORING = 'boring'
+export const SET_QUIZ = 'quiz'
+export const SET_SPECIES = 'species-palette'
+
 // VRAM is shut while the LCD draws a line (STAT mode 3): this core drops a write then and
-// reads $FF, and a poke or a read lands wherever the last 8ms step ended. So a read that is
-// all $FF is asked again one keyless step later, and a write is read back and, on a miss,
-// made again a step later.
+// reads $FF, and a poke or a read lands wherever the last 8ms step ended. A door with the `vram`
+// op writes with STAT forced to mode 0 and reads VRAM directly, so ONE call does it. The old road:
+// a read that is all $FF is asked again one keyless step later, and a write is read back and, on a
+// miss, made again a step later.
 const TRIES = 24
 /** Let a step go by: headless, step the core; in the deck the game runs on by itself, so only WAIT — a `hold` there is a job, which takes the player's keys for that step. */
 const step = (door) => (door.core ? door.call({ op: 'hold', keys: [], iterations: 1 }) : new Promise((done) => setTimeout(done, 6)))
 
 async function readVram(door, addr, len) {
+  if ((await doorOps(door)).has('vram')) return Buffer.from((await door.call({ op: 'vram', reads: [[addr, len]] })).data[0], 'base64')
   let bytes
   for (let i = 0; i < TRIES; i++) {
     ;[bytes] = await read(door, [[addr, len]])
@@ -789,6 +817,11 @@ async function readVram(door, addr, len) {
 }
 
 async function pokeVram(door, addr, bytes) {
+  if ((await doorOps(door)).has('vram')) {
+    // The read is answered after the write, in the same call: a check, not a retry.
+    const r = await door.call({ op: 'vram', writes: [[addr, b64(bytes)]], reads: [[addr, bytes.length]] })
+    return Buffer.from(r.data[0], 'base64').equals(Buffer.from(bytes))
+  }
   for (let i = 0; i < TRIES; i++) {
     await door.call({ op: 'poke', writes: [[addr, b64(bytes)]] })
     if ((await readVram(door, addr, bytes.length)).equals(bytes)) return true
@@ -856,13 +889,15 @@ const ENEMY_PAL_COPY = 0xdee9
 const MON_PALETTES = 0x72b79
 const MON_PALETTE_COUNT = 10
 
-/** One byte of the CGB BG palette RAM, by index. */
+/** One byte of the CGB BG palette RAM, by index. With `palette`, read off the op's 64-byte copy (BCPS is never touched). */
 async function bgByte(door, index) {
+  if ((await doorOps(door)).has('palette')) return Buffer.from((await door.call({ op: 'palette' })).bg, 'base64')[index]
   await door.call({ op: 'poke', writes: [[BCPS, b64(Buffer.from([index]))]] })
   const [b] = await read(door, [[BCPD, 1]])
   return b[0]
 }
 async function setBgPalette(door, index, colours) {
+  if ((await doorOps(door)).has('palette')) return void (await door.call({ op: 'palette', bg: [[index, colours]] }))
   const writes = [[BCPS, b64(Buffer.from([0x80 | (index * 8)]))]]
   for (const c of colours) writes.push([BCPD, b64(Buffer.from([c & 0xff]))], [BCPD, b64(Buffer.from([c >> 8]))])
   await door.call({ op: 'poke', writes })
@@ -888,11 +923,42 @@ async function notesPalette(door) {
  * Returns 'ours' (the game is already handing out our colours), 'patched', 'restored', 'unknown'
  * (palette 3 is nobody's species — a trainer's picture, a fade) or 'none'.
  */
-const ROM_RENEW = 2000 // a state load restores the whole ROM, so the entry is written again on a clock, like the text patch
+const ROM_RENEW = 2000 // the old door: a state load restores the whole ROM, so the entry is written again on a clock, like the text patch
 let romPal = null
 let romAt = 0
+let romListed = false
 async function notesRom(door, inBattle, now = Date.now()) {
   try {
+    // With `patchset` the entry is the set `species-palette`: the door re-applies it after a state
+    // load (no clock) and `off` puts the cartridge's own bytes back. A set can outlive this process
+    // (the headless door keeps its sets beside its state), so the first time out of a battle asks
+    // the door whether one is still on.
+    if ((await doorOps(door)).has('patchset')) {
+      if (!inBattle) {
+        if (romPal === null) {
+          if (romListed) return 'none'
+          romListed = true
+          const { sets } = await door.call({ op: 'patchset', list: true })
+          if (!sets.some((s) => s.name === SET_SPECIES)) return 'none'
+        }
+        await door.call({ op: 'patchset', name: SET_SPECIES, off: true })
+        romPal = null
+        return 'restored'
+      }
+      const [copy] = await read(door, [[ENEMY_PAL_COPY, 8]])
+      if (copy.equals(NOTES_BYTES)) return 'ours'
+      const { rom } = await cartridge(door)
+      let at = -1
+      for (let i = 0; i < MON_PALETTE_COUNT; i++) {
+        const o = MON_PALETTES + i * 8
+        if (copy.equals(rom.subarray(o, o + 8))) { at = o; break }
+      }
+      if (at < 0) return 'unknown'
+      if (romPal !== null && romPal !== at) await door.call({ op: 'patchset', name: SET_SPECIES, off: true })
+      const { changed } = await door.call({ op: 'patchset', name: SET_SPECIES, writes: [[at, b64(NOTES_BYTES)]] })
+      romPal = at
+      return changed ? 'patched' : 'ours'
+    }
     if (!inBattle) {
       if (romPal === null) return 'none'
       const { rom } = await cartridge(door)
