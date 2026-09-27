@@ -4,7 +4,7 @@
 // §3). The lab of step 6 in embryo: two places, two arts.
 //
 //   sprite.mjs put <place> <art>      place: player | follower; art: foxtrot | blank (the follower only)
-//   sprite.mjs clear <place|all>      what it painted stays until the game reloads those tiles (a map change)
+//   sprite.mjs clear <place|all>      the game's own sprite comes back at the next step (not over a text box or a battle)
 //   sprite.mjs status                 per place: the pack and what the last step did (painted / kept / idle / battle)
 //   sprite.mjs list                   the packs that are on
 //   sprite.mjs foxtrot on [species]|off FOXTROT the species (lib/foxtrot.mjs): Eevee (or [species]) relabelled in the loaded ROM as the patch
@@ -108,14 +108,14 @@ try {
     const entry = make().places[place]
     if (!entry) die(`put: ${artName} has nothing for the ${place}`)
     await door.call({ op: 'overlay', set: { name: place, art: artName, v: 1, places: { [place]: entry } } })
-    out({ ok: true, place, art: artName }, `${place} = ${artName} (painted at the next step, and kept across a ⌘R; the game's own tiles come back only with clear + a map change)`)
+    out({ ok: true, place, art: artName }, `${place} = ${artName} (painted at the next step, and kept across a ⌘R;)`)
   } else if (cmd === 'clear') {
     const [what] = rest
     if (!what) die('clear: a place, or all')
     const names = what === 'all' ? (await door.call({ op: 'overlay', list: true })).packs.map((p) => p.name) : [what]
     const removed = []
     for (const name of names) if ((await door.call({ op: 'overlay', clear: name })).removed) removed.push(name)
-    out({ ok: true, removed }, removed.length ? `cleared ${removed.join(', ')} (the game's own sprites return at the next map load)` : 'nothing to clear')
+    out({ ok: true, removed }, removed.length ? `cleared ${removed.join(', ')} (the game's own sprites come back at once)` : 'nothing to clear')
   } else if (cmd === 'status') {
     const { places } = await door.call({ op: 'overlay', status: true })
     const lines = PLACES.map((p) => `${p.padEnd(9)} ${places[p] ? `${places[p].pack} · ${places[p].state}` : '— (the game\'s own)'}`)

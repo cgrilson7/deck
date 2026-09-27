@@ -5342,16 +5342,19 @@ button.foxlog-chip:hover {
   opacity: 0.45;
   cursor: default;
 }
-.pokemon-sprites {
+/* The bar sits at the pane's foot: the popover opens upward from the BAR (not the button), right-aligned inside the pane. */
+.pokemon-bar {
   position: relative;
 }
-/* The bar sits at the pane's foot: the popover opens upward. */
 .pokemon-sprites-pop {
   top: auto;
   bottom: calc(100% + 6px);
-  left: 0;
-  right: auto;
+  right: 8px;
+  left: auto;
   width: 260px;
+  max-width: calc(100% - 16px);
+  max-height: 70vh;
+  overflow-y: auto;
 }
 .pokemon-sprites-line {
   display: flex;

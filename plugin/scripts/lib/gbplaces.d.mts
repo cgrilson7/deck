@@ -32,7 +32,7 @@ export class Overlays {
   constructor()
   /** Install or replace a pack by name (it then wins every place it fills). Throws on a bad pack: nothing changes. */
   set(pack: Pack): void
-  /** Remove a pack; false when there was none. What it painted stays until the game reloads those tiles (the next map load). */
+  /** Remove a pack; false when there was none. A place left with no pack gets the game's own tiles (and coat) back at the next step that may write. */
   clear(name: string): boolean
   list(): Array<{ name: string; places: string[] }>
   status(): Partial<Record<Place, { pack: string; state: PlaceState }>>

@@ -612,7 +612,11 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `Overlays.step(core, now)` runs after EVERY core step on both ends (`stepCore` in lib/gameboy.ts, `step()` in HeadlessDoor; ~3 µs a
   step), comparing first and writing only on a difference, so no child process, no polling, no flicker across a map change; the
   gag's `overworld` in sprites.mjs does the same job the old way and the two must not run together. Packs are the renderer's memory,
-  put back from the `gbPlaces` setting after a ⌘R (the Pokemon rule). `foxtrot on` is a PATCH SET, not a place: the game draws him itself.
+  put back from the `gbPlaces` setting after a ⌘R (the Pokemon rule). A place LET GO (a clear, the setting back to the game's
+  own) GIVES THE GAME ITS SPRITE BACK at the next step that may write, wherever VRAM still holds ours: read from the CARTRIDGE
+  (RedSprite `0x14571` / RedBikeSprite `0x143f1` by `wWalkBikeSurfState` $D6FF, PikachuSprite `0xfe7ef`; standing frames
+  then walking, VRAM's layout; only under the "POKEMON YELLOW" title), not a copy of what was there — a save state taken
+  with the fox up has him baked into VRAM — else such a copy (surfing); the OBJ palette as it was before ours. `foxtrot on` is a PATCH SET, not a place: the game draws him itself.
   THE SPRITE GAG (`lib/sprites.mjs`, `trainer.mjs sprite [watch]`): in a battle the enemy MON's front picture becomes the Notes icon
   named NOTES APP, the mon YOU SEND OUT's back picture the Village logo named VILLAGE, and "Wild X appeared!" reads "A boring X
   appeared!". TRANSIENT POKES ONLY — VRAM, the tile map's HUD cells, `wEnemyMonNick` / `wBattleMonNick` (the battle-only copies), and

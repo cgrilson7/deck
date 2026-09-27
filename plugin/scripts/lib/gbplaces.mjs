@@ -16,6 +16,13 @@
 //             (engine/pikachu/pikachu_emotions.asm PikachuWalksToNurseJoy, pikachu_movement.asm
 //             LoadPikachuSpriteIntoVRAM, engine/gfx/sprite_oam.asm), so while that byte is $40 the
 //             frames go there too. It is 0 at every other moment, and $8CC0 then belongs to the NPCs.
+// A place LET GO GIVES THE GAME ITS OWN BACK: when a clear leaves a place with no pack, the next step that may
+// write (no battle, no text box) puts the game's sprite back wherever VRAM still holds what we wrote — READ FROM
+// THE CARTRIDGE (RedSprite / RedBikeSprite by wWalkBikeSurfState, PikachuSprite: 2bpp, uncompressed, standing
+// frames then walking ones, the layout VRAM has), because a copy of "what was there before" is a fox again
+// after any save state taken while he was up. Failing that (surfing, not Yellow) a copy taken before our first
+// write over the game's bytes. The coat: the game's OBJ palette as it was before ours, likewise. Without it the
+// follower set back to Pikachu stayed a fox until the next map load.
 // A place is KEPT, not painted once: every step compares VRAM with the frame it wants (reading
 // memory[] directly, no copy) and writes through gbcore's vramWrite only when they differ — the game
 // reloads these tiles on every map load and after every text box, and the next step puts ours back.
@@ -47,6 +54,13 @@ const RED_WALK = 0x8800
 const PIKA_STAND = 0x80c0
 const PIKA_WALK = 0x88c0
 const PIKA_WALK_CENTER = 0x8cc0 // + $40 tiles, only while hPikachuSpriteVRAMOffset is $40
+const W_WALK_BIKE_SURF = 0xd6ff // 0 walking, 1 biking, 2 surfing (banked WRAM: memoryRead)
+/** The game's own sprites in the cartridge (pret pokeyellow.sym; file offsets, bank × $4000 + addr − $4000). */
+const RED_SPRITE = { 0: 0x14571, 1: 0x143f1 } // RedSprite, RedBikeSprite (bank $05)
+const PIKACHU_SPRITE = 0xfe7ef // PikachuSprite (bank $3F)
+const TITLE = 'POKEMON YELLOW' // at $0134: the offsets above are this cartridge's
+/** Every address a place may write, for giving the game its bytes back. */
+const PLACE_TARGETS = { player: [RED_STAND, RED_WALK], follower: [PIKA_STAND, PIKA_WALK, PIKA_WALK_CENTER] }
 export const FRAME_BYTES = 192 // 3 frames (stand down / up / left) × 4 tiles × 16 bytes
 
 /** The runtime's registry, in the order `step` keeps them. */
@@ -88,6 +102,28 @@ function objPlace(p, place, blankOk) {
   return { blank: false, idle, run, ms, palette }
 }
 
+/** The game's own frames for a place address, straight from the cartridge; null when not Yellow or not knowable (surfing). */
+function gameSprite(core, at) {
+  const rom = core.ROM
+  for (let i = 0; i < TITLE.length; i++) if (rom[0x134 + i] !== TITLE.charCodeAt(i)) return null
+  let base
+  if (at === RED_STAND || at === RED_WALK) {
+    base = RED_SPRITE[core.memoryRead(W_WALK_BIKE_SURF)]
+    if (base == null) return null
+    if (at === RED_WALK) base += FRAME_BYTES
+  } else base = PIKACHU_SPRITE + (at === PIKA_STAND ? 0 : FRAME_BYTES)
+  const out = new Uint8Array(FRAME_BYTES)
+  for (let i = 0; i < FRAME_BYTES; i++) out[i] = rom[base + i]
+  return out
+}
+
+/** A copy of VRAM bank 0 at `at` (memory[] may be a plain array). */
+function copy(core, at, n) {
+  const out = new Uint8Array(n)
+  for (let i = 0; i < n; i++) out[i] = core.memory[at + i]
+  return out
+}
+
 /** Is VRAM bank 0 at `at` already `want`? memory[] is bank 0's tile data (gbcore's vramRead reads it there). */
 function same(core, at, want) {
   const m = core.memory
@@ -126,6 +162,13 @@ export class Overlays {
     /** place → { pack, state } from the last step. */
     this.last = {}
     this._active = null
+    /** at → the bytes we wrote there last, and the game's bytes from before (to give back on a clear). */
+    this.wrote = new Map()
+    this.orig = new Map()
+    /** Addresses whose place lost its pack: given back at the next step that may write. */
+    this.restore = new Set()
+    /** OBJ palette → { wrote, orig } raw 8 bytes, the same bargain for the coat. */
+    this.pal = new Map()
   }
 
   /** Install or replace a pack by name; the newest pack filling a place is the one painted there. Throws on a bad pack. */
@@ -150,8 +193,34 @@ export class Overlays {
 
   clear(name) {
     const had = this.packs.delete(name)
-    if (had) this._active = null
+    if (had) {
+      this._active = null
+      const still = new Set(this.active().map(([place]) => place))
+      for (const place of PLACES) if (!still.has(place)) for (const at of PLACE_TARGETS[place]) if (this.wrote.has(at)) this.restore.add(at)
+    }
     return had
+  }
+
+  /** Put the game's own bytes back where a let-go place still shows ours; drop what the game already replaced. */
+  giveBack(core, keepPalettes) {
+    for (const at of this.restore) {
+      const mine = this.wrote.get(at)
+      const theirs = gameSprite(core, at) ?? this.orig.get(at)
+      if (mine && theirs && same(core, at, mine)) vramWrite(core, at, theirs, 0)
+      this.wrote.delete(at)
+      this.orig.delete(at)
+    }
+    this.restore.clear()
+    const raw = core.gbcOBJRawPalette
+    if (!raw) return
+    for (const [obj, p] of this.pal) {
+      if (keepPalettes.has(obj)) continue
+      const o = obj * 8
+      let ours = true
+      for (let i = 0; i < 8; i++) if (raw[o + i] !== p.wrote[i]) ours = false
+      if (ours && p.orig) paletteSet(core, { obj: [[obj, [0, 1, 2, 3].map((c) => p.orig[c * 2] | (p.orig[c * 2 + 1] << 8))]] })
+      this.pal.delete(obj)
+    }
   }
 
   list() {
@@ -181,10 +250,13 @@ export class Overlays {
   /** After EVERY core step. `now` is milliseconds (the renderer: performance.now(); headless: game time). */
   step(core, now) {
     const active = this.active()
-    if (!active.length) return
+    if (!active.length && !this.restore.size && !this.pal.size) return
     let hold = null
     if (core.memoryRead(W_IS_IN_BATTLE) !== 0) hold = 'battle'
     else if (core.memoryRead(W_FONT_LOADED) & 1) hold = 'idle'
+    // Giving back waits for a step that may write, like painting: never over a battle's sprites or the font.
+    if (!hold && (this.restore.size || this.pal.size)) this.giveBack(core, new Set(active.flatMap(([, { place: p }]) => (p.palette ? [p.palette.obj] : []))))
+    if (!active.length) return
     if (hold) {
       for (const [place, { pack }] of active) this.last[place] = { pack, state: hold }
       return
@@ -199,7 +271,11 @@ export class Overlays {
       let wrote = false
       for (const at of targets)
         if (!same(core, at, want)) {
+          // Not what we wrote last: the game's own bytes, kept to give back when the place is let go.
+          const mine = this.wrote.get(at)
+          if (!mine || !same(core, at, mine)) this.orig.set(at, copy(core, at, FRAME_BYTES))
           vramWrite(core, at, want, 0)
+          this.wrote.set(at, want)
           wrote = true
         }
       if (p.palette) palette = p.palette // the later place's wins, like its tiles would
@@ -234,6 +310,12 @@ export class Overlays {
     const o = palette.obj * 8
     for (let i = 0; i < 8; i++)
       if (raw[o + i] !== want[i]) {
+        const kept = this.pal.get(palette.obj)
+        let theirs = !kept
+        if (kept) for (let j = 0; j < 8; j++) if (raw[o + j] !== kept.wrote[j]) theirs = true
+        // The game's colours (at rest only: a mid-fade shade is not worth giving back).
+        const orig = theirs && reg === palette.rest ? Uint8Array.from(raw.slice(o, o + 8)) : kept?.orig ?? null
+        this.pal.set(palette.obj, { wrote: want, orig })
         paletteSet(core, { obj: [[palette.obj, [0, 1, 2, 3].map((c) => want[c * 2] | (want[c * 2 + 1] << 8))]] })
         return
       }
