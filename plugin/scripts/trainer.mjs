@@ -340,8 +340,8 @@ try {
         if (!(await F.battleOver(door, pauseTick, stop))) return
         if ((await F.owned(door, F.species(name))) <= before) return console.error('  · he was not caught: Pikachu keeps following')
         const entry = ARTS.foxtrot().places.follower
-        await door.call({ op: 'overlay', set: { name: 'follower', v: 1, places: { follower: entry } } })
-        console.error('  · FOXTROT is caught and is your follower now (a ⌘R forgets it: sprite.mjs put follower foxtrot)')
+        await door.call({ op: 'overlay', set: { name: 'follower', art: 'foxtrot', v: 1, places: { follower: entry } } })
+        console.error('  · FOXTROT is caught and is your follower now (the deck keeps it across a ⌘R)')
       }
       const tail = (e) => `a wild ${fox ? 'FOXTROT' : e.name.toUpperCase()} L${e.level}: HP ${e.hp}/${e.maxHp}, catch rate ${e.catchRate}${flags.easy ? ' — any ball catches him' : ''}`
       const foxOn = async () => (await door.call({ op: 'patchset', list: true }).catch(() => ({ sets: [] }))).sets?.some((s) => s.name === SET_FOXTROT)

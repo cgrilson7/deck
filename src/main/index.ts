@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Notification, shell } from 'electron'
 import { join } from 'node:path'
-import type { DeckCommand, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
+import type { DeckCommand, GbSpriteReq, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
 import { molBody } from '@shared/lesson'
 import { REMOTE_PORT, type RemoteMethod } from '@shared/remote'
@@ -36,6 +36,7 @@ import { Wolfpack } from './pack'
 import { Studio } from './studio'
 import { Pokemon } from './pokemon'
 import { SpriteGag } from './spritegag'
+import { GbSprites } from './gbsprites'
 import { Mol } from './mol'
 import { LessonWatch, lessonFigure, lintLessonFile, readCurriculum, readLesson } from './lesson'
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
@@ -274,6 +275,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('pokemon:saveState', (_e, name: string, slot: number | string, data: Uint8Array) => pokemon.saveState(String(name ?? ''), slot ?? 0, data ?? new Uint8Array()))
   ipcMain.handle('pokemon:loadState', (_e, name: string, slot: number | string) => pokemon.loadState(String(name ?? ''), slot ?? 0))
   ipcMain.handle('pokemon:shot', (_e, bytes: Uint8Array) => pokemon.shot(bytes ?? new Uint8Array()))
+  // The sprites' library (step 5): what the door installed, kept so the settings can bring it back after a ⌘R.
+  const gbSprites = new GbSprites(userData, join(pluginDir, 'scripts', 'sprite.mjs'))
+  ipcMain.handle('gbsprites:get', (_e, req: GbSpriteReq) => gbSprites.get(req))
+  ipcMain.handle('gbsprites:keep', (_e, req: GbSpriteReq, data: unknown) => gbSprites.keep(req, data))
   // Web apps: a tile's snapshot of its own webview.
   ipcMain.handle('web:snap', (_e, id: number) => webSnap(id))
   // The trainer's door: a POST /gameboy on the hooks server becomes a request to the renderer's

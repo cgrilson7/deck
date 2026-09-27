@@ -193,7 +193,9 @@ and named patch sets only).
    visible win, and "Foxtrot where Pikachu is" falls out of it.
 4. **Battle places**, with a headless parity test: the same battle script through the old watch and
    the new runtime, screenshots compared at fixed step counts.
-5. **Settings, pane, menu, looks**; delete `src/main/spritegag.ts`.
+5. **Settings, pane, menu, looks**; delete `src/main/spritegag.ts`. DONE 27 Sept 2026 except the deletion, which waits for
+   step 4 (the gag's battles are still the old watch): `gbPlaces` / `gbPatches`, main's library (`main/gbsprites.ts`),
+   the pane's sprites popover, View ▸ Pokemon ▸ Sprites, three looks. See CLAUDE.md's Pokemon rule.
 6. **The CLI stays the lab**: `sprite try` and `sprite watch --rules` for prototyping a place the
    runtime does not have yet; promotion is copying the rule into the registry.
 

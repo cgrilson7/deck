@@ -8,9 +8,9 @@ this. CLAUDE.md's Pokemon / Trainer rules and layout describe everything that la
 Steps 1–3, FOXTROT-as-Eevee, `gift` and `encounter` are COMMITTED (`d11ba58`). The live game is DONE for now:
 - Foxtrot is CAUGHT: party slot 6 = FOXTROT (Eevee) L5, patch set `foxtrot` on (Eevee). Evolutions are untouched
   (a stone makes an eeveelution).
-- The follower overlay is on (`sprite.mjs status` → `follower · kept`): Foxtrot follows, not Pikachu. It lives in the
-  renderer's memory, so a ⌘R or any `src/renderer/**` edit under `npm run dev` drops it again. Re-put it with
-  `node plugin/scripts/sprite.mjs put follower foxtrot`. The fix is step 5.
+- STEP 5 IS BUILT (settings `gbPlaces` / `gbPatches`, main's library, the pane's sprites popover, View ▸ Pokemon ▸
+  Sprites, looks; CLAUDE.md's Pokemon rule). The overlays and the FOXTROT set now come back after a ⌘R or a restart.
+  `src/main/spritegag.ts` is NOT deleted: the battle gag is still the old watch until step 4.
 - The player is VILLAGER 0: wPlayerName and all six party OT names (checked live). Whether Colin SAVEd in the game
   since is unknown. Ask before anything reloads the renderer.
 
@@ -42,7 +42,7 @@ Committed after `d11ba58` (the catch fix, the auto-follower, `name`):
 - A research/framework ask = reports only; never brief an agent to "try" the deliverable (Colin objected).
 
 ## Next steps (docs/sprites.md build order)
-4. Battle places in the runtime (`enemyFront`, `playerBack`, `trainerBack`, names, `battleMoves`) with a
+4. (5 is done, bar deleting spritegag.ts.) Battle places in the runtime (`enemyFront`, `playerBack`, `trainerBack`, names, `battleMoves`) with a
    headless parity test against the old watch; 5. settings `gbPlaces` / `gbPatches` + looks, the pane
    popover, View ▸ Pokemon ▸ Sprites, migrate `spriteGag: true`, delete `src/main/spritegag.ts`; 6. the CLI as
    the lab. Also: a DRAWN 3/4 front for Foxtrot (the stretched sheet fox stands in), and Colin's likeness

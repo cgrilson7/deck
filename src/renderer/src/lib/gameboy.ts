@@ -23,11 +23,17 @@
 // kept in fixed places of the game — Red's walking sprite (`player`), Pikachu's (`follower`) — by a
 // compare-then-write after EVERY core step. Every step goes through `stepCore`, so none is missed: the
 // free-running loop, a door job's step, and the no-view run-at-once path (which is a job run in a loop).
-// The packs live in this machine's memory only for now (settings are a later step): a ⌘R drops them and
-// the CLI (plugin/scripts/sprite.mjs) puts them back.
+// WHAT IS ON IS A SETTING (docs/sprites.md step 5): `gbPlaces` (place → art) and `gbPatches` (patch sets).
+// A door op that installs with `art` (an overlay) or `keep` (a patch set) — sprite.mjs put / foxtrot on —
+// writes the setting and hands the compiled bytes to main's library (main/gbsprites.ts); a clear / off lets
+// it go. Whenever the settings and this machine differ — a ⌘R, a restart, a ROM mount, the pane's sprites
+// popover, a look from the menu — `syncSprites` fetches what is missing from the library (main compiles a
+// miss with `sprite.mjs build`) and installs it, so a ⌘R keeps them. The gag's own patch sets are never the settings'.
 
 import { useEffect, useState } from 'react'
 import { readSavedRom, writeSavedRom } from './pokemon'
+import { patchSettings } from './theme'
+import { GB_PLACES, type DeckSettings, type GbPlace } from '@shared/types'
 import { b64dec, b64enc, OPS, oamRead, paletteRead, paletteSet, PatchSets, vramRead, vramWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
 import type { GbColour, GbCore, PatchWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
 import { Overlays } from '../../../../plugin/scripts/lib/gbplaces.mjs'
@@ -232,6 +238,11 @@ class GameBoy {
   private sets: PatchSets | null = null
   /** The overlay packs that are on (not per cartridge: the places are Yellow's). */
   private overlays = new Overlays()
+  /** The art each place wears as the settings name it (what the door said with `art`, or what `syncSprites` put). */
+  private placeArt = new Map<GbPlace, string>()
+  /** The patch sets that are the SETTINGS' (kept by the door or put back from `gbPatches`); the gag's own are never here. */
+  private keptSets = new Set<string>()
+  private settings: DeckSettings | null = null
   private chain: Promise<unknown> = Promise.resolve()
 
   constructor() {
@@ -374,7 +385,10 @@ class GameBoy {
       this.mount(sb)
       // The same cartridge again (reset, or the door's `rom` op on it) keeps its sets, so a running
       // sprite watch that installed them once is not undone by a power cycle; another one starts clean.
-      if (!this.sets || !this.pristine || !GameBoy.same(this.pristine, pristine)) this.sets = new PatchSets(pristine)
+      if (!this.sets || !this.pristine || !GameBoy.same(this.pristine, pristine)) {
+        this.sets = new PatchSets(pristine)
+        this.keptSets.clear()
+      }
       this.pristine = this.sets.pristine
       // A fresh image: 0 bytes change unless kept sets go back on. The invariant, either way.
       this.sets.reconcile(this.core!)
@@ -384,6 +398,8 @@ class GameBoy {
       this.ensureLoop()
       this.blit()
       this.flashNote()
+      // The settings' patch sets onto this cartridge (a new one, or a ⌘R's first mount).
+      void this.syncSprites()
     } catch (e) {
       if (seq !== this.loadSeq) return
       this.set({ loading: false, error: e instanceof Error ? e.message : String(e) })
@@ -583,9 +599,20 @@ class GameBoy {
         if (body.reconcile) return { changed: sets.reconcile(this.core) }
         const name = String(body.name ?? '')
         if (!SET_NAME.test(name)) throw new Error(`patchset: bad name “${name}” (a-z 0-9 : _ -, 1–40)`)
-        if (body.off) return { changed: sets.off(this.core, name) }
+        if (body.off) {
+          const changed = sets.off(this.core, name)
+          if (this.keptSets.delete(name) || this.settings?.gbPatches.includes(name)) this.persist({ gbPatches: (this.settings?.gbPatches ?? []).filter((n) => n !== name) })
+          return { changed }
+        }
         const writes = ((body.writes as [number, string][]) ?? []).map(([o, b64]): PatchWrite => [o, b64dec(b64)])
-        return { changed: sets.set(this.core, name, writes) }
+        const changed = sets.set(this.core, name, writes)
+        if (body.keep && this.status.rom) {
+          this.keptSets.add(name)
+          void window.deck.gbSpriteKeep({ kind: 'set', name, rom: this.status.rom.path }, body.writes)
+          const now = this.settings?.gbPatches ?? []
+          if (!now.includes(name)) this.persist({ gbPatches: [...now, name] })
+        }
+        return { changed }
       }
       case 'patch': {
         // The trainer's ROM patch (the sprite gag's "A boring …" text): bytes into the LOADED image only —
@@ -693,9 +720,30 @@ class GameBoy {
       case 'overlay': {
         if (body.list) return { packs: this.overlays.list() }
         if (body.status) return { places: this.overlays.status() }
-        if (body.clear != null) return { removed: this.overlays.clear(String(body.clear)) }
+        if (body.clear != null) {
+          const name = String(body.clear)
+          const removed = this.overlays.clear(name)
+          if (GameBoy.isPlace(name)) {
+            this.placeArt.delete(name)
+            if (this.settings?.gbPlaces[name]) {
+              const next = { ...this.settings.gbPlaces }
+              delete next[name]
+              this.persist({ gbPlaces: next })
+            }
+          }
+          return { removed }
+        }
         if (body.set) {
-          this.overlays.set(body.set as Pack)
+          const pack = body.set as Pack & { art?: unknown }
+          this.overlays.set(pack)
+          // A pack named after its one place with an `art` (sprite.mjs put) is the settings' from now on.
+          const place = pack.name
+          const entry = GameBoy.isPlace(place) ? pack.places[place] : undefined
+          if (typeof pack.art === 'string' && entry && GameBoy.isPlace(place)) {
+            this.placeArt.set(place, pack.art)
+            void window.deck.gbSpriteKeep({ kind: 'place', place, art: pack.art }, entry)
+            if (this.settings?.gbPlaces[place] !== pack.art) this.persist({ gbPlaces: { ...(this.settings?.gbPlaces ?? {}), [place]: pack.art } })
+          }
           return {}
         }
         throw new Error('overlay: set, clear, list or status')
@@ -711,6 +759,82 @@ class GameBoy {
       default:
         throw new Error(`unknown op ${op}`)
     }
+  }
+
+  // ---- the sprites' settings ------------------------------------------------------
+
+  private static isPlace(name: string): name is GbPlace {
+    return (GB_PLACES as readonly string[]).includes(name)
+  }
+
+  /** The settings, at boot and on every change: install / remove whatever differs. */
+  applySettings(s: DeckSettings): void {
+    this.settings = s
+    void this.syncSprites()
+  }
+
+  /** Write the settings from a door op, and take them as ours at once so the echo finds nothing to do. */
+  private persist(patch: Partial<DeckSettings>): void {
+    if (this.settings) this.settings = { ...this.settings, ...patch }
+    patchSettings(patch)
+  }
+
+  /** Serialized with the door's ops, so a sync never lands between a door op's read and write. */
+  private syncSprites(): Promise<void> {
+    const run = () => this.syncSpritesNow()
+    const p = this.chain.then(run, run)
+    this.chain = p.catch(() => {})
+    return p
+  }
+
+  private async syncSpritesNow(): Promise<void> {
+    const s = this.settings
+    if (!s) return
+    const failed: string[] = []
+    for (const place of GB_PLACES) {
+      const want = s.gbPlaces[place]
+      if (this.placeArt.get(place) === want) continue
+      if (!want) {
+        this.overlays.clear(place)
+        this.placeArt.delete(place)
+        continue
+      }
+      const entry = await window.deck.gbSpriteGet({ kind: 'place', place, art: want })
+      try {
+        if (!entry) throw new Error('not in the library')
+        this.overlays.set({ name: place, v: 1, places: { [place]: entry } } as Pack)
+        this.placeArt.set(place, want)
+      } catch {
+        failed.push(`${place} ${want}`)
+      }
+    }
+    const sets = this.sets
+    const core = this.core
+    const rom = this.status.rom
+    if (sets && core && rom) {
+      for (const name of [...this.keptSets])
+        if (!s.gbPatches.includes(name)) {
+          sets.off(core, name)
+          this.keptSets.delete(name)
+        }
+      for (const name of s.gbPatches) {
+        if (sets.has(name)) {
+          this.keptSets.add(name)
+          continue
+        }
+        const writes = await window.deck.gbSpriteGet({ kind: 'set', name, rom: rom.path })
+        // The cartridge may have changed while main compiled.
+        if (this.sets !== sets || this.core !== core) return
+        try {
+          if (!Array.isArray(writes)) throw new Error('not in the library')
+          sets.set(core, name, (writes as [number, string][]).map(([o, b64]): PatchWrite => [o, b64dec(b64)]))
+          this.keptSets.add(name)
+        } catch {
+          failed.push(name)
+        }
+      }
+    }
+    if (failed.length) this.note(`sprites: could not put on ${failed.join(', ')}`)
   }
 
   // ---- controls ------------------------------------------------------------------
@@ -762,6 +886,9 @@ let machine: GameBoy | null = null
 export function gameboy(): GameBoy {
   if (!machine) {
     machine = new GameBoy()
+    // The sprites follow the settings (gbPlaces / gbPatches) from the first moment.
+    void window.deck.getSettings().then((s) => machine!.applySettings(s))
+    window.deck.onSettings((s) => machine!.applySettings(s))
     // The trainer's door: main relays POST /gameboy here. A ROM comes from the pane or from the
     // request's own `rom` op; with no view mounted, jobs run at once instead of paced.
     window.deck.onGameboy(({ id, body }) => {

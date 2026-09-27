@@ -79,7 +79,7 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                                `gift <species> [--level 1] [--nick] [--party]` = a mon of the player's own into the CURRENT BOX in WRAM — the game
                                writes it to SRAM at the next in-game SAVE, so never a save write; refused when the box is full),
                              scripts/sprite.mjs (put <player|follower> <foxtrot|blank>, clear, status, list, foxtrot on|off: the overlay packs and
-                               the FOXTROT patch set on the deck's Game Boy or `--headless`; packs are the renderer's memory only until step 5),
+                               the FOXTROT patch set on the deck's Game Boy or `--headless`; packs and the FOXTROT set are KEPT by the deck: `gbPlaces` / `gbPatches`; `build place|set` = door-free compiling for main's library),
                              scripts/lib/ (the trainer's: door.mjs = the emulator behind one small protocol, the deck's `POST /gameboy` or serverboy HEADLESS
                                in the CLI's own process; gbcore.mjs = THE ONE RUNTIME MODULE both door ends run (pure JS + gbcore.d.mts: forced-mode
                                VRAM writes, OAM, palettes, PatchSets — the renderer imports it by relative path, the first src/ → plugin/ import);
@@ -111,6 +111,8 @@ src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson
 src/main/lesson.ts         the Lesson tile's disk side: a lesson's text (.md, 1MB), a figure's bytes (inside the lesson's folder tree), curriculum.json, `lint`, the watch on files that are up
 src/main/data/molLibrary.ts  GENERATED (scripts/mollib.mjs): 16 small molecules, 3D coordinates + partial charges
 src/main/pokemon.ts        Pokemon's disk side: the ROM list of `pokemonRomDir`, a ROM's bytes, battery saves + save states under userData/pokemon
+src/main/gbsprites.ts      the Game Boy's SPRITE LIBRARY (userData/pokemon/sprites/): what the door installed, kept for the `gbPlaces` / `gbPatches`
+                             settings; a miss is compiled by `sprite.mjs build` as a child (Electron as node)
 src/main/spritegag.ts      the sprite gag's runner: `trainer.mjs sprite watch` as a child of main while `spriteGag` is on (Electron as node), restarted if it falls over
 src/main/foxtrot.ts        Foxtrot, the head: rules over session state + transcripts → a running log (userData/foxtrot.jsonl)
 src/main/wiki.ts           Wikipedia for the tile: picture of the day (feed, cached 1h), search, page summaries
@@ -573,7 +575,19 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `trainer.mjs sprite watch --moves <set>` as a child of its own (`src/main/spritegag.ts`, Electron's
   binary as node via `ELECTRON_RUN_AS_NODE`, `DECK_HOOK_PORT` in its env, its stderr into the deck's
   log, restarted after 2s if it falls over and given up on past 5 restarts a minute), toggled from the
-  `gag` button in the pane's bar and View ▸ Pokemon ▸ Village vs Notes. Not on the phone.
+  pane's SPRITES popover and View ▸ Pokemon ▸ Sprites. THE SPRITES ARE SETTINGS (docs/sprites.md step 5): `gbPlaces`
+  (an overlay place → its art: `{ follower: 'foxtrot' }`; places `GB_PLACES`, arts main can build `GB_ARTS`, mirrored in
+  shared/types.ts from gbplaces.mjs / packs.mjs) and `gbPatches` (the patch sets that are on: `foxtrot`, `GB_SETS`), plus
+  `spriteGag`. The renderer's Game Boy FOLLOWS them (`applySettings` → `syncSprites`, serialized with the door's ops): at
+  boot, at every ROM mount and on every change it installs what is missing and removes what the settings dropped — so a ⌘R
+  or a restart keeps Foxtrot following and FOXTROT the species. The bytes come from MAIN'S LIBRARY (`main/gbsprites.ts`,
+  `gbSpriteGet` / `gbSpriteKeep`: `userData/pokemon/sprites/place.<place>.<art>.json` and `set.<rom>.<name>.json`): a door
+  op that installs with `art` (an overlay pack named after its one place: `sprite.mjs put`, the trainer's catch) or `keep`
+  (a patch set: `foxtrot on`) writes the setting and keeps its bytes there; a place's `clear` / a set's `off` drops the
+  setting; a miss main knows how to make is compiled by `sprite.mjs build place|set` as a child. The GAG'S OWN patch sets
+  (`boring`, `quiz`…) never carry `keep` and are never the settings'. LOOKS (`GB_LOOKS`: Foxtrot, Village vs Notes, the
+  game's own) are presets merged into the settings, the popover's buttons and the menu's checkboxes (`gbLookOn`). The gag
+  itself is still the old watch until step 4 moves battles into the runtime; then `spritegag.ts` goes. Not on the phone.
 - **Trainer** (`plugin/scripts/trainer.mjs`, `plugin/scripts/lib/`, `plugin/skills/trainer/`, `POST /gameboy` → `gameboyCall` in
   `main/index.ts` → `GameBoy.drive` in `lib/gameboy.ts`): a session plays Pokémon Yellow on the deck's Game Boy through a CLI whose every
   command ends by printing the state. THE DOOR is one small protocol with two ends (`lib/door.mjs`): the deck's emulator, or
@@ -593,8 +607,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   docs/sprites.md): an overlay PACK is data — per place, base64 frames + timings + a palette — installed by `sprite.mjs put`, and
   `Overlays.step(core, now)` runs after EVERY core step on both ends (`stepCore` in lib/gameboy.ts, `step()` in HeadlessDoor; ~3 µs a
   step), comparing first and writing only on a difference, so no child process, no polling, no flicker across a map change; the
-  gag's `overworld` in sprites.mjs does the same job the old way and the two must not run together. Packs live in the renderer's
-  memory (⌘R drops them) until step 5 puts them in settings. `foxtrot on` is a PATCH SET, not a place: the game draws him itself.
+  gag's `overworld` in sprites.mjs does the same job the old way and the two must not run together. Packs are the renderer's memory,
+  put back from the `gbPlaces` setting after a ⌘R (the Pokemon rule). `foxtrot on` is a PATCH SET, not a place: the game draws him itself.
   THE SPRITE GAG (`lib/sprites.mjs`, `trainer.mjs sprite [watch]`): in a battle the enemy MON's front picture becomes the Notes icon
   named NOTES APP, the mon YOU SEND OUT's back picture the Village logo named VILLAGE, and "Wild X appeared!" reads "A boring X
   appeared!". TRANSIENT POKES ONLY — VRAM, the tile map's HUD cells, `wEnemyMonNick` / `wBattleMonNick` (the battle-only copies), and
@@ -1319,7 +1333,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `Partitions/web/` — Electron's own store for the web apps' partition (cookies, localStorage: the sign-ins); delete it to sign everything out
 - `quixote/` — `pg58221.txt` (La Odisea) and `pg2000.txt` (Don Quijote), the reader's books as Gutenberg sent them (fetched once; delete to fetch again)
 - `posture/` — `pose_landmarker_lite.task` + `hand_landmarker.task`, the Posture tile's models (downloaded once; delete to fetch again)
-- `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`); see the Pokemon rule above
+- `pokemon/` — the Game Boy's battery saves (`<rom>.sav`) and save states (`<rom>.state0..2`, the trainer's `<rom>.state-t-<name>`);
+  `sprites/`, the compiled sprite library (`place.<place>.<art>.json`, `set.<rom>.<name>.json`; delete freely, it is rebuilt); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
 - `usage.json` — the account's rate-limit windows as last reported (see the top bar rule); delete freely
@@ -1330,7 +1345,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showFiles, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, gbPlaces, gbPatches, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

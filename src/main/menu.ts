@@ -2,7 +2,7 @@
 // (the renderer's xterm key handler declines these combos so they reach Electron).
 
 import { app, Menu, nativeTheme, type MenuItemConstructorOptions } from 'electron'
-import { CAP, type DeckCommand, type DeckSettings, type SpotifyAccount, type UiEvent } from '@shared/types'
+import { CAP, GB_LOOKS, gbLookOn, type DeckCommand, type DeckSettings, type SpotifyAccount, type UiEvent } from '@shared/types'
 import { THEMES, type Appearance } from '@shared/themes'
 import { MODELS } from '@shared/models'
 
@@ -169,7 +169,16 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           submenu: [
             { label: 'Play Pokemon', accelerator: 'CmdOrCtrl+Shift+G', click: () => ui({ type: 'togglePokemon' }) },
             { label: 'Show Pokemon Tile', type: 'checkbox', checked: s.showPokemon, click: () => patch({ showPokemon: !settings().showPokemon }) },
-            { label: 'Village vs Notes', type: 'checkbox', checked: s.spriteGag, click: () => patch({ spriteGag: !settings().spriteGag }) }
+            {
+              label: 'Sprites',
+              submenu: [
+                ...GB_LOOKS.map((l): MenuItemConstructorOptions => ({ label: l.label, type: 'checkbox', checked: gbLookOn(s, l), click: () => patch(l.patch) })),
+                { type: 'separator' },
+                { label: 'Foxtrot Follows', type: 'checkbox', checked: s.gbPlaces.follower === 'foxtrot', click: () => patch({ gbPlaces: { ...settings().gbPlaces, follower: settings().gbPlaces.follower === 'foxtrot' ? undefined : 'foxtrot' } }) },
+                { label: 'FOXTROT the Species', type: 'checkbox', checked: s.gbPatches.includes('foxtrot'), click: () => { const p = settings().gbPatches; patch({ gbPatches: p.includes('foxtrot') ? p.filter((n) => n !== 'foxtrot') : [...p, 'foxtrot'] }) } },
+                { label: 'Village vs Notes', type: 'checkbox', checked: s.spriteGag, click: () => patch({ spriteGag: !settings().spriteGag }) }
+              ]
+            }
           ]
         },
         {

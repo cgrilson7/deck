@@ -5332,6 +5332,34 @@ button.foxlog-chip:hover {
   opacity: 0.45;
   cursor: default;
 }
+.pokemon-sprites {
+  position: relative;
+}
+/* The bar sits at the pane's foot: the popover opens upward. */
+.pokemon-sprites-pop {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  width: 260px;
+}
+.pokemon-sprites-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.pokemon-sprites-line > span:first-child {
+  flex: 1 1 auto;
+}
+.pokemon-sprites-line input {
+  margin: 0;
+}
+.pokemon-sprites-line input + span {
+  flex: 1 1 auto;
+}
 
 /* ---- Molecule: one 3Dmol viewer (lib/mol.ts) shown by the tile and, full size, by the center
    pane. `.mol-host` is the viewer's own element, moved between the two `.mol-stage` boxes;

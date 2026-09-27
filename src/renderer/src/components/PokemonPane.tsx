@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
-import { Gamepad2, Pause, Play, RotateCcw, Save, Swords, Volume2, VolumeX } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Gamepad2, Pause, Play, RotateCcw, Save, Sparkles, Volume2, VolumeX } from 'lucide-react'
 import { gameboy, GB_KEYS, SPEEDS, STATE_SLOTS, useGameBoy, type GbKey, type Speed } from '../lib/gameboy'
 import { usePokemonRoms } from '../lib/pokemon'
 import { patchSettings, useSettings } from '../lib/theme'
 import { Fox } from './Fox'
+import { GB_ARTS, GB_LOOKS, GB_PLACES, GB_SETS, gbLookOn, type GbPlace } from '@shared/types'
 
 /** Keyboard → Game Boy while the pane is open. Arrows are the pad; Z/X the way every emulator has it. */
 const KEYMAP: Record<string, GbKey> = {
@@ -35,8 +36,6 @@ const typing = (t: EventTarget | null) => {
 export function PokemonPane({ onClose }: { onClose: () => void }) {
   const st = useGameBoy()
   const roms = usePokemonRoms()
-  // The sprite gag is main's: the setting runs `trainer.mjs sprite watch` as a child of its own.
-  const { spriteGag } = useSettings()
   const canvas = useRef<HTMLCanvasElement>(null)
   const pane = useRef<HTMLElement>(null)
 
@@ -165,13 +164,7 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
           <button className={`pill ${st.muted ? '' : 'on'}`} onClick={() => gb.setMuted(!st.muted)} title={st.muted ? 'Sound on' : 'Mute'}>
             {st.muted ? <VolumeX size={12} /> : <Volume2 size={12} />} {st.muted ? 'muted' : 'sound'}
           </button>
-          <button
-            className={`pill ${spriteGag ? 'on' : ''}`}
-            onClick={() => patchSettings({ spriteGag: !spriteGag })}
-            title="Village vs Notes: repaint every battle (the sprite gag)"
-          >
-            <Swords size={12} /> gag
-          </button>
+          <SpritesMenu />
           <span className="spacer" />
           {roms.length > 0 && st.rom && (
             <select
@@ -205,5 +198,87 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </section>
+  )
+}
+
+const PLACE_LABEL: Record<GbPlace, string> = { player: 'You', follower: 'Follower' }
+
+/**
+ * THE SPRITES POPOVER (docs/sprites.md step 5): the looks as buttons, a row per overlay place (the game's own
+ * or an art), the patch sets as checkboxes, and the battle gag. Every control is a setting (`gbPlaces`,
+ * `gbPatches`, `spriteGag`); the Game Boy follows the settings, so a ⌘R keeps all of it.
+ */
+function SpritesMenu() {
+  const s = useSettings()
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const any = Object.keys(s.gbPlaces).length > 0 || s.gbPatches.length > 0 || s.spriteGag
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const setPlace = (place: GbPlace, art: string) => {
+    const next = { ...s.gbPlaces }
+    if (art) next[place] = art
+    else delete next[place]
+    patchSettings({ gbPlaces: next })
+  }
+  const toggleSet = (name: string, on: boolean) => patchSettings({ gbPatches: on ? [...s.gbPatches.filter((n) => n !== name), name] : s.gbPatches.filter((n) => n !== name) })
+  // Every set that is on, the ones main can build first; a set the CLI kept under another name shows too.
+  const sets = [...GB_SETS.map((x) => ({ name: x.name, label: x.label, hint: x.hint as string })), ...s.gbPatches.filter((n) => !GB_SETS.some((x) => x.name === n)).map((n) => ({ name: n, label: n, hint: 'kept by the CLI' }))]
+
+  return (
+    <div className="pokemon-sprites" ref={box}>
+      <button className={`pill ${any ? 'on' : ''}`} onClick={() => setOpen(!open)} title="Sprites: Foxtrot, the battle gag, the game's own">
+        <Sparkles size={12} /> sprites
+      </button>
+      {open && (
+        <div className="popover pokemon-sprites-pop">
+          <div className="menu-title">Looks</div>
+          <div className="pokemon-row">
+            {GB_LOOKS.map((l) => (
+              <button key={l.id} className={`pill ${gbLookOn(s, l) ? 'on' : ''}`} title={l.hint} onClick={() => patchSettings(l.patch)}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <div className="menu-title">Places</div>
+          {GB_PLACES.map((place) => {
+            const cur = s.gbPlaces[place] ?? ''
+            const arts = GB_ARTS[place].includes(cur) || !cur ? GB_ARTS[place] : [...GB_ARTS[place], cur]
+            return (
+              <label key={place} className="pokemon-sprites-line">
+                <span>{PLACE_LABEL[place]}</span>
+                <select className="pokemon-select" value={cur} onChange={(e) => setPlace(place, e.target.value)}>
+                  <option value="">{place === 'player' ? 'Red' : 'Pikachu'}</option>
+                  {arts.map((a) => (
+                    <option key={a} value={a}>
+                      {a === 'blank' ? 'nobody (unseen)' : a[0].toUpperCase() + a.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          })}
+          <div className="menu-title">Patches</div>
+          {sets.map((x) => (
+            <label key={x.name} className="pokemon-sprites-line" title={x.hint}>
+              <input type="checkbox" checked={s.gbPatches.includes(x.name)} onChange={(e) => toggleSet(x.name, e.target.checked)} />
+              <span>{x.label}</span>
+            </label>
+          ))}
+          <label className="pokemon-sprites-line" title="Every battle repainted: NOTES APP against VILLAGE (the sprite gag's watch)">
+            <input type="checkbox" checked={s.spriteGag} onChange={(e) => patchSettings({ spriteGag: e.target.checked })} />
+            <span>Village vs Notes (battles)</span>
+          </label>
+        </div>
+      )}
+    </div>
   )
 }

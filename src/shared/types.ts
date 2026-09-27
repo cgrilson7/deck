@@ -661,6 +661,10 @@ export interface DeckSettings {
   spriteGag: boolean
   /** Which moveset the sprite gag gives Village (a key of plugin/data/sprites/movesets.json: update, release, gamer, download). */
   spriteGagMoves: string
+  /** The Game Boy's overlay PLACES and the art in each (`follower: 'foxtrot'`): re-applied by the renderer at every ROM mount, so a ⌘R keeps them. */
+  gbPlaces: GbPlaces
+  /** The named ROM patch sets that are on (`foxtrot`): re-applied after every ROM mount. The gag's own sets are never listed here. */
+  gbPatches: string[]
   /** The changes tile (the focused session's working tree as `git status` + diffs) takes the grid cell before the vocabulary tile. */
   showGit: boolean
   /** The Files tile: a plain directory tree of the whole disk (disclosure triangles, a root you can move anywhere); a file opens in the preview pane. */
@@ -725,6 +729,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   pokemonRomDir: '~/Downloads',
   spriteGag: false,
   spriteGagMoves: 'download',
+  gbPlaces: {},
+  gbPatches: [],
   showGit: true,
   showFiles: true,
   languagelogDb: '~/languagelog/data/languagelog.db',
@@ -1156,6 +1162,10 @@ export interface DeckApi {
   pokemonLoadState(name: string, slot: number | string): Promise<Uint8Array | null>
   /** Write a screenshot's PNG bytes under userData/pokemon/trainer and return its path (a small rotation of files). */
   pokemonShot(bytes: Uint8Array): Promise<string>
+  /** A compiled sprite (an overlay place's art, or a patch set's writes for a cartridge) from main's library, compiled on a miss when main knows how; null when it cannot. */
+  gbSpriteGet(req: GbSpriteReq): Promise<unknown>
+  /** Keep what the door just installed in main's library, so the setting can bring it back after a ⌘R. */
+  gbSpriteKeep(req: GbSpriteReq, data: unknown): Promise<void>
   /** A small JPEG (a data: URL) of a web app's webview as it looks now, for its tile; '' when there is nothing to take. */
   webSnap(webContentsId: number): Promise<string>
   /** The trainer's door: main relays `POST /gameboy` here; the renderer answers with `gameboyReply`. */
@@ -1246,4 +1256,40 @@ export interface MolRequest {
 export interface GameboyRequest {
   id: string
   body: Record<string, unknown>
+}
+
+/** THE GAME BOY'S SPRITES (docs/sprites.md step 5): the overlay places the runtime keeps (plugin/scripts/lib/gbplaces.mjs PLACES), MIRRORED here since the renderer's settings never import the plugin. */
+export const GB_PLACES = ['player', 'follower'] as const
+export type GbPlace = (typeof GB_PLACES)[number]
+export type GbPlaces = Partial<Record<GbPlace, string>>
+/** The arts main can compile for each place (plugin/scripts/lib/packs.mjs ARTS); a place's art may also be any the door kept. */
+export const GB_ARTS: Record<GbPlace, string[]> = { player: ['foxtrot'], follower: ['foxtrot', 'blank'] }
+/** The patch sets main can compile (lib/foxtrot.mjs SET_FOXTROT: Eevee relabelled FOXTROT). */
+export const GB_SETS = [{ name: 'foxtrot', label: 'FOXTROT the species', hint: 'Eevee is Foxtrot: name, pictures, Pokédex page, coat, party icon' }] as const
+/** One library entry: a place's art, or a patch set on a cartridge (`rom` = its path). */
+export type GbSpriteReq = { kind: 'place'; place: GbPlace; art: string } | { kind: 'set'; name: string; rom: string }
+/** A LOOK is a preset over places, patch sets and the gag; `patch` is merged into the settings as is. */
+export interface GbLook {
+  id: string
+  label: string
+  hint: string
+  patch: Partial<Pick<DeckSettings, 'gbPlaces' | 'gbPatches' | 'spriteGag'>>
+}
+export const GB_LOOKS: GbLook[] = [
+  { id: 'foxtrot', label: 'Foxtrot', hint: 'Foxtrot the species, and Foxtrot following you', patch: { gbPlaces: { follower: 'foxtrot' }, gbPatches: ['foxtrot'] } },
+  { id: 'village-notes', label: 'Village vs Notes', hint: 'every battle repainted: NOTES APP against VILLAGE', patch: { spriteGag: true } },
+  { id: 'plain', label: 'The game\'s own', hint: 'every place, patch set and the gag off', patch: { gbPlaces: {}, gbPatches: [], spriteGag: false } }
+]
+/** Whether a look is what the settings show now (every field of its patch matches). */
+export function gbLookOn(s: Pick<DeckSettings, 'gbPlaces' | 'gbPatches' | 'spriteGag'>, look: GbLook): boolean {
+  const p = look.patch
+  if (p.spriteGag != null && s.spriteGag !== p.spriteGag) return false
+  if (p.gbPatches) {
+    if (!p.gbPatches.length ? s.gbPatches.length > 0 : !p.gbPatches.every((n) => s.gbPatches.includes(n))) return false
+  }
+  if (p.gbPlaces) {
+    const want = Object.entries(p.gbPlaces)
+    if (!want.length ? Object.keys(s.gbPlaces).length > 0 : !want.every(([k, v]) => s.gbPlaces[k as GbPlace] === v)) return false
+  }
+  return true
 }

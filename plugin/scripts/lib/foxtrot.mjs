@@ -298,6 +298,7 @@ export async function foxtrotPatch(door, on = true, species) {
   const info = await door.call({ op: 'info' })
   if (!info.rom) throw new Error('no cartridge loaded')
   const writes = await foxtrotWrites(cartridgeFile(info.rom), species)
-  const { changed } = await door.call({ op: 'patchset', name: SET_FOXTROT, writes: writes.map(([o, b]) => [o, Buffer.from(b).toString('base64')]) })
+  // `keep`: the deck adds it to `gbPatches` and its library, so a ⌘R or a restart puts it back.
+  const { changed } = await door.call({ op: 'patchset', name: SET_FOXTROT, keep: true, writes: writes.map(([o, b]) => [o, Buffer.from(b).toString('base64')]) })
   return changed ?? 0
 }

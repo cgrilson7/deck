@@ -10,7 +10,11 @@
 //   sprite.mjs foxtrot on [species]|off FOXTROT the species (lib/foxtrot.mjs): Eevee (or [species]) relabelled in the loaded ROM as the patch
 //                                     set `foxtrot` — name, pictures, Pokédex page, coat, party icon; the deck re-applies it
 //                                     after every state load and `off` puts the cartridge's bytes back
+//   sprite.mjs build place <place> <art>   no door: print the place's compiled art as JSON (main's library calls this)
+//   sprite.mjs build set foxtrot --rom <path> [--species s]   no door: print the patch set's writes, [[offset, base64]…]
 //
+// What `put` and `foxtrot on` install is KEPT by the deck (the `gbPlaces` / `gbPatches` settings + main's library
+// under userData/pokemon/sprites), so a ⌘R or a restart puts it back; `clear` and `foxtrot off` let it go.
 // `put` installs a pack NAMED AFTER THE PLACE holding that one place, so `clear <place>` takes exactly it.
 // The door is the trainer's (lib/door.mjs): the deck's POST /gameboy (DECK_HOOK_PORT), or
 // `--headless <rom> --dir <d>` for serverboy in this process (packs kept in <d>/overlays.json; trainer.mjs
@@ -21,7 +25,8 @@ import { join } from 'node:path'
 import { DeckDoor, HeadlessDoor } from './lib/door.mjs'
 import { PLACES } from './lib/gbplaces.mjs'
 import { ARTS } from './lib/packs.mjs'
-import { foxtrotPatch, SET_FOXTROT } from './lib/foxtrot.mjs'
+import { readFileSync } from 'node:fs'
+import { foxtrotPatch, foxtrotWrites, SET_FOXTROT } from './lib/foxtrot.mjs'
 
 const argv = process.argv.slice(2)
 const flags = {}
@@ -56,6 +61,25 @@ if (!cmd || cmd === 'help' || cmd === '--help') {
   process.exit(0)
 }
 
+if (cmd === 'build') {
+  // Door-free compiling for main's library: JSON on stdout, nothing else.
+  try {
+    const [kind, what, art] = rest
+    if (kind === 'place') {
+      const entry = PLACES.includes(what) ? ARTS[art]?.().places[what] : null
+      if (!entry) die(`build place: ${art} has nothing for ${what}`)
+      console.log(JSON.stringify(entry))
+    } else if (kind === 'set' && what === SET_FOXTROT) {
+      if (!flags.rom) die('build set foxtrot: --rom <path>')
+      const writes = await foxtrotWrites(new Uint8Array(readFileSync(flags.rom)), flags.species)
+      console.log(JSON.stringify(writes.map(([o, b]) => [o, Buffer.from(b).toString('base64')])))
+    } else die(`build: place <place> <art> | set ${SET_FOXTROT} --rom <path>`)
+    process.exit(0)
+  } catch (e) {
+    die(e instanceof Error ? e.message : String(e))
+  }
+}
+
 let door
 if (flags.headless) {
   door = new HeadlessDoor(flags.dir ?? join(process.cwd(), '.trainer'))
@@ -83,8 +107,8 @@ try {
     if (!make) die(`put: art is ${Object.keys(ARTS).join(' | ')}`)
     const entry = make().places[place]
     if (!entry) die(`put: ${artName} has nothing for the ${place}`)
-    await door.call({ op: 'overlay', set: { name: place, v: 1, places: { [place]: entry } } })
-    out({ ok: true, place, art: artName }, `${place} = ${artName} (painted at the next step; the game's own tiles come back only with clear + a map change)`)
+    await door.call({ op: 'overlay', set: { name: place, art: artName, v: 1, places: { [place]: entry } } })
+    out({ ok: true, place, art: artName }, `${place} = ${artName} (painted at the next step, and kept across a ⌘R; the game's own tiles come back only with clear + a map change)`)
   } else if (cmd === 'clear') {
     const [what] = rest
     if (!what) die('clear: a place, or all')

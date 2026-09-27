@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -156,6 +156,8 @@ const api: DeckApi = {
   pokemonSaveState: (name: string, slot: number | string, data: Uint8Array) => ipcRenderer.invoke('pokemon:saveState', name, slot, data) as Promise<void>,
   pokemonLoadState: (name: string, slot: number | string) => ipcRenderer.invoke('pokemon:loadState', name, slot) as Promise<Uint8Array | null>,
   pokemonShot: (bytes: Uint8Array) => ipcRenderer.invoke('pokemon:shot', bytes) as Promise<string>,
+  gbSpriteGet: (req: GbSpriteReq) => ipcRenderer.invoke('gbsprites:get', req) as Promise<unknown>,
+  gbSpriteKeep: (req: GbSpriteReq, data: unknown) => ipcRenderer.invoke('gbsprites:keep', req, data) as Promise<void>,
   webSnap: (webContentsId: number) => ipcRenderer.invoke('web:snap', webContentsId) as Promise<string>,
   onGameboy: (cb) => {
     const h = (_e: unknown, req: GameboyRequest) => cb(req)

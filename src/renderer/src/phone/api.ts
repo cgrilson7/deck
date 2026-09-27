@@ -321,6 +321,8 @@ export const api: DeckApi = {
   pokemonSaveState: notHere,
   pokemonLoadState: notHere,
   pokemonShot: notHere,
+  gbSpriteGet: () => Promise.resolve(null),
+  gbSpriteKeep: () => Promise.resolve(),
   // Web apps are webviews of the desktop's window.
   webSnap: () => Promise.resolve(''),
   onGameboy: nothing,

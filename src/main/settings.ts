@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DEFAULT_SETTINGS, LESSON_TILES_MAX, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type WeatherPlace, type WebApp } from '@shared/types'
+import { DEFAULT_SETTINGS, GB_PLACES, LESSON_TILES_MAX, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type GbPlaces, type WeatherPlace, type WebApp } from '@shared/types'
 import { THEMES } from '@shared/themes'
 import { cleanModel } from '@shared/models'
 import { GRID_ORDER_MAX, isGridKey } from '@shared/gridorder'
@@ -91,6 +91,19 @@ function weatherPlaces(raw: unknown, dflt: WeatherPlace[]): WeatherPlace[] {
   return out.slice(0, WEATHER_PLACES_MAX)
 }
 
+/** An art or patch set's name: a library file name and a child's argv, so a plain word only. */
+const SPRITE_NAME = /^[a-z0-9_-]{1,32}$/
+
+function gbPlaces(raw: unknown): GbPlaces {
+  const out: GbPlaces = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const p of GB_PLACES) {
+    const v = (raw as Record<string, unknown>)[p]
+    if (typeof v === 'string' && SPRITE_NAME.test(v)) out[p] = v
+  }
+  return out
+}
+
 const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : dflt
   return Math.min(hi, Math.max(lo, n))
@@ -153,6 +166,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     spriteGag: bool(raw.spriteGag, d.spriteGag),
     // A moveset's name reaches a child process's argv, so only a plain word ever does.
     spriteGagMoves: typeof raw.spriteGagMoves === 'string' && /^[a-z0-9_-]{1,32}$/i.test(raw.spriteGagMoves.trim()) ? raw.spriteGagMoves.trim() : d.spriteGagMoves,
+    gbPlaces: gbPlaces(raw.gbPlaces),
+    gbPatches: Array.isArray(raw.gbPatches) ? [...new Set(raw.gbPatches.filter((n): n is string => typeof n === 'string' && SPRITE_NAME.test(n)))].slice(0, 16) : d.gbPatches,
     geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,
     studioModel: typeof raw.studioModel === 'string' && /^[\w.-]*$/.test(raw.studioModel.trim()) ? raw.studioModel.trim() : d.studioModel,
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
