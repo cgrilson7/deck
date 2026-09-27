@@ -434,19 +434,23 @@ github.com/cgrilson7/casa, private) and will run on the mini.
     carries `agent_id` when the call is a subagent's, verified). Normally the answer is a 204
     at once. PAUSE (⏸ on the head; the dialog takes an optional note) holds the member's next
     tool call: the response waits until ▶ resume (`held` on the view says it has bitten; the
-    fox looks around), at most the hour. CANCEL (✕; the dialog REQUIRES a reason) refuses the
-    member's tool calls from then on with a PreToolUse `deny` decision carrying the reason,
-    which the agent reads as its tool result and returns early on (verified end to end: the
-    parent gets "I was cancelled: <reason>"); a beta is killed a beat later. Both are TOLD TO
-    THE ALPHA by typing into its terminal (`manager.paste`: a message typed while Claude works
-    is delivered at the next tool boundary within the same turn — documented): a pause only
-    with a note (and then the resume too), a cancel always, as `[deck] The user cancelled your
-    subagent “name” … Reason: … fix its brief and relaunch it, fold the track into another
-    agent, or drop it — and say which`. The skill tells the alpha how to take these. A
-    finished agent's ✕ only dismisses its tile. The dialog is one component (`LeashDialog`,
+    fox looks around), at most the hour. KILL (✕, command `leashCancel`) is TWO CLICKS IN PLACE — the
+    first turns the ✕ into a red "kill" (`.is-armed`; it disarms after 3s or when the pointer
+    leaves), the second kills; the phone's row the same, two taps. NO DIALOG, NO REASON: Colin's
+    rule, it must be quick. A subagent's tile is removed at once
+    and its id kept in `stopped` for 6h (`STOPPED_KEEP_MS`), so every later tool call of it is
+    refused with a PreToolUse `deny` (which the agent reads as its tool result and returns early
+    on — verified end to end) and its hooks never make a tile again; a beta is killed a beat
+    later. The pack tile's "kill all" (`killPack`) does every subagent AND beta of that alpha at
+    once — THAT ONE ASKS FIRST (a native `confirm`, like a session's kill); one wolf is the two clicks. The ALPHA IS TOLD in ONE plain line typed into its terminal (`manager.paste`: delivered
+    at the next tool boundary within the same turn — documented): `[deck] The user killed your
+    subagent “name”. No explanation needed: carry on without it, and do not relaunch it unless
+    asked.` (a pack kill names them all in one message). A pause is told only with a note (and
+    then the resume too). Killing a finished agent only dismisses its
+    tile. The pause dialog is one component (`LeashDialog`,
     the picker's frame) raised through `lib/leash.ts` (a window event, like a path opening the
     preview) from a tile head, the agent pane, or a beta's focus pane; the phone uses a plain
-    prompt. A paused beta shows `paused` on its view (`SessionView.paused`, set by
+    prompt for the note. A paused beta shows `paused` on its view (`SessionView.paused`, set by
     `manager.setPaused`).
 - **Plugins**: Wikipedia = the picture of the day (the featured feed's `image`), full bleed,
   click opens its file page via `deck:openExternal` (http(s) only). It rotates: every 2 minutes

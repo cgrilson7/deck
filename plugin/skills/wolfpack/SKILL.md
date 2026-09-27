@@ -1,6 +1,6 @@
 ---
 name: wolfpack
-description: Run a wolfpack in the deck — you (Fable, the ALPHA) have already settled the path, the fixes, or the feature; now cut it into disjoint tracks and run each as an OPUS beta. The canonical pack is the Agent tool / a Workflow from THIS session — every subagent becomes a live tile of its own in the deck's grid (gold fox, its own transcript, pause / cancel on its head) through Claude Code's SubagentStart/SubagentStop hooks, nothing extra to run. A beta can instead be a deck session of its own (`node "$DECK_WOLFPACK"`, the CLI the deck ships) when it needs its own terminal or permissions. Use for "run a wolfpack", "/wolfpack", "/deck:wolfpack", "send in the betas", "wolfpack this plan", or whenever a decided plan has 2–6 independent tracks and you should not spend Fable on the typing. Only meaningful from a session running inside the deck app (the deck loads this plugin into every session it starts and sets DECK_HOOK_PORT / DECK_WOLFPACK in its env). Not for research or review — that is a read-only review pack, not this.
+description: Run a wolfpack in the deck — you (Fable, the ALPHA) have already settled the path, the fixes, or the feature; now cut it into disjoint tracks and run each as an OPUS beta. The canonical pack is the Agent tool / a Workflow from THIS session — every subagent becomes a live tile of its own in the deck's grid (gold fox, its own transcript, pause / kill on its head) through Claude Code's SubagentStart/SubagentStop hooks, nothing extra to run. A beta can instead be a deck session of its own (`node "$DECK_WOLFPACK"`, the CLI the deck ships) when it needs its own terminal or permissions. Use for "run a wolfpack", "/wolfpack", "/deck:wolfpack", "send in the betas", "wolfpack this plan", or whenever a decided plan has 2–6 independent tracks and you should not spend Fable on the typing. Only meaningful from a session running inside the deck app (the deck loads this plugin into every session it starts and sets DECK_HOOK_PORT / DECK_WOLFPACK in its env). Not for research or review — that is a read-only review pack, not this.
 ---
 
 # Wolfpack — one Fable alpha, up to N Opus betas, every one a tile
@@ -18,7 +18,7 @@ watches every member work — and can pull its leash (below).
 | How | the Agent tool (`model: "opus"`, `run_in_background`), or a Workflow | `node "$DECK_WOLFPACK" spawn <manifest>` |
 | Runs | inside this session; its result comes back to you | as a `claude` process of its own in a deck tmux session |
 | Tile | automatic: Claude Code's `SubagentStart` / `SubagentStop` hooks (`agent_id`, `agent_type`, `last_assistant_message`) tell the deck; the tile tails the agent's transcript (same JSONL as a session's): `<session>/subagents/agent-<id>.jsonl` for an Agent-tool subagent, `<session>/subagents/workflows/wf_<runId>/agent-<id>.jsonl` for a Workflow's — found once it exists, never guessed. Its NAME is your Agent call's `description` (the deck reads it off the call), or for a Workflow's agent the `label` you gave it in the script (from the `agent-<id>.meta.json` sidecar, with its `phase` and model beside it) — so LABEL EVERY WORKFLOW AGENT; failing both, the prompt's first line | automatic: a real session tile, gold, its `task` as the name |
-| The user can | watch it full size, pause / resume it, cancel it with a reason | the same, plus prompt it from its tile, focus its terminal, answer its permission prompts |
+| The user can | watch it full size, pause / resume it, kill it | the same, plus prompt it from its tile, focus its terminal, answer its permission prompts |
 | Permissions | yours (a subagent runs under your session's mode) | its own (`permissionMode` in the manifest) |
 | Ends | when it returns (the tile stays until your next prompt) | when you `dismiss` it |
 
@@ -99,27 +99,21 @@ session's first prompt, passed on the command line. A beta `blocked` is waiting 
 permission prompt — the user's, not yours; say so once. Always dismiss (or park) beta sessions
 before you finish; parking your own session parks them, killing it kills them.
 
-### The leash: when the user pauses or cancels a member
+### The leash: when the user pauses or kills a member
 
 Every member's tile (and its full-size pane, on the desktop and the phone) has a pause and a
-cancel. The deck enforces both through Claude Code's own `PreToolUse` hook, and tells YOU in
+kill. The deck enforces both through Claude Code's own `PreToolUse` hook, and tells YOU in
 your terminal — a line starting `[deck]`, which reaches you at your next tool boundary even
 mid-turn:
 
 - **Paused**: the member's next tool call waits in the deck until the user resumes it. If the
   user wrote a note you get `[deck] The user paused your subagent “…”: <note>`; otherwise
   nothing. Do not treat a paused agent as hung or relaunch it; wait, or do other work.
-- **Cancelled**: you get `[deck] The user cancelled your subagent “…” … Reason: <reason>`.
-  From then on its tool calls are REFUSED with that reason, so it stops and returns early
-  (its result says it was cancelled and why); a beta session is killed outright. The reason
-  is a correction from the person watching. Act on it, at once, and say in one line what you
-  did:
-  1. **Tweak and relaunch** — the usual case: fix the brief (the contract, the owned files,
-     the approach the reason objects to) and spawn the track again, or
-  2. **Fold** the track into another member (`SendMessage` to it, or `say` to a beta), or
-  3. **Drop** it, when the reason says the track is not wanted.
-  A background subagent: `TaskStop` it too, if it is still listed. Never relaunch the same
-  brief unchanged, and never argue with the reason in the agent's prompt.
+- **Killed**: you get `[deck] The user killed your subagent “…”` (or beta, or your whole
+  wolfpack, named in one line). No explanation comes and none is needed. Its tile is already
+  gone and its tool calls are refused, so it returns early; a beta session is killed outright.
+  Carry on without that track, do not relaunch it unless the user asks, and do not ask why.
+  A background subagent: `TaskStop` it too, if it is still listed.
 - A finished member's tile stays until your next typed prompt; the user can also dismiss it.
 
 ### 3. Integrate (you, inline)

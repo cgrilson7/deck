@@ -184,7 +184,10 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
         agents!.resume(cmd.id)
         break
       case 'leashCancel':
-        await agents!.cancel(cmd.id, cmd.reason)
+        await agents!.cancel(cmd.id)
+        break
+      case 'killPack':
+        await agents!.killPack(cmd.alpha)
         break
       case 'agentDismiss':
         agents!.dismiss(cmd.id, cmd.force)

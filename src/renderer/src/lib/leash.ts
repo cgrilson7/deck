@@ -1,8 +1,7 @@
-// The leash on a wolfpack member, from the renderer's side. A pause, a resume, a cancel with a
-// reason: the commands are main's (`leashPause` / `leashResume` / `leashCancel`, main/agents.ts),
-// and the reason (or a pause note) is asked for in one dialog the App renders (LeashDialog), so
-// a tile head, the agent pane, a beta's focus pane and the phone all ask the same way: a window
-// event, like a path opening the preview pane.
+// The leash on a wolfpack member, from the renderer's side. A pause, a resume, a kill: the
+// commands are main's (`leashPause` / `leashResume` / `leashCancel`, main/agents.ts). A pause's
+// optional note is asked for in one dialog the App renders (LeashDialog), raised by a window
+// event, like a path opening the preview pane; a kill asks nothing.
 
 import type { AgentView, SessionView } from '@shared/types'
 import { agentName } from '@shared/types'
@@ -18,7 +17,7 @@ export interface LeashTarget {
 
 export interface LeashAsk {
   target: LeashTarget
-  action: 'pause' | 'cancel'
+  action: 'pause'
 }
 
 const EVENT = 'deck:leash'
@@ -31,7 +30,7 @@ export function leashOfBeta(s: SessionView): LeashTarget {
   return { kind: 'beta', id: s.id, name: s.pack?.task || s.name, detail: s.model || 'beta session' }
 }
 
-/** Open the dialog: a pause asks for an optional note, a cancel for the reason the alpha will act on. */
+/** Open the pause dialog (an optional note for the alpha). */
 export function askLeash(ask: LeashAsk): void {
   window.dispatchEvent(new CustomEvent<LeashAsk>(EVENT, { detail: ask }))
 }
@@ -45,4 +44,14 @@ export function onLeash(cb: (ask: LeashAsk) => void): () => void {
 /** Resume needs no words: straight to main. */
 export function resumeLeash(id: string): void {
   void window.deck.command({ type: 'leashResume', id })
+}
+
+/** Kill a member, no questions asked (the alpha is told in one line). */
+export function killLeash(id: string): void {
+  void window.deck.command({ type: 'leashCancel', id })
+}
+
+/** Kill a session's whole wolfpack: every subagent and beta, the alpha told once. */
+export function killPack(alpha: string): void {
+  void window.deck.command({ type: 'killPack', alpha })
 }

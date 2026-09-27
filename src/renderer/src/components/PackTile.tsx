@@ -7,7 +7,7 @@ import { ChatView } from './ChatView'
 import { LeashButtons } from './LeashButtons'
 import { AgentStatus } from './AgentStatus'
 import { agentPose, agentState, blockLine, closeAgentPane, closesIn, isKept, keepAgent, openAgentPane, packSummary, useKeptVersion, useLastBlock, useNow } from '../lib/agents'
-import { leashOfAgent } from '../lib/leash'
+import { killPack, leashOfAgent } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
 
@@ -26,6 +26,7 @@ const DENSE_FROM = 5
  * A FINISHED agent puts itself away: its row counts down 15s (`lib/agents.ts`, the auto-killer)
  * where its state was, and that count is a button — click holds it (▶ lets it go again, from 15);
  * its × is always there, and "clear n" in the head takes every finished one, a pack of one too.
+ * "kill all" in the head kills the whole wolfpack at once — every subagent and beta — after a confirm.
  */
 export function PackTile({ alpha, agents, openId }: { alpha: SessionView | null; agents: AgentView[]; /** The agent the center pane is showing, if any. */ openId: string | null }) {
   useKeptVersion()
@@ -61,6 +62,19 @@ export function PackTile({ alpha, agents, openId }: { alpha: SessionView | null;
             }}
           >
             clear {finished.length}
+          </button>
+        )}
+        {alpha && (
+          <button
+            className="ghost danger pack-clear"
+            title="Kill the whole wolfpack now: every subagent and beta of this session (the alpha is told)"
+            onClick={(e) => {
+              e.stopPropagation()
+              const n = agents.filter((a) => a.endedAt === null).length
+              if (confirm(`Kill the whole wolfpack of “${alpha.name}”? ${n ? `${n} running agent${n === 1 ? '' : 's'} and ` : ''}every beta go now; the alpha is told.`)) killPack(alpha.id)
+            }}
+          >
+            kill all
           </button>
         )}
       </header>

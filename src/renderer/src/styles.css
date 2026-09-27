@@ -576,8 +576,18 @@ button {
   transition: opacity 120ms ease;
 }
 .tile:hover .leash-btn,
-.tile .leash-btn.is-on {
+.tile .leash-btn.is-on,
+.tile .leash-btn.is-armed {
   opacity: 1;
+}
+/* The ✕ after its first click: a red "kill" waiting for the second. */
+.leash-btn.is-armed,
+.agent-hero-leash .leash-btn.is-armed {
+  color: var(--panel);
+  background: var(--red);
+  border-color: var(--red);
+  border-radius: 6px;
+  font-weight: 600;
 }
 
 /* A subagent's state as a pill (AgentStatus.tsx): pip + word + clock. */

@@ -25,10 +25,14 @@
 //
 // The LEASH: every tool call of every session comes through PreToolUse (hooks.ts) with the
 // subagent's id when it is one's, or the session's id when it is a beta's own. A PAUSED member's
-// call is held — the hook's response waits until resume — and a CANCELLED member's is refused
-// with the user's reason, which the agent reads as its tool result and returns early on. Both
-// tell the alpha in its terminal (a message typed while it works reaches it at the next tool
-// boundary), the cancel with the reason, so it can fix the brief and relaunch, or drop the track.
+// call is held — the hook's response waits until resume — and a KILLED member's is refused,
+// which the agent reads as its tool result and returns early on. The alpha is told in its
+// terminal (a message typed while it works reaches it at the next tool boundary).
+//
+// KILL (the leash's ✕, one click, no questions; or the pack tile's "kill all") takes a subagent's
+// tile off at once — it does not wait for the agent to notice — and remembers the id for
+// STOPPED_KEEP_MS, so its later tool calls are refused and its hooks make no tile again. A beta is
+// killed. The alpha gets one plain line: the user killed it, no explanation needed.
 //
 // Finished agents stay until the parent's next TYPED prompt (a background agent's result comes
 // back through UserPromptSubmit too, as a `<task-notification>`, and that one must not count),
@@ -80,6 +84,10 @@ const PER_PARENT = 12
 /** An `Agent` call unmatched to a start after this long is forgotten. */
 const PENDING_MS = 5 * 60_000
 const REASON_MAX = 2000
+/** A stopped agent's calls are refused (and it never gets a tile back) for this long. */
+const STOPPED_KEEP_MS = 6 * 60 * 60_000
+/** What a killed agent reads as its refused tool call's result. */
+const KILLED = 'the user killed this agent from the deck'
 /** How often an agent whose transcript has not been found yet is looked for again. */
 const RESOLVE_MS = 500
 /** A finished agent whose transcript never turned up is given up on this long after its stop. */
@@ -96,6 +104,8 @@ export class AgentTracker {
   /** Held tool calls, per member key (`agent:<id>` or `session:<claudeSessionId>`). */
   private holds = new Map<string, Set<Release>>()
   private betas = new Map<string, BetaLeash>()
+  /** Subagents stopped from the deck (tile gone): id → the refusal's reason, and when. */
+  private stopped = new Map<string, { reason: string; at: number }>()
   private resolver: ReturnType<typeof setInterval> | null = null
 
   constructor(
@@ -123,7 +133,7 @@ export class AgentTracker {
     switch (event) {
       case 'SubagentStart': {
         const id = String(p.agent_id ?? '')
-        if (!id || this.agents.has(id)) return
+        if (!id || this.agents.has(id) || this.stopped.has(id)) return
         const a = this.fresh(id, rec.id, String(p.agent_type ?? ''), p, this.takePending(p.session_id!, String(p.agent_type ?? '')))
         this.agents.set(id, a)
         this.resolve(a)
@@ -131,7 +141,7 @@ export class AgentTracker {
       }
       case 'SubagentStop': {
         const id = String(p.agent_id ?? '')
-        if (!id) return
+        if (!id || this.stopped.has(id)) return
         let a = this.agents.get(id)
         if (!a) {
           // Never seen to start: a tile all the same, already finished.
@@ -168,7 +178,7 @@ export class AgentTracker {
   /**
    * Every tool call of every session (PreToolUse). The parent's `Agent` call is remembered for the
    * name; a subagent's call is a sign of life (and a tile, if its start was missed); a paused
-   * member's call waits here; a cancelled member's is refused with the reason.
+   * member's call waits here; a killed member's is refused.
    */
   onPreTool(p: HookPayload, gone: (cb: () => void) => void): Promise<PreToolDecision | null> {
     const rec = p.session_id ? this.manager.find({ claudeSessionId: p.session_id }) : null
@@ -183,6 +193,8 @@ export class AgentTracker {
       if (leash.paused) return this.hold(`session:${rec.id}`, gone)
       return Promise.resolve(null)
     }
+    const stopped = this.stopped.get(agentId)
+    if (stopped) return Promise.resolve(deny(stopped.reason))
     let a = this.agents.get(agentId)
     if (!a) {
       a = this.fresh(agentId, rec.id, String(p.agent_type ?? ''), p, this.takePending(p.session_id!, String(p.agent_type ?? '')))
@@ -267,41 +279,56 @@ export class AgentTracker {
   }
 
   /**
-   * Cancel a member with a reason: a subagent's tool calls are refused with it from now on (a
-   * held one at once), so it returns early; a beta is killed. The alpha is told the reason and
-   * asked to tweak and relaunch, fold the track in, or drop it.
+   * KILL a member, no questions asked: a subagent's tile goes AT ONCE and its tool calls are
+   * refused from now on (a held one straight away), so it returns early; a beta is killed. The
+   * alpha is told in one line (unless `quiet`: `killPack` tells it once for all of them).
    */
-  async cancel(id: string, reason: string): Promise<void> {
-    const why = clip(reason.trim())
-    if (!why) throw new Error('a cancel needs a reason: it is what the alpha acts on')
+  async cancel(id: string, quiet = false): Promise<void> {
     const a = this.agents.get(id)
     if (a) {
-      if (a.endedAt !== null) throw new Error('that agent has already finished')
-      a.cancelled = { reason: why, at: Date.now() }
-      a.paused = false
-      a.held = false
-      this.release(`agent:${id}`, deny(why))
-      this.tell(
-        a.parent,
-        `[deck] The user cancelled your subagent “${agentName(a)}” (${a.type}, agent ${a.id}${a.background ? ', running in the background' : ''}). Reason: ${why}\n` +
-          `Its tool calls are now refused with that reason, so it will stop and return early${a.background ? ' (TaskStop it if it has not)' : ''}. Take the reason as a correction: fix its brief and relaunch it, fold the track into another agent, or drop it — and say in one line which you did.`
-      )
+      const running = a.endedAt === null
+      this.drop(a)
+      if (running && !quiet) this.tell(a.parent, `[deck] The user killed your subagent “${agentName(a)}”${a.background ? ' (TaskStop it if it is still listed)' : ''}. No explanation needed: carry on without it, and do not relaunch it unless asked.`)
       this.changed()
       return
     }
+    if (this.stopped.has(id)) return
     const beta = this.betaOf(id)
-    const leash = this.betas.get(beta.id) ?? { paused: false, told: false, cancelled: null }
-    leash.cancelled = why
+    await this.killBeta(beta.id)
+    if (!quiet && beta.pack) this.tell(beta.pack.alpha, `[deck] The user killed your beta “${beta.pack.task}”. No explanation needed: carry on without it, and do not respawn it unless asked.`)
+  }
+
+  /** Kill a session's whole wolfpack — every subagent and every beta — and tell the alpha once. */
+  async killPack(alpha: string): Promise<void> {
+    const subs = [...this.agents.values()].filter((a) => a.parent === alpha)
+    const running = subs.filter((a) => a.endedAt === null)
+    for (const a of subs) this.drop(a)
+    if (subs.length) this.changed()
+    const betas = this.manager.betasOf(alpha)
+    await Promise.all(betas.map((b) => this.killBeta(b.id)))
+    const names = [...running.map((a) => `“${agentName(a)}”`), ...betas.map((b) => `“${b.pack?.task || b.name}”`)]
+    if (!names.length) return
+    const bg = running.some((a) => a.background)
+    this.tell(alpha, `[deck] The user killed your wolfpack: ${names.join(', ')}${bg ? ' (TaskStop any still listed)' : ''}. No explanation needed: carry on without them, and do not relaunch them unless asked.`)
+  }
+
+  /** A subagent off the list for good: its held and later tool calls are refused. */
+  private drop(a: Agent): void {
+    if (a.endedAt === null) this.stopped.set(a.id, { reason: KILLED, at: Date.now() })
+    this.agents.delete(a.id)
+    this.release(`agent:${a.id}`, a.endedAt === null ? deny(KILLED) : null)
+  }
+
+  private async killBeta(id: string): Promise<void> {
+    const leash = this.betas.get(id) ?? { paused: false, told: false, cancelled: null }
+    leash.cancelled = KILLED
     leash.paused = false
-    this.betas.set(beta.id, leash)
-    this.release(`session:${beta.id}`, deny(why))
-    if (beta.pack) {
-      this.tell(beta.pack.alpha, `[deck] The user cancelled your beta “${beta.pack.task}” and it has been killed. Reason: ${why}\nTake the reason as a correction: fix its brief and spawn it again, fold the track into another beta, or drop it — and say in one line which you did.`)
-    }
+    this.betas.set(id, leash)
+    this.release(`session:${id}`, deny(KILLED))
     // The refusal reaches whatever call was in flight; a beat later the session goes.
     await new Promise((r) => setTimeout(r, 150))
-    await this.manager.kill(beta.id)
-    this.betas.delete(beta.id)
+    await this.manager.kill(id)
+    this.betas.delete(id)
   }
 
   /** Remove a tile: a finished or cancelled agent goes at once; a stuck one (SubagentStop never
@@ -309,7 +336,7 @@ export class AgentTracker {
   dismiss(id: string, force = false): void {
     const a = this.agents.get(id)
     if (!a) return
-    if (a.endedAt === null && !a.cancelled && !force) throw new Error('that agent is still running: cancel it, with a reason, instead')
+    if (a.endedAt === null && !a.cancelled && !force) throw new Error('that agent is still running: kill it instead')
     this.agents.delete(id)
     this.release(`agent:${id}`, deny(a.cancelled?.reason ?? 'dismissed from the deck'))
     this.changed()
@@ -374,6 +401,7 @@ export class AgentTracker {
   prune(): void {
     const now = Date.now()
     let dropped = false
+    for (const [id, st] of this.stopped) if (now - st.at > STOPPED_KEEP_MS) this.stopped.delete(id)
     const byParent = new Map<string, Agent[]>()
     for (const [id, a] of this.agents) {
       if (a.endedAt !== null && now - a.endedAt > FINISHED_KEEP_MS) {
@@ -551,7 +579,7 @@ function deny(reason: string): PreToolDecision {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
-      permissionDecisionReason: `Cancelled from the deck by the user. Reason: ${reason}\nStop now: do not try another tool. Reply with one short paragraph saying you were cancelled, the reason, and what you had done so far.`
+      permissionDecisionReason: `Refused: ${reason}.\nStop now: do not try another tool. Reply in one line that you were stopped, and what you had done so far.`
     }
   }
 }

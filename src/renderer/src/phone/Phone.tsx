@@ -569,8 +569,14 @@ function AgentSheet({ a, parent, onClose }: { a: AgentView; parent: SessionView 
   )
 }
 
-/** Pause / resume / cancel rows: the reason (or note) is asked with a plain prompt, the phone has no dialog of its own. */
+/** Pause / resume / kill rows: a pause's note is asked with a plain prompt; a kill asks nothing, the phone has no dialog of its own. */
 function Leash({ id, name, paused, beta, run }: { id: string; name: string; paused: boolean; beta?: boolean; run: (cmd: Parameters<typeof window.deck.command>[0]) => void }) {
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => setArmed(false), 3000)
+    return () => clearTimeout(t)
+  }, [armed])
   return (
     <>
       {paused ? (
@@ -593,11 +599,11 @@ function Leash({ id, name, paused, beta, run }: { id: string; name: string; paus
         type="button"
         className="ph-row danger"
         onClick={() => {
-          const reason = window.prompt(`Cancel “${name}” — why? The alpha is told and adjusts${beta ? ' (the beta is killed)' : ''}.`, '')
-          if (reason?.trim()) run({ type: 'leashCancel', id, reason: reason.trim() })
+          if (armed) run({ type: 'leashCancel', id })
+          else setArmed(true)
         }}
       >
-        Cancel with a reason
+        {armed ? 'Tap again to kill it' : 'Kill (the alpha is told)'}
       </button>
     </>
   )

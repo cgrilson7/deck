@@ -260,12 +260,14 @@ export type DeckCommand =
   /**
    * The leash on one pack member (main/agents.ts): `id` is a subagent's id or a beta session's deck id.
    * pause = its next tool call is held in the hooks server (a `note` is also typed into the alpha);
-   * resume = let go; cancel = its tool calls are refused with `reason` (a beta is killed) and the alpha
-   * is told the reason so it can tweak and relaunch; dismiss = a finished agent's tile goes.
+   * resume = let go; cancel = KILL, no questions: a subagent's tile goes at once and its tool calls are
+   * refused from then on (a beta is killed), the alpha told in one line; killPack = every subagent and
+   * beta of `alpha` at once, told once; dismiss = a finished agent's tile goes.
    */
   | { type: 'leashPause'; id: string; note?: string }
   | { type: 'leashResume'; id: string }
-  | { type: 'leashCancel'; id: string; reason: string }
+  | { type: 'leashCancel'; id: string }
+  | { type: 'killPack'; alpha: string }
   | { type: 'agentDismiss'; id: string; force?: boolean }
 
 /** A Wikipedia picture of the day (today's, or one from the archive), from the featured-content feed. */
