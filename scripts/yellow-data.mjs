@@ -325,7 +325,7 @@ const WANT = [
   'wStatusFlags7', 'wTownVisitedFlag', 'wPokedexOwned', 'wPokedexSeen', 'wNumSprites', 'wTextBoxID', 'wPlayerBattleStatus1', 'wEnemyMonStatus',
   'wRepelRemainingSteps', 'wd72e', 'wd730', 'wd736', 'wFontLoaded', 'wLinkState', 'wCurEnemyLevel', 'wPlayerSelectedMove', 'wEnemySelectedMove',
   'wTopMenuItemY', 'wMenuWatchedKeys', 'wNumberOfWarps', 'wWarpEntries', 'wLastBlackoutMap', 'wPokedexOwned', 'wPokedexSeen', 'wPlayerCoins', 'wBoxCount', 'wNumBoxItems', 'wCurrentBoxNum', 'wPikachuOverworldStateFlags', 'wd472',
-  'wGrassRate', 'wGrassMons', 'wWaterRate', 'wWaterMons',
+  'wGrassRate', 'wGrassMons', 'wWaterRate', 'wWaterMons', 'wEnemyMonActualCatchRate',
   'hJoyHeld', 'hJoyPressed', 'hJoyInput'
 ]
 const addr = {}

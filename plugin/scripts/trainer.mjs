@@ -31,13 +31,17 @@
 //                                                          a GIFT: level 1 unless told, into the CURRENT BOX of Bill's PC (WRAM;
 //                                                          the game keeps it at the player's next in-game SAVE), his own OT id
 //                                                          and name, EVs 0, the Pokédex untouched; --party puts it in the party
-//   trainer.mjs encounter <pokemon|foxtrot> [--next] [--level N] [--easy]
+//   trainer.mjs encounter <pokemon|foxtrot> [--next] [--level N] [--easy] [--name NEW]   (--name: with --next, the rename
+//                                                          below kept applied while it waits)
 //                                                          a WILD BATTLE right where you stand (be free in the overworld), or with
 //                                                          --next THE NEXT GRASS ENCOUNTER: it waits, the map's grass table filled with
 //                                                          it (again after every map load), the table put back once it appears or on ^C;
 //                                                          level 5 unless told; `foxtrot` = the species the FOXTROT set relabels (Eevee),
 //                                                          whose set --next re-applies if a reload dropped it;
 //                                                          --easy = the battle copy's catch rate 255 and HP a third, so any ball catches
+//   trainer.mjs name <NEW NAME>                            RENAME the player (be free in the overworld): wPlayerName and the OT name of
+//                                                          his own mons in the party and current box (Pikachu's starter check reads it);
+//                                                          SAVE in the game to keep it; 10 letters at most, 7 fit every screen
 //   trainer.mjs elite [--level N]                          the preset Elite Four team, all badges, money
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
 //   trainer.mjs badges [all|none]  |  money <n>
@@ -69,6 +73,7 @@ import * as Y from './lib/yellow.mjs'
 import * as F from './lib/forge.mjs'
 import * as S from './lib/sprites.mjs'
 import { FOXTROT_SPECIES_DEFAULT, SET_FOXTROT, foxtrotPatch } from './lib/foxtrot.mjs'
+import { ARTS } from './lib/packs.mjs'
 
 const argv = process.argv.slice(2)
 const flags = {}
@@ -103,6 +108,7 @@ const HELP = `trainer.mjs — play Pokémon Yellow on the deck's Game Boy
   gift NAME [--level N] [--nick NAME] [--party]   a level-1 NAME into the current box of Bill's PC (or the party); SAVE in the game to keep it
   encounter NAME|foxtrot [--next] [--level N] [--easy]   a wild battle now where you stand, or --next = the next grass encounter
                   (waits; ^C puts the grass back); --easy = any ball catches it
+  name NEW NAME    rename the player (and his mons' OT name); SAVE to keep it
   warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
   sprite [watch] [--moves SET] [--name YOU] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
                   in a battle: NOTES APP (Splash only) vs VILLAGE (a moveset of data/sprites/movesets.json: ${Object.keys(S.MOVESETS).join(" | ")}; Solar Beams, TYPE/ APP); --foxtrot = Red is Foxtrot
@@ -323,6 +329,20 @@ try {
       const fox = want.toLowerCase() === 'foxtrot'
       const level = flags.level != null ? Math.max(1, Math.min(100, Number(flags.level) | 0)) : 5
       const name = fox ? FOXTROT_SPECIES_DEFAULT : want
+      // FOXTROT CAUGHT = FOXTROT FOLLOWS: once the battle is over with one more of him owned than before it, his
+      // overlay takes Pikachu's place (sprite.mjs put follower foxtrot). Run away or faint him and Pikachu stays.
+      const had = fox ? await F.owned(door, F.species(name)) : 0
+      const pauseTick = flags.headless ? () => door.call({ op: 'hold', keys: [], iterations: 10 }) : () => new Promise((r) => setTimeout(r, 150))
+      const afterFoxtrot = async (before, stop) => {
+        if (!fox) return
+        if (!(await door.ops()).has('overlay')) return console.error('  · this deck has no `overlay` op: `sprite.mjs put follower foxtrot` after a restart')
+        console.error('  · waiting for the battle to end, to see whether he was caught')
+        if (!(await F.battleOver(door, pauseTick, stop))) return
+        if ((await F.owned(door, F.species(name))) <= before) return console.error('  · he was not caught: Pikachu keeps following')
+        const entry = ARTS.foxtrot().places.follower
+        await door.call({ op: 'overlay', set: { name: 'follower', v: 1, places: { follower: entry } } })
+        console.error('  · FOXTROT is caught and is your follower now (a ⌘R forgets it: sprite.mjs put follower foxtrot)')
+      }
       const tail = (e) => `a wild ${fox ? 'FOXTROT' : e.name.toUpperCase()} L${e.level}: HP ${e.hp}/${e.maxHp}, catch rate ${e.catchRate}${flags.easy ? ' — any ball catches him' : ''}`
       const foxOn = async () => (await door.call({ op: 'patchset', list: true }).catch(() => ({ sets: [] }))).sets?.some((s) => s.name === SET_FOXTROT)
       if (flags.next) {
@@ -334,18 +354,30 @@ try {
           name,
           level,
           easy: !!flags.easy,
-          pause: flags.headless ? () => door.call({ op: 'hold', keys: [], iterations: 10 }) : () => new Promise((r) => setTimeout(r, 150)),
+          pause: pauseTick,
           ensure: async () => {
             if (fox && canPatch && !(await foxOn())) {
               await foxtrotPatch(door, true)
               console.error('  · the FOXTROT set was off (a reload?): on again')
+            }
+            // --name NEW: the rename rides along, re-applied whenever a loaded game (a party, no battle) carries another
+            // name — a restart before an in-game SAVE reloads the old one.
+            if (flags.name) {
+              const [pn, pc, ib] = (await door.call({ op: 'ram', ranges: [[Y.A.wPlayerName, 11], [Y.A.wPartyCount, 1], [Y.A.wIsInBattle, 1]] })).data.map((x) => Buffer.from(x, 'base64'))
+              const cur = Y.decodeName(pn)
+              if (pc[0] > 0 && pc[0] <= 6 && !ib[0] && cur && cur !== flags.name) {
+                const r = await F.rename(door, flags.name)
+                console.error(`  · ${r.old} is ${r.name} again (OT names: ${r.party} party, ${r.box} box) — SAVE in the game to keep it`)
+              }
             }
           },
           stop: () => stopped,
           say: (m) => console.error('  · ' + m)
         })
         if (!e) die('stopped: the grass is back to its own', 130)
-        await finish(tail(e) + ' — the grass is back to its own')
+        console.error('  · ' + tail(e) + ' — the grass is back to its own')
+        await afterFoxtrot(had, () => stopped)
+        await finish(tail(e))
         break
       }
       const st = await d.state()
@@ -353,7 +385,22 @@ try {
       if (st.waiting !== 'free') die(`not free in the overworld (${st.waiting}): close the menu or text first`)
       const note = fox && !(await foxOn()) ? `\n  the FOXTROT set is off, so he shows as ${FOXTROT_SPECIES_DEFAULT.toUpperCase()}: node plugin/scripts/sprite.mjs foxtrot on` : ''
       const e = await F.encounter(door, { name, level, easy: !!flags.easy })
+      if (fox) {
+        console.error('  · ' + tail(e))
+        let stopped = false
+        process.on('SIGINT', () => (stopped = true))
+        await afterFoxtrot(had, () => stopped)
+      }
       await finish(tail(e) + note)
+      break
+    }
+    case 'name': {
+      const want = rest.join(' ')
+      if (!want) die('name <NEW NAME>   e.g. name VILLAGER 0')
+      const st = await d.state()
+      if (st.battle || st.waiting !== 'free') die(`not free in the overworld (${st.battle ? 'a battle' : st.waiting}): the name is drawn on menus, so rename from the map`)
+      const r = await F.rename(door, want)
+      await finish(`${r.old} is now ${r.name} — SAVE in the game to keep it.\n  OT name rewritten on ${r.party} party and ${r.box} current-box Pokémon${[...want].length > 7 ? `\n  ${[...want].length} letters: the start menu and trainer card leave room for 7` : ''}`)
       break
     }
     case 'elite': {

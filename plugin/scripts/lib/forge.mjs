@@ -249,10 +249,9 @@ export async function gift(door, { name, level = 1, nick, party = false, dv = 15
  * A wild ENCOUNTER on demand: `wCurOpponent` + `wCurEnemyLevel` poked while the player stands free in
  * the overworld, which the game's own overworld loop reads as a wild battle starting (the research
  * harness's trick, docs/sprites/). With `easy`, once the battle has built its enemy copy (wEnemyMon:
- * species, then the stats), that copy's CATCH RATE becomes 255 and its HP a third of the max: Gen 1's
- * first roll (0–255 for a Poké Ball, 0–200 Great, 0–150 Ultra) can never beat 255, and the second is
- * skipped once floor(maxHP·255 / 12 | 8) / floor(HP / 4) ≥ 255, which a third of the HP makes true for
- * every ball. Only the BATTLE copy is touched — nothing an in-game SAVE keeps; the caught mon's own stats
+ * species, then the stats), that copy's CATCH RATE becomes 255 and its HP `sureHp` (at most a third):
+ * every ball catches on the first throw (checked for every max HP 12–400; below 12 no HP makes a Poké Ball sure,
+ * a Great Ball still is from 8). Only the BATTLE copy is touched — nothing an in-game SAVE keeps; the caught mon's own stats
  * are rebuilt from its level. The caller checks the player is free first.
  * → { id, name, level, hp, maxHp, catchRate }
  */
@@ -267,23 +266,62 @@ export async function encounter(door, { name, level = 5, easy = false }) {
   return settleEnemy(door, id, level, easy, () => door.call({ op: 'hold', keys: [], iterations: 4 }))
 }
 
+/**
+ * The HP at which EVERY ball is a sure catch once the catch rate is 255 (Gen 1, ItemUseBall): the first roll
+ * (0–255 Poké, 0–200 Great, 0–150 Ultra) can never beat 255, and the second is skipped when
+ * W = floor(floor(maxHP × 255 / F) / max(floor(HP / 4), 1)) ≥ 255, F = 12 for a Poké Ball (8 for the others, which
+ * only makes W bigger). The highest such HP up to a third of the max, so the bar still looks like a fight.
+ */
+export function sureHp(maxHp) {
+  const top = Math.floor((maxHp * 255) / 12)
+  for (let hp = Math.max(1, Math.floor(maxHp / 3)); hp > 1; hp--) if (Math.floor(top / Math.max(Math.floor(hp / 4), 1)) >= 255) return hp
+  return 1
+}
+
 /** Wait for the battle's enemy copy to carry its stats (the species lands first), then make it easy if asked. */
 async function settleEnemy(door, id, level, easy, pause) {
   const read = async (addr, n) => new Uint8Array(Buffer.from((await door.call({ op: 'ram', ranges: [[addr, n]] })).data[0], 'base64'))
+  // The copy is STALE (the last battle's) until the game writes this one's stats, a beat after the species: wait for
+  // this level and a max HP this species can have at it (any DVs; a wild mon has no stat exp).
+  const base = DATA.pokemon[id].hp
+  const lo = stat(base, 0, 0, level, true)
+  const hi = stat(base, 15, 0, level, true)
   let m
-  for (let i = 0; i < 40; i++) {
+  let ok = false
+  for (let i = 0; i < 60 && !ok; i++) {
     m = await read(A.wEnemyMon, 17)
-    if (((m[15] << 8) | m[16]) > 0 && m[14] === level) break
+    const max = (m[15] << 8) | m[16]
+    ok = m[0] === id && m[14] === level && max >= lo && max <= hi
+    if (!ok) await pause()
+  }
+  if (!ok) throw new Error(`the battle started but ${DATA.pokemon[id].name}'s stats never loaded (L${m[14]}, max HP ${(m[15] << 8) | m[16]}, want ${lo}–${hi})`)
+  const maxHp = (m[15] << 8) | m[16]
+  if (easy) {
+    const hp = sureHp(maxHp)
+    // The ball reads wEnemyMonActualCatchRate (ItemUseBall), which the battle copied from the struct's byte when it
+    // began — poking only the struct's (+7) left the species' own rate in charge. Both, so the menus agree.
+    await door.call({ op: 'poke', writes: [[A.wEnemyMon + 7, b64(new Uint8Array([255]))], [A.wEnemyMonActualCatchRate, b64(new Uint8Array([255]))], [A.wEnemyMon + 1, b64(new Uint8Array([hp >> 8, hp & 0xff]))]] })
+    m = await read(A.wEnemyMon, 17)
+  }
+  const [actual] = await read(A.wEnemyMonActualCatchRate, 1)
+  return { id, name: DATA.pokemon[id].name, level: m[14], hp: (m[1] << 8) | m[2], maxHp, catchRate: actual }
+}
+
+/** How many of `id` the player has, in the party and the current box (a catch lands in one of the two). */
+export async function owned(door, id) {
+  const [party, box] = await readMany(door, [[A.wPartySpecies, 7], [A.wBoxCount, 22]])
+  const count = (list, n) => [...list.subarray(0, n)].filter((s) => s === id).length
+  return count(party, Math.min(party.indexOf(0xff) < 0 ? 6 : party.indexOf(0xff), 6)) + count(box.subarray(1), Math.min(box[0], 20))
+}
+
+/** Wait (a `pause` a tick) until no battle is up; → true once it is over, false if `stop()` ends it first. */
+export async function battleOver(door, pause, stop = () => false) {
+  for (;;) {
+    if (stop()) return false
+    const [inB] = await readMany(door, [[A.wIsInBattle, 1]])
+    if (!inB[0]) return true
     await pause()
   }
-  const maxHp = (m[15] << 8) | m[16]
-  if (!maxHp) throw new Error('the battle started but the enemy\'s stats never loaded')
-  if (easy) {
-    const hp = Math.max(1, Math.floor(maxHp / 3))
-    await door.call({ op: 'poke', writes: [[A.wEnemyMon + 7, b64(new Uint8Array([255]))], [A.wEnemyMon + 1, b64(new Uint8Array([hp >> 8, hp & 0xff]))]] })
-    m = await read(A.wEnemyMon, 17)
-  }
-  return { id, name: DATA.pokemon[id].name, level: m[14], hp: (m[1] << 8) | m[2], maxHp, catchRate: m[7] }
 }
 
 /**
@@ -342,6 +380,35 @@ export async function nextEncounter(door, { name, level = 5, easy = false, pause
 
 async function readMany(door, ranges) {
   return (await door.call({ op: 'ram', ranges })).data.map((d) => new Uint8Array(Buffer.from(d, 'base64')))
+}
+
+/**
+ * RENAME THE PLAYER: wPlayerName, AND the OT name of every mon that is his (its OT id is his and its OT name the
+ * old one) in the party and the current box — Yellow's starter-Pikachu check (engine/pikachu/pikachu_status.asm)
+ * compares the OT NAME, so renaming him alone would leave Pikachu a stranger (no following, no happiness).
+ * Obedience compares only the OT id. The other boxes live in SRAM and keep the old OT name (cosmetic, unless
+ * Pikachu is stored there). RAM only: his next in-game SAVE keeps it. Up to 10 letters fit the buffer; the game's
+ * own limit is 7 (the start menu and trainer card leave room for 7), so a longer name may spill there.
+ * → { old, name, party, box } (how many OT names were rewritten)
+ */
+export async function rename(door, name) {
+  const next = encodeText(name, 11)
+  if ([...next].filter((b) => b !== 0x50).length !== [...name].length) throw new Error(`"${name}": a letter is not in the game's font, or it is over 10 letters`)
+  const n = (a) => a.subarray(0, (a.indexOf(0x50) + 1) || a.length)
+  const same = (a, b) => { const x = n(a), y = n(b); return x.length === y.length && x.every((v, i) => v === y[i]) }
+  const [old, id, count, party, ots, box] = await readMany(door, [
+    [A.wPlayerName, 11], [A.wPlayerID, 2], [A.wPartyCount, 1], [A.wPartyMon1, 6 * 44], [A.wPartyMonOT, 6 * 11], [A.wBoxCount, BOX.end]
+  ])
+  const writes = [[A.wPlayerName, b64(next)]]
+  const mine = (struct, o) => struct[o + 0x0c] === id[0] && struct[o + 0x0d] === id[1]
+  let p = 0
+  for (let i = 0; i < Math.min(count[0], 6); i++)
+    if (mine(party, i * 44) && same(ots.subarray(i * 11, i * 11 + 11), old)) { writes.push([A.wPartyMonOT + i * 11, b64(next)]); p++ }
+  let b = 0
+  for (let i = 0; i < Math.min(box[BOX.count], BOX_MAX); i++)
+    if (mine(box, BOX.mons + i * BOX_MON) && same(box.subarray(BOX.ot + i * 11, BOX.ot + i * 11 + 11), old)) { writes.push([A.wBoxCount + BOX.ot + i * 11, b64(next)]); b++ }
+  await door.call({ op: 'poke', writes })
+  return { old: Y.decodeName(old), name, party: p, box: b }
 }
 
 export async function setBadges(door, mask = 0xff) {

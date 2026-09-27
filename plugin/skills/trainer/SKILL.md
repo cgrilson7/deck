@@ -113,7 +113,16 @@ battle copies, so they say NOTES APP / VILLAGE meanwhile.
 FREE in the overworld (no menu, no text box; `look` says `free`), and it is refused mid-battle. `foxtrot`
 is the species the FOXTROT patch set relabels (Eevee); any other name works too (`encounter snorlax
 --level 30`). Level 5 unless `--level N`. `--easy` sets the BATTLE COPY's catch rate to 255 and its HP
-to a third, so any ball catches it on the first throw — tell him to throw a ball rather than attack.
+as high as a sure catch allows (never more than a third), so any ball catches it on the first throw — tell him to throw a ball rather than attack.
 Nothing a save keeps is touched. If the answer says the FOXTROT set is off, he will appear as EEVEE:
 `node "$(dirname "$DECK_TRAINER")/sprite.mjs" foxtrot on` first. Once he has CAUGHT Foxtrot (not
-before — Pikachu follows until then), `sprite.mjs put follower foxtrot` makes Foxtrot the follower.
+before — Pikachu follows until then), Foxtrot becomes the follower: `encounter foxtrot` waits out the battle and
+does it itself when one more Foxtrot is owned afterwards (run away or faint him and Pikachu stays); by hand it is
+`sprite.mjs put follower foxtrot`. `--next` waits for the next GRASS encounter instead (^C puts the grass back).
+
+## Renaming the player (only when asked)
+
+`node "$DECK_TRAINER" name VILLAGER 0` renames him — free in the overworld only. It rewrites `wPlayerName`
+AND the OT name of his own Pokémon in the party and the current box: Pikachu's starter check compares the OT
+name, so renaming him alone would make Pikachu a stranger. 10 letters at most; the start menu and trainer card
+have room for 7. RAM only: tell him to SAVE in the game to keep it.
