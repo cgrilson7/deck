@@ -18,11 +18,20 @@
 // here: a save state carries the whole ROM, patches and all, so after every state load the image is
 // RECONCILED (pristine + the sets that are on) — a state saved mid-gag never bakes the gag in, and a
 // set that is on survives a load.
+//
+// OVERLAYS (plugin/scripts/lib/gbplaces.mjs, the same runtime the headless door steps): named packs of art
+// kept in fixed places of the game — Red's walking sprite (`player`), Pikachu's (`follower`) — by a
+// compare-then-write after EVERY core step. Every step goes through `stepCore`, so none is missed: the
+// free-running loop, a door job's step, and the no-view run-at-once path (which is a job run in a loop).
+// The packs live in this machine's memory only for now (settings are a later step): a ⌘R drops them and
+// the CLI (plugin/scripts/sprite.mjs) puts them back.
 
 import { useEffect, useState } from 'react'
 import { readSavedRom, writeSavedRom } from './pokemon'
 import { b64dec, b64enc, OPS, oamRead, paletteRead, paletteSet, PatchSets, vramRead, vramWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
 import type { GbColour, GbCore, PatchWrite } from '../../../../plugin/scripts/lib/gbcore.mjs'
+import { Overlays } from '../../../../plugin/scripts/lib/gbplaces.mjs'
+import type { Pack } from '../../../../plugin/scripts/lib/gbplaces.mjs'
 
 export const GB_W = 160
 export const GB_H = 144
@@ -221,6 +230,8 @@ class GameBoy {
   private pristine: Uint8Array | null = null
   /** The door's patch sets for this cartridge (a different cartridge starts an empty one). */
   private sets: PatchSets | null = null
+  /** The overlay packs that are on (not per cartridge: the places are Yellow's). */
+  private overlays = new Overlays()
   private chain: Promise<unknown> = Promise.resolve()
 
   constructor() {
@@ -322,8 +333,7 @@ class GameBoy {
         this.runJobStep()
         continue
       }
-      for (const k of this.held) sb.pressKey(k)
-      sb.doFrame()
+      this.stepCore(this.held)
     }
     this.blit()
     if (this.audible && !this.status.muted && this.status.speed === 1) {
@@ -477,12 +487,19 @@ class GameBoy {
     return out
   }
 
+  /** THE one core step: keys pressed for it (the core lets go after each), the step, then the overlays kept. */
+  private stepCore(keys: Iterable<GbKey>): void {
+    const sb = this.sb
+    if (!sb || !this.core) return
+    for (const k of keys) sb.pressKey(k)
+    sb.doFrame()
+    this.overlays.step(this.core, performance.now())
+  }
+
   private runJobStep(): void {
     const job = this.job
-    const sb = this.sb
-    if (!job || !sb) return
-    for (const k of job.keys) sb.pressKey(k)
-    sb.doFrame()
+    if (!job || !this.sb) return
+    this.stepCore(job.keys)
     job.n++
     if (job.after() || job.n >= job.budget) {
       this.job = null
@@ -672,6 +689,16 @@ class GameBoy {
         this.blit()
         this.note(`state “${name}” loaded`)
         return {}
+      }
+      case 'overlay': {
+        if (body.list) return { packs: this.overlays.list() }
+        if (body.status) return { places: this.overlays.status() }
+        if (body.clear != null) return { removed: this.overlays.clear(String(body.clear)) }
+        if (body.set) {
+          this.overlays.set(body.set as Pack)
+          return {}
+        }
+        throw new Error('overlay: set, clear, list or status')
       }
       case 'speed': {
         const sp = Number(body.speed)

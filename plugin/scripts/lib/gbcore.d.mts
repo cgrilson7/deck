@@ -36,7 +36,7 @@ export interface GbCore {
 export type GbColour = number | string
 
 /** The names `info.ops` reports when a door end has gbcore: the CLI feature-detects on these. */
-export const OPS: readonly ['vram', 'oam', 'palette', 'patchset']
+export const OPS: readonly ['vram', 'oam', 'palette', 'patchset', 'overlay']
 
 /**
  * Write `bytes` at `addr` ($8000–$9FFF) in VRAM `bank` (0 | 1) through the core's own writer with

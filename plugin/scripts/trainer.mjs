@@ -27,6 +27,17 @@
 //                                                          FORGE a party: "Alakazam 65: Psychic, Recover; Snorlax 65"
 //                                                          --add appends instead of replacing; --ot names another original trainer
 //                                                          (moves default to the level-up set at that level)
+//   trainer.mjs gift <pokemon> [--level N] [--nick NAME] [--party] [--dv N]
+//                                                          a GIFT: level 1 unless told, into the CURRENT BOX of Bill's PC (WRAM;
+//                                                          the game keeps it at the player's next in-game SAVE), his own OT id
+//                                                          and name, EVs 0, the Pokédex untouched; --party puts it in the party
+//   trainer.mjs encounter <pokemon|foxtrot> [--next] [--level N] [--easy]
+//                                                          a WILD BATTLE right where you stand (be free in the overworld), or with
+//                                                          --next THE NEXT GRASS ENCOUNTER: it waits, the map's grass table filled with
+//                                                          it (again after every map load), the table put back once it appears or on ^C;
+//                                                          level 5 unless told; `foxtrot` = the species the FOXTROT set relabels (Eevee),
+//                                                          whose set --next re-applies if a reload dropped it;
+//                                                          --easy = the battle copy's catch rate 255 and HP a third, so any ball catches
 //   trainer.mjs elite [--level N]                          the preset Elite Four team, all badges, money
 //   trainer.mjs warp <MAP_CONST> [warpId]                  bend this map's doors: the next one leads there
 //   trainer.mjs badges [all|none]  |  money <n>
@@ -57,6 +68,7 @@ import { Driver, describe } from './lib/drive.mjs'
 import * as Y from './lib/yellow.mjs'
 import * as F from './lib/forge.mjs'
 import * as S from './lib/sprites.mjs'
+import { FOXTROT_SPECIES_DEFAULT, SET_FOXTROT, foxtrotPatch } from './lib/foxtrot.mjs'
 
 const argv = process.argv.slice(2)
 const flags = {}
@@ -65,7 +77,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a.startsWith('--')) {
     const k = a.slice(2)
-    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'add' || k === 'foxtrot') flags[k] = true
+    if (k === 'shot' || k === 'json' || k === 'no-map' || k === 'add' || k === 'foxtrot' || k === 'party' || k === 'easy' || k === 'next') flags[k] = true
     else flags[k] = argv[++i]
   } else args.push(a)
 }
@@ -87,7 +99,11 @@ const HELP = `trainer.mjs — play Pokémon Yellow on the deck's Game Boy
   look [--shot] [--radius X,Y] [--no-map]   press KEY [n]     advance     walk DIR [n]
   goto TARGET     talk TARGET     fight SLOT     save NAME | load NAME     shot
   speed 1|2|4 | pause | resume    rom [path]     intro     where [TARGET]     map     cut
-  party "Name Lvl: move, move; Name Lvl; …"    elite [--level N]    warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
+  party "Name Lvl: move, move; Name Lvl; …"    elite [--level N]
+  gift NAME [--level N] [--nick NAME] [--party]   a level-1 NAME into the current box of Bill's PC (or the party); SAVE in the game to keep it
+  encounter NAME|foxtrot [--next] [--level N] [--easy]   a wild battle now where you stand, or --next = the next grass encounter
+                  (waits; ^C puts the grass back); --easy = any ball catches it
+  warp MAP_CONST [id]    badges all|none    money N    learnset NAME [lvl]
   sprite [watch] [--moves SET] [--name YOU] [--foxtrot] [--front PNG] [--back PNG] [--front-name N] [--back-name N]
                   in a battle: NOTES APP (Splash only) vs VILLAGE (a moveset of data/sprites/movesets.json: ${Object.keys(S.MOVESETS).join(" | ")}; Solar Beams, TYPE/ APP); --foxtrot = Red is Foxtrot
 Targets: ${Object.keys(Y.LANDMARKS).join(', ')}; or MAP_CONST@x,y, door:MAP_CONST, MAP_CONST.`
@@ -286,6 +302,58 @@ try {
       const team = F.parseTeam(spec)
       const mons = await F.writeParty(door, team, { add: !!flags.add, ot: flags.ot, dv: flags.dv != null ? +flags.dv : 15, statExp: flags.ev != null ? +flags.ev : 65535 })
       await finish(`${flags.add ? 'added to the party' : 'forged a party'}:\n` + mons.map((m) => `  ${m.name} L${m.level} HP ${m.maxHp} — ${m.moves.join(', ')}`).join('\n'))
+      break
+    }
+    case 'gift': {
+      const name = rest.join(' ')
+      if (!name) die('gift <pokemon> [--level N] [--nick NAME] [--party]   e.g. gift vulpix')
+      const level = flags.level != null ? Math.max(1, Math.min(100, Number(flags.level) | 0)) : 1
+      const r = await F.gift(door, { name, level, nick: flags.nick, party: !!flags.party, dv: flags.dv != null ? +flags.dv : 15 })
+      const m = r.mon
+      const place = r.where === 'box' ? `box ${r.box} (slot ${r.slot})` : `your party (slot ${r.slot})`
+      await finish(
+        `${m.name} L${m.level} is in ${place} — SAVE in the game to keep it.\n` +
+          `  nickname ${Y.decodeName(m.nick)}, OT ${Y.decodeName(m.ot)}, HP ${m.maxHp}, moves ${m.moves.filter((x) => x !== '-').join(', ')}`
+      )
+      break
+    }
+    case 'encounter': {
+      const want = rest.join(' ')
+      if (!want) die('encounter <pokemon|foxtrot> [--level N] [--easy]   e.g. encounter foxtrot --easy')
+      const fox = want.toLowerCase() === 'foxtrot'
+      const level = flags.level != null ? Math.max(1, Math.min(100, Number(flags.level) | 0)) : 5
+      const name = fox ? FOXTROT_SPECIES_DEFAULT : want
+      const tail = (e) => `a wild ${fox ? 'FOXTROT' : e.name.toUpperCase()} L${e.level}: HP ${e.hp}/${e.maxHp}, catch rate ${e.catchRate}${flags.easy ? ' — any ball catches him' : ''}`
+      const foxOn = async () => (await door.call({ op: 'patchset', list: true }).catch(() => ({ sets: [] }))).sets?.some((s) => s.name === SET_FOXTROT)
+      if (flags.next) {
+        // Waits for the encounter. The deck runs by itself (a short sleep a tick); headless, a tick is game time.
+        let stopped = false
+        process.on('SIGINT', () => (stopped = true))
+        const canPatch = (await door.ops()).has('patchset')
+        const e = await F.nextEncounter(door, {
+          name,
+          level,
+          easy: !!flags.easy,
+          pause: flags.headless ? () => door.call({ op: 'hold', keys: [], iterations: 10 }) : () => new Promise((r) => setTimeout(r, 150)),
+          ensure: async () => {
+            if (fox && canPatch && !(await foxOn())) {
+              await foxtrotPatch(door, true)
+              console.error('  · the FOXTROT set was off (a reload?): on again')
+            }
+          },
+          stop: () => stopped,
+          say: (m) => console.error('  · ' + m)
+        })
+        if (!e) die('stopped: the grass is back to its own', 130)
+        await finish(tail(e) + ' — the grass is back to its own')
+        break
+      }
+      const st = await d.state()
+      if (st.battle) die('already in a battle')
+      if (st.waiting !== 'free') die(`not free in the overworld (${st.waiting}): close the menu or text first`)
+      const note = fox && !(await foxOn()) ? `\n  the FOXTROT set is off, so he shows as ${FOXTROT_SPECIES_DEFAULT.toUpperCase()}: node plugin/scripts/sprite.mjs foxtrot on` : ''
+      const e = await F.encounter(door, { name, level, easy: !!flags.easy })
+      await finish(tail(e) + note)
       break
     }
     case 'elite': {

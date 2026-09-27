@@ -22,6 +22,12 @@
 //         after a ROM mount and after EVERY state load (a state carries the whole ROM image, patches baked
 //         in), which is what keeps an old state from bringing stale bytes back. Headless, the sets live in
 //         <dir>/patchsets.json between calls (per cartridge: another ROM starts with none)
+//   overlay { set: pack } → {}   { clear: name } → { removed }   { list: true } → { packs: [{ name, places }] }
+//           { status: true } → { places: { player: { pack, state }, … } }
+//         OVERLAY PACKS (gbplaces.mjs): art kept in fixed places of the game (`player` = Red's walking
+//         sprite, `follower` = Pikachu's) by a runtime stepped after EVERY core step on both ends. Headless,
+//         the packs live in <dir>/overlays.json (written on every change and with every `save`, so `status`
+//         reports what the last command's steps did) and the animation clock is GAME time, 8ms a step
 //   hold  { keys, iterations, stop, every }   → { iterations, stopped, values }
 //         keys are held for up to `iterations` (8ms core steps); every `every` steps each
 //         `stop` — { addr, len, when: 'changed' | 'eq' | 'ne', value } — is tested, and the
@@ -38,6 +44,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deflateSync } from 'node:zlib'
 import { OPS, PatchSets, b64dec, b64enc, oamRead, paletteRead, paletteSet, vramRead, vramWrite } from './gbcore.mjs'
+import { Overlays } from './gbplaces.mjs'
 
 const KEYS = ['RIGHT', 'LEFT', 'UP', 'DOWN', 'A', 'B', 'SELECT', 'START']
 
@@ -145,6 +152,15 @@ export class HeadlessDoor {
     const require = createRequire(opts.modulesFrom ?? new URL('../../../package.json', import.meta.url))
     if (!globalThis.process.hrtime) globalThis.process.hrtime = () => [0, 0]
     this.Serverboy = require('serverboy')
+    // The overlay packs are not per cartridge (the places are Yellow's; another game just never matches them).
+    const saved = join(dir, 'overlays.json')
+    this.overlays = existsSync(saved) ? Overlays.fromJSON(JSON.parse(readFileSync(saved, 'utf8'))) : new Overlays()
+    /** Game time in ms (8 a step): the overlays' animation clock, so a preview animates at the game's pace. */
+    this.clock = 0
+  }
+
+  saveOverlays() {
+    writeFileSync(join(this.dir, 'overlays.json'), JSON.stringify(this.overlays))
   }
 
   loadRom(path, sram) {
@@ -182,6 +198,8 @@ export class HeadlessDoor {
   step(keys) {
     for (const k of keys) this.sb.pressKey(k)
     this.sb.doFrame()
+    this.clock += 8
+    this.overlays.step(this.core, this.clock)
   }
 
   /** Through the core's own reader: Yellow runs in GBC mode and D000–DFFF is a banked region, not the flat `memory` array. */
@@ -234,6 +252,7 @@ export class HeadlessDoor {
       case 'save': {
         const path = join(this.dir, `${sanitize(body.name)}.state`)
         writeFileSync(path, JSON.stringify(this.core.saveState()))
+        if (this.overlays.packs.size) this.saveOverlays()
         return { ok: true, path }
       }
       case 'load': {
@@ -265,6 +284,21 @@ export class HeadlessDoor {
         const changed = this.sets.set(this.core, body.name, (body.writes ?? []).map(([o, b64]) => [o, b64dec(b64)]))
         this.saveSets()
         return { ok: true, changed }
+      }
+      case 'overlay': {
+        if (body.list) return { ok: true, packs: this.overlays.list() }
+        if (body.status) return { ok: true, places: this.overlays.status() }
+        if (body.clear != null) {
+          const removed = this.overlays.clear(String(body.clear))
+          this.saveOverlays()
+          return { ok: true, removed }
+        }
+        if (body.set) {
+          this.overlays.set(body.set)
+          this.saveOverlays()
+          return { ok: true }
+        }
+        throw new Error('overlay: set, clear, list or status')
       }
       case 'speed':
       case 'pause':

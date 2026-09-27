@@ -57,6 +57,17 @@ move to learn) the screen line says so: answer with `press` and `advance`.
 - Brock: Rock/Ground; Pikachu's Electric moves do nothing to Geodude/Onix — use Mankey / Nidoran / Butterfree's Confusion, or Bulbasaur's Vine Whip if you already have it (you will not, yet). Catch a Mankey on Route 22 or a Nidoran on Route 22 and level it. Misty: Water — Pikachu's Thunder Shock. Surge: Electric — a Ground type (Sandshrew from Route 4 / Diglett's Cave) or just levels; his gym's door needs Cut, and the trash cans hide two switches.
 - Blacked out (all fainted)? You wake at the last Pokémon Center with half your money gone. Better: `load` your last checkpoint.
 
+## A gift (only when asked)
+
+`node "$DECK_TRAINER" gift vulpix` puts a LEVEL-1 Vulpix into the CURRENT BOX of Bill's PC and
+prints the line to tell the user: "Vulpix L1 is in box N (slot k) — SAVE in the game to keep it."
+It is his: his OT id and name, EVs 0, the moves it knows at that level, the Pokédex left for the
+game to fill in when he looks. It is a RAM write — the game copies the box to the cartridge's save
+only when he SAVEs in the game (START → SAVE), so tell him that; nothing here ever writes a save
+file. `--level N`, `--nick NAME` (the species name otherwise), `--party` (into the party instead:
+refused when it holds six). A full box (20) is refused: he changes boxes in Bill's PC, or `--party`.
+To withdraw it he needs a free party slot (DEPOSIT one first).
+
 ## The sprite gag (only when asked)
 
 `node "$DECK_TRAINER" sprite` repaints the battle on screen: the enemy MON's picture becomes the
@@ -95,3 +106,14 @@ battle copies, so they say NOTES APP / VILLAGE meanwhile.
 - Cut: START → POKéMON → the one that knows CUT → CUT, while facing the tree. Then `goto` again.
 - Never `press A` blindly at a shop or the start menu: read the `screen:` line, move the cursor with UP/DOWN, then A.
 - A new move: YES to learn it if it has more power than the weakest move shown; you then pick which to forget.
+
+## A wild encounter on demand (only when asked)
+
+`node "$DECK_TRAINER" encounter foxtrot --easy` starts a WILD BATTLE right where he stands — he must be
+FREE in the overworld (no menu, no text box; `look` says `free`), and it is refused mid-battle. `foxtrot`
+is the species the FOXTROT patch set relabels (Eevee); any other name works too (`encounter snorlax
+--level 30`). Level 5 unless `--level N`. `--easy` sets the BATTLE COPY's catch rate to 255 and its HP
+to a third, so any ball catches it on the first throw — tell him to throw a ball rather than attack.
+Nothing a save keeps is touched. If the answer says the FOXTROT set is off, he will appear as EEVEE:
+`node "$(dirname "$DECK_TRAINER")/sprite.mjs" foxtrot on` first. Once he has CAUGHT Foxtrot (not
+before — Pikachu follows until then), `sprite.mjs put follower foxtrot` makes Foxtrot the follower.

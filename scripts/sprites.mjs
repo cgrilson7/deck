@@ -4,7 +4,9 @@
 // for the enemy's front picture, the Village logo for your mon's back picture. Both are
 // CONVERTED from the real artwork, never redrawn:
 //
-//   node scripts/sprites.mjs [--village <1024.png>] [--notes <icon.png>] [--preview <dir>]
+//   node scripts/sprites.mjs [--village <1024.png>] [--notes <icon.png>] [--preview <dir>] [--foxtrot]
+//
+//   (--foxtrot = only the FOXTROT kit below: it needs neither Village's nor Notes' source file.)
 //
 //   fox-idle.png / fox-run.png   FOXTROT for the overworld, from the deck's own sheet
 //                (src/renderer/src/assets/fox.png: 14×7 frames of 32px, the art at x 4–25, y 14–31;
@@ -19,6 +21,17 @@
 //   fox-back.png   Foxtrot for the battle intro, in Red's back slot (56×56): the idle frames with rows
 //                at 3× (54, on the floor) and the 22 columns spread over the 56 (2.5×), facing the
 //                enemy as the sheet faces.
+//
+//   THE FOXTROT KIT (plugin/scripts/lib/foxtrot.mjs reads these to relabel EEVEE (or another species) as FOXTROT in the loaded ROM):
+//   foxtrot-front.png  56×56, his battle / Pokédex front picture: the sheet's standing fox (row 0 frame 0, the
+//                22×18 art) filling the block as fox-back.png does (rows 3×, columns 2.5×), mirrored to face left — shades by luminance, as the
+//                research run that verified it (rom-patching.md §5). A drawn 3/4 front is the later improvement.
+//   foxtrot-back.png   32×32, his back picture: foxtrot-back.txt (a 28×28 grid drawn by hand) top left, the 4-px
+//                margin right and bottom that the game drops before it doubles a back picture.
+//   foxtrot-icon.png   32×16, his party-menu icon: foxtrot-icon.txt (two frames of an 8×16 LEFT half, drawn by
+//                hand) each mirrored into a 16×16 frame, the two side by side. Shade 0 is clear on screen.
+//   A grid is `.:+#` = shades 0–3, one line per row, `;` lines are comments; a row of the wrong length or a
+//   stray character is REJECTED with a ruler, never padded.
 //
 //   village.png  ~/slay/ios/slay/Images.xcassets/AppIcon.appiconset/1024.png — white strokes on a
 //                gradient square. Only the strokes are kept (a pixel is stroke when min(r,g,b) is
@@ -47,6 +60,7 @@ const flag = (k, d) => (argv.includes(`--${k}`) ? argv[argv.indexOf(`--${k}`) + 
 const VILLAGE = flag('village', join(homedir(), 'slay/ios/slay/Images.xcassets/AppIcon.appiconset/1024.png'))
 const NOTES = flag('notes', join(homedir(), 'Downloads/Notes_(iOS_26)_app_icon.png'))
 const PREVIEW = flag('preview', null)
+const ONLY_FOXTROT = argv.includes('--foxtrot')
 
 /** Every 56×56 cell of a picture as the source pixels under it: fn(pixel) summed, over the count. The picture fills a `size` box at `off` (the rest is empty). */
 function cells(png, fns, size = PIC, off = 0) {
@@ -208,7 +222,85 @@ function png(shades, scale = 1, w = PIC, h = PIC) {
   return encodePng(rgba, w, h, scale)
 }
 
+// ---- the FOXTROT kit -----------------------------------------------------------------------------
+
+const GRID = { '.': 0, ':': 1, '+': 2, '#': 3 }
+/** A text grid → shades, exactly `w` × `h` (`h` may be a multiple: frames stacked), or an error with a ruler. */
+function parseGrid(text, w, h, name) {
+  const rows = text.split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l && !l.startsWith(';'))
+  const ruler = () => `\n     ${Array.from({ length: w }, (_, i) => Math.floor(i / 10) || ' ').join('')}\n     ${Array.from({ length: w }, (_, i) => i % 10).join('')}\n` + rows.map((r, i) => `${String(i + 1).padStart(3)}  ${r}`).join('\n')
+  if (rows.length !== h) throw new Error(`${name}: ${rows.length} rows, want ${h}${ruler()}`)
+  const out = new Uint8Array(w * h)
+  rows.forEach((r, y) => {
+    if (r.length !== w) throw new Error(`${name}: row ${y + 1} is ${r.length} wide, want ${w}${ruler()}`)
+    ;[...r].forEach((c, x) => {
+      if (!(c in GRID)) throw new Error(`${name}: row ${y + 1} col ${x + 1}: "${c}" is not one of . : + #${ruler()}`)
+      out[y * w + x] = GRID[c]
+    })
+  })
+  return out
+}
+
+/**
+ * The front picture's shades, for a BG place whose palette is Foxtrot's own (PAL_0F: white, the sheet's
+ * two oranges, the outline): white and the light grey → 0 (the paper; his chest, muzzle and tail tip stay
+ * WHITE, where foxShade's 1 would wear the coat's colour), the light orange → 1, the dark orange → 2,
+ * the outline and its shadows → 3, clear → 0.
+ */
+function foxFrontShade(p) {
+  if (p[3] < 128) return 0
+  const [r, g, b] = p
+  if (r < 100 && g < 100 && b < 100) return 3
+  if (r > 140 && g < 140) return r > 190 ? 1 : 2 // (214,121,65) light, (157,80,33) dark
+  return 0
+}
+
+function foxtrotFront() {
+  // The whole 56×56 block, like Red's-slot Foxtrot (rows at 3×, the 22 columns spread over 56): the sheet
+  // at 2× was 44×36 and sat small beside Vulpix's own 48×48 in the Pokédex. Mirrored to face the player
+  // (the game mirrors every front picture again on its Pokédex page).
+  const png = decodePng(readFileSync(FOX))
+  const [row, ] = FOX_ROWS.idle
+  const shades = new Uint8Array(PIC * PIC)
+  const top = PIC - FOX_ART.h * 3
+  for (let dy = top; dy < PIC; dy++)
+    for (let dx = 0; dx < PIC; dx++) {
+      const sx = Math.floor(((PIC - 1 - dx) * FOX_ART.w) / PIC)
+      const sy = Math.floor((dy - top) / 3)
+      shades[dy * PIC + dx] = foxFrontShade(png.rgba.subarray(((row * 32 + FOX_ART.y + sy) * png.w + FOX_ART.x + sx) * 4))
+    }
+  return shades
+}
+
+function foxtrotBack() {
+  const grid = parseGrid(readFileSync(join(OUT, 'foxtrot-back.txt'), 'utf8'), 28, 28, 'foxtrot-back.txt')
+  const shades = new Uint8Array(32 * 32)
+  for (let y = 0; y < 28; y++) shades.set(grid.subarray(y * 28, y * 28 + 28), y * 32)
+  return shades
+}
+
+function foxtrotIcon() {
+  const grid = parseGrid(readFileSync(join(OUT, 'foxtrot-icon.txt'), 'utf8'), 8, 32, 'foxtrot-icon.txt')
+  const shades = new Uint8Array(32 * 16)
+  for (let f = 0; f < 2; f++)
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 8; x++) {
+        const s = grid[(f * 16 + y) * 8 + x]
+        shades[y * 32 + f * 16 + x] = s
+        shades[y * 32 + f * 16 + 15 - x] = s
+      }
+  return shades
+}
+
 mkdirSync(OUT, { recursive: true })
+for (const [name, make, w, h] of [['foxtrot-front', foxtrotFront, PIC, PIC], ['foxtrot-back', foxtrotBack, 32, 32], ['foxtrot-icon', foxtrotIcon, 32, 16]]) {
+  const shades = make()
+  writeFileSync(join(OUT, `${name}.png`), png(shades, 1, w, h))
+  if (PREVIEW) writeFileSync(join(PREVIEW, `${name}@8.png`), png(shades, 8, w, h))
+  console.log(`${name}.png  ${w}×${h}  shades 0–3: ${[0, 1, 2, 3].map((s) => shades.filter((v) => v === s).length).join(' / ')}`)
+}
+if (ONLY_FOXTROT) process.exit(0)
+
 for (const [name, src, make] of [['village', VILLAGE, village], ['notes', NOTES, notes]]) {
   const shades = make(decodePng(readFileSync(src)))
   const bytes = png(shades)

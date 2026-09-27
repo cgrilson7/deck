@@ -1,0 +1,36 @@
+; sprite foxtrot-icon   place: partyIcon   size: 8x16 x2 (left halves; the game mirrors each)   shade0: clear   palette: party menu OBJ
+; legend . 0 (clear)  : 1 (white)  + 2  # 3
+; FOXTROT's party-menu icon: a symmetric front view, drawn by hand in five passes (the fifth: a 12-wide head, ears and eyes pulled in). Rows 1-16 = frame 1, rows 17-32 = frame 2
+; (a bob: the head one row down, the body one row shorter). Column 8 sits against the mirror line.
+...#....
+...##...
+...#+#..
+...#:+##
+..#+:+++
+..#++#++
+..#+:#++
+..#::::+
+...#::::
+....#::#
+....#+::
+...#++::
+...#++#:
+...#++#:
+...#++#:
+....####
+........
+...#....
+...##...
+...#+#..
+...#:+##
+..#+:+++
+..#++#++
+..#+:#++
+..#::::+
+...#::::
+....#::#
+....#+::
+...#++#:
+...#++#:
+...#++#:
+....####

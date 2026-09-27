@@ -4,7 +4,8 @@
 // gbcore.d.mts beside it (the renderer's only view of this file): keep the two in step by hand.
 //
 // What it is for: the door ops `vram`, `oam`, `palette` and `patchset` (listed in OPS, reported by `info`
-// so the CLI can feature-detect them), built on serverboy's private core the way the research proved:
+// so the CLI can feature-detect them; `overlay` is in OPS too, its runtime is gbplaces.mjs beside this),
+// built on serverboy's private core the way the research proved:
 //  - a VRAM write with STAT forced to mode 0 lands every time (200/200 headless; a plain memoryWrite
 //    is dropped whenever a step ended in mode 3), and going through the core's own writer keeps its
 //    tile cache right;
@@ -13,7 +14,7 @@
 //  - a state carries the whole ROM image, so patches are NAMED SETS over a PRISTINE copy of the
 //    file, re-applied by `reconcile` after every state load, or an old state brings stale bytes back.
 
-export const OPS = Object.freeze(['vram', 'oam', 'palette', 'patchset'])
+export const OPS = Object.freeze(['vram', 'oam', 'palette', 'patchset', 'overlay'])
 
 // ---- base64, by hand -----------------------------------------------------------------------
 
