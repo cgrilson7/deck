@@ -127,6 +127,29 @@ export function StudioPane({
     return () => window.clearInterval(t)
   }, [sel?.status])
 
+  /** Empty the text the way typing would, so ⌘Z brings it back (a programmatic value drops the undo stack). */
+  const clearText = () => {
+    const el = box.current
+    if (el && el.value) {
+      el.focus()
+      el.select()
+      if (document.execCommand('delete')) return
+    }
+    setPrompt('')
+  }
+
+  /** Everything the composer holds back to a fresh start; the text stays undoable. */
+  const resetAll = () => {
+    clearText()
+    setTag('')
+    setModel('')
+    setRatio('1:1')
+    setSize('1K')
+    setRefs([])
+    setPicked(null)
+    setErr('')
+  }
+
   const addRefs = (paths: string[]) => setRefs((r) => [...r, ...paths.filter((p) => !r.includes(p))].slice(0, STUDIO_REFS_MAX))
 
   const generate = async () => {
@@ -337,6 +360,11 @@ export function StudioPane({
           <span className="studio-hint" title="There is no file dialog here: drop images from Finder onto this pane, or take one from the gallery with “use as reference”.">
             <ImagePlus size={11} /> drop images here ({refs.length}/{STUDIO_REFS_MAX})
           </span>
+          {refs.length > 0 && (
+            <button className="ghost" title="Remove all reference images" onClick={() => setRefs([])}>
+              clear images
+            </button>
+          )}
         </div>
 
         <div className="studio-actions">
@@ -350,8 +378,11 @@ export function StudioPane({
           >
             <MessageSquarePlus size={13} /> {chat ? 'New chat' : 'Ask Claude for help'}
           </button>
-          <button className="ghost" title="Empty the composer" onClick={() => setPrompt('')}>
+          <button className="ghost" title="Empty the composer" onClick={clearText}>
             Clear
+          </button>
+          <button className="ghost" title="Reset everything: text, references, model, ratio, size, tag" onClick={resetAll}>
+            Reset
           </button>
           {err && <span className="studio-err-line">{err}</span>}
         </div>

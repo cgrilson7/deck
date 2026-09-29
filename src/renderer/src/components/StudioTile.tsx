@@ -230,6 +230,9 @@ export function StudioTile() {
               </button>
             </span>
           ))}
+          <button className="ghost" title="Remove all reference images" onClick={() => setRefs([])}>
+            clear
+          </button>
         </div>
       )}
 
