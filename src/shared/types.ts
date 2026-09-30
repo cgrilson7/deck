@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -108,6 +108,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showLesson) out.push('lesson')
   if (s.showPosture) out.push('posture')
   if (s.showFoxtrot) out.push('foxtrot')
+  if (s.showSpace) out.push('space')
   return out
 }
 
@@ -651,6 +652,10 @@ export interface DeckSettings {
   showPosture: boolean
   /** The Foxtrot tile: the fox in a field — he runs while a session works, idles when none does, and leaps and barks at a slouch. */
   showFoxtrot: boolean
+  /** The Space tile: ~/space's disk pathways (free space, what waits on a decision). Turned on by main when a scan needs you. */
+  showSpace: boolean
+  /** Where the space repo lives ('' = ~/space): main reads its state/status.json and runs its bin/space.mjs. */
+  spaceDir: string
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -724,6 +729,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   molTiles: [1],
   showLesson: false,
   showPosture: false,
+  showSpace: false,
+  spaceDir: '',
   showFoxtrot: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
@@ -813,7 +820,7 @@ export interface DocOpen {
 }
 
 /** Which of Foxtrot's senses saw something (main/foxtrot.ts). */
-export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died' | 'posture'
+export type FoxKind = 'boot' | 'opened' | 'closed' | 'prompt' | 'finished' | 'blocked' | 'unread' | 'collision' | 'errors' | 'died' | 'posture' | 'space'
 
 /**
  * One of Foxtrot's observations, from the head in the top bar. A `bark` is something that
@@ -978,7 +985,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -995,6 +1002,74 @@ export interface DeckUsage {
   /** Deck session id → % of its context window in use. */
   context: Record<string, number>
 }
+
+/** ~/space's pathways (its CLAUDE.md): what a category does with what it finds. */
+export type SpacePathway = 'delete' | 'cloud' | 'keep' | 'review' | 'manual'
+export interface SpaceCategory {
+  id: string
+  label: string
+  why: string
+  pathway: SpacePathway
+  /** Standing approval: new items run on the daily scan without asking. */
+  standing: boolean
+  count: number
+  bytes: number
+  pendingCount: number
+  pendingBytes: number
+  approvedCount: number
+}
+/** ~/space/state/status.json, as the space repo writes it (version 1). */
+export interface SpaceStatus {
+  version: number
+  ts: number
+  lastScan: number | null
+  scanning: boolean
+  disk: { total: number; used: number; free: number } | null
+  needsAction: boolean
+  reasons: string[]
+  pending: { count: number; bytes: number }
+  freed: { bytes: number; since: number }
+  unreadable: { path: string; error?: string }[]
+  categories: SpaceCategory[]
+  recent?: { ts: number; free: number }[]
+}
+export interface SpaceItem {
+  id: string
+  category: string
+  path: string
+  label?: string
+  files?: string[]
+  bytes: number
+  touched: number
+  note?: string
+  status: 'pending' | 'approved' | 'kept' | 'done' | 'failed' | 'waiting'
+  as?: 'delete' | 'cloud'
+  result?: string
+  dirty?: boolean
+}
+/** The Trash game (~/space lib/trash.mjs): the Trash's size, and the score for emptying it. */
+export interface TrashGame {
+  now: { ts: number; bytes: number; items: number } | null
+  totalBytes: number
+  empties: number
+  recent: { ts: number; bytes: number; items: number }[]
+  biggestBytes: number
+  rank: string
+  next: { name: string; bytesToGo: number; progress: number } | null
+  /** Clean days in a row (the Trash stayed under `cleanMB` all day). */
+  streak: number
+  cleanMB: number
+  /** Set on the reading that saw the Trash emptied. */
+  emptied: { ts: number; bytes: number; items: number } | null
+  unreadable?: string
+}
+export type SpaceAct =
+  | { op: 'approve'; ids: string[]; as?: 'delete' | 'cloud' }
+  | { op: 'keep'; ids: string[] }
+  | { op: 'reopen'; ids: string[] }
+  | { op: 'pathway'; category: string; pathway?: SpacePathway; standing?: boolean }
+  | { op: 'scan' }
+  | { op: 'emptyTrash' }
 
 export interface DeckApi {
   getState(): Promise<DeckState>
@@ -1099,6 +1174,18 @@ export interface DeckApi {
   postureTracking(on: boolean): void
   /** Ten seconds of bad posture: Foxtrot barks it into his log and macOS shows it. */
   postureAlert(text: string): void
+  /** The Space tile: ~/space's last status.json (null = no repo or no scan yet). Desktop only. */
+  spaceStatus(): Promise<SpaceStatus | null>
+  /** status.json changed (a scan, a decision, a run). */
+  onSpaceStatus(cb: (s: SpaceStatus | null) => void): () => void
+  /** The ledger's items, biggest first: pending, approved, failed, waiting and kept. */
+  spaceItems(): Promise<SpaceItem[]>
+  /** A decision, a policy change, a run or a rescan, through ~/space's CLI. Resolves its JSON, or { error }. */
+  spaceAct(req: SpaceAct): Promise<unknown>
+  /** The Trash game's last reading (main reads the Trash every minute). */
+  spaceTrash(): Promise<TrashGame | null>
+  /** A new reading; `emptied` set = the Trash was just emptied (victory lap). */
+  onSpaceTrash(cb: (g: TrashGame) => void): () => void
   /** The ♥ on the vocabulary card. */
   setWordLiked(id: number, liked: boolean): Promise<void>
   /** The flash-card deck: what is due first, then whatever comes soonest, entries included. */

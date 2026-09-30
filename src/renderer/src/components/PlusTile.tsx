@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Atom, PawPrint, BookOpen, FolderTree, Gamepad2, GitBranch, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
+import { Atom, PawPrint, BookOpen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
 import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { patchSettings, useSettings } from '../lib/theme'
@@ -124,6 +124,14 @@ export const PLUGINS: {
     icon: PawPrint,
     hue: 'orange',
     setting: 'showFoxtrot'
+  },
+  {
+    key: 'space',
+    label: 'Space',
+    hint: 'Your disk: free space, and what ~/space found to delete, archive to iCloud or keep. Nothing moves until you say so',
+    icon: HardDrive,
+    hue: 'slate',
+    setting: 'showSpace'
   }
 ]
 

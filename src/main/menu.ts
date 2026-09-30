@@ -151,6 +151,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'Space',
+          submenu: [
+            { label: 'Open Space (disk)', accelerator: 'CmdOrCtrl+Shift+S', click: () => ui({ type: 'toggleSpace' }) },
+            { label: 'Show Space Tile', type: 'checkbox', checked: s.showSpace, click: () => patch({ showSpace: !settings().showSpace }) }
+          ]
+        },
+        {
           label: 'Files',
           submenu: [
             { label: 'Open Files', accelerator: 'CmdOrCtrl+Shift+F', click: () => ui({ type: 'toggleFiles' }) },

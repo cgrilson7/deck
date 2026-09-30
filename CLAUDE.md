@@ -72,6 +72,8 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              scripts/mol.mjs (show, style, compare, select, highlight, measure, label, view, look, list, clear; DECK_MOL in every session's env),
                              skills/lesson/SKILL.md (`/deck:lesson`: teach from a lesson file, card by card; ALSO the lesson file format's authoring reference),
                              scripts/lesson.mjs (show, goto, mark, note, ask, look, home, reset, tiles, close, lint; DECK_LESSON in every session's env),
+                             skills/space/SKILL.md (`/deck:space`: the disk through ~/space; look, never decide for Colin),
+                             scripts/space.mjs (open = the pane over POST /space; anything else is passed to ~/space/bin/space.mjs; DECK_SPACE in every session's env),
                              skills/doc/SKILL.md (`/deck:doc`: open a file the user should read or edit in the preview pane, NOT with macOS `open`),
                              scripts/doc.mjs (open <path> [--line N]; DECK_DOC in every session's env, beside mol.mjs like DECK_LESSON),
                              skills/trainer/SKILL.md (`/deck:trainer`: play Pokémon Yellow on the Game Boy, one command at a time),
@@ -105,6 +107,7 @@ src/main/files.ts          reads a referenced path for the preview pane: text (c
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/posture.ts        the Posture tile's main side: the `pose:` scheme (MediaPipe's wasm + the pose model, fetched once into userData/posture), the camera prompt, background throttling
+src/main/space.ts          the Space tile's main side: watches ~/space's state/status.json, runs its CLI (Electron as node), turns the tile on + barks when a scan needs Colin
 src/main/mol.ts            the Molecule tile's disk + network side: a target → structure text (library, RCSB, AlphaFold DB, PubChem, a file), cached in userData/mol
 src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson` (front matter, cards, the mol / fig / ask / dad blocks), `lintLesson`,
                              `molBody` (one line of a mol block → the Molecule door's body; MIRRORS plugin/scripts/mol.mjs's argv handling, keep them in step), `cleanCurriculum`
@@ -152,6 +155,7 @@ src/renderer/src/lib/pokemon.ts     openPokemon()/closePokemon()/togglePokemon()
 src/renderer/src/lib/gameboy.ts     THE GAME BOY: serverboy as a module singleton (the rAF loop, the screen to every attached canvas, WebAudio, keys, saves); useGameBoy()
 src/renderer/src/serverboy.d.ts     serverboy ships no types
 src/renderer/src/lib/posture.ts     THE POSTURE TRACKER: camera + MediaPipe pose as a module singleton (the streak, the history, the alert, the feed drawn into canvases); usePosture(), openPosture()
+src/renderer/src/lib/space.ts       THE SPACE TILE's store: status (pushed) + items (fetched), spaceAct(), openSpace()/onSpacePane()
 src/renderer/src/lib/postureMath.ts Posture Pal's pure math (~/posture3 renderer/posture.js), typed: metrics, the calibrated baseline, the four checks
 src/renderer/src/lib/mol.ts         THE MOLECULE VIEWER: 3Dmol.js as a module singleton (one viewer moved between tile and pane, the scene as state, every op of the door); useMol(), openMol()
 src/renderer/src/lib/lesson.ts      THE LESSON TILE's state: a deck per tile (file, card, marks, note, ad-hoc asks, answers, mol runs), every op of the door (`drive`), live reload,
@@ -184,6 +188,7 @@ src/renderer/src/components/        FocusPane, Launcher (the empty focus pane, b
                                     PokemonTile (the Game Boy's screen as a plugin cell, silent), PokemonPane (the Game Boy in the center column: keys, saves, speed, sound),
                                     FoxtrotTile (an endless runner: the fox holds the middle, obstacles to jump, clouds; stops + barks at a slouch; slay's name tag),
                                     Posture (PostureTile: the streak + a small feed; PosturePane: the feed large, the checks, the last two hours),
+                                    Space (SpaceTile: free space, the trend, what waits; SpacePane: every category's pathway + standing approval, every item's decision),
                                     MolTile (the molecule viewer as a plugin cell), MolPane (it in the center column: style / colour / surface rows, picks, measurements, the sequence strip),
                                     LessonTile (a lesson's card as a plugin cell, or HOME: the curriculum), LessonPane (it at reading size in the center column: a rail of the cards, the sources),
                                     LessonCard (one card — prose, mol button, figure, ask, "for Dad", sources — shared by the two, and the home view),
@@ -866,6 +871,23 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Posture, the tile) takes the CENTER like the reader: the feed large with the calibration overlay, the streak, the four checks as
   bars, calibrate / pause (camera off) / strictness (0.5–2×, localStorage), and THE LAST TWO HOURS: the strip with times under it,
   and good / bad / away / longest streak. Not on the phone.
+- **Space** (`main/space.ts`, `lib/space.ts`, `components/Space.tsx`, `plugin/skills/space/`, `plugin/scripts/space.mjs`; the `showSpace` +
+  `spaceDir` settings, off by default): THE DISK, AS ~/space SEES IT. ~/space is a repo of its own (Colin's disk pathways: categories →
+  delete / iCloud / keep / review / manual, an approval ledger, a daily launch agent `com.space.daily`) that KNOWS NOTHING ABOUT THE DECK;
+  the seams are its `state/status.json` (watched here by poll, 3s, it writes by rename) and its CLI `bin/space.mjs … --json` (run with
+  Electron as node and the login-shell env, so its `cmd` pathways find npm / brew / git). THE DECK NEVER DELETES OR DECIDES ANYTHING
+  ITSELF: every approve / keep / pathway change is that CLI, and in the pane "approve" IS "do it" (approve then `run` those ids at once).
+  A delete asks twice (`ArmButton`: armed 3s, red); "to iCloud" and "keep" are one click; a category's "all" is two. WHEN A SCAN NEEDS
+  COLIN (`needsAction`), main turns `showSpace` on and Foxtrot barks (`external('space')`), once per scan that brings MORE pending items or
+  after 3 days of the same ones (`userData/space.json` remembers what was told). The TILE: free space, a used/pending bar, a sparkline of
+  free space over the last scans (`status.recent`), the top categories waiting. The PANE (⌘⇧S, View ▸ Space, the tile, `$DECK_SPACE open`)
+  takes the CENTER like Posture: per category the pathway select, "handle automatically from now on" (standing approval; delete / cloud
+  only), the items with reveal-in-Finder, delete / to iCloud / keep (review items pick one; manual items say what to do and take
+  "handled"), kept ones behind a link with "ask again". THE TRASH GAME: main runs `space trash` every minute (the deck can
+  read ~/.Trash; the launch agent cannot) and pushes `space:trash`. The tile has a row for it (size, rank, clean-day streak), and the pane
+  has a card (the rank's progress, the last empties, "empty it" = Finder's Empty Trash, two clicks). A reading that saw an
+  empty is a Foxtrot bark in main plus a victory lap in the renderer (the tile's fox runs across the row for 6s, and `foxtrotAct`
+  leaps in the Foxtrot tile). Not on the phone.
 - **Web apps** (`shared/types.ts` `WebApp`, `main/webapps.ts`, `WebLayer`, `WebTile`, `lib/webapps.ts`; the `webApps`
   setting): ANY SITE AS A MINI APP — registered by a name + URL (`{ id, name, url, show }`, `WEB_APPS_MAX` 12;
   Village, `https://villagenotes.app/dream`, is the default entry; the `+` picker's "Web app" row registers
@@ -1345,6 +1367,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `sprites/`, the compiled sprite library (`place.<place>.<art>.json`, `set.<rom>.<name>.json`; delete freely, it is rebuilt); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
+- `space.json` — what Foxtrot last barked about the disk (the scan and its pending count); delete freely
 - `usage.json` — the account's rate-limit windows as last reported (see the top bar rule); delete freely
 - `statusline.sh` — the status-line command of every deck session, rewritten at each boot (posts to `/status`, then runs the user's own)
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
@@ -1353,7 +1376,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showFiles, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, gbPlaces, gbPatches, foxBark, remote…);
+  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, showSpace, spaceDir, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, gbPlaces, gbPatches, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

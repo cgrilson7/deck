@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, ReaderBook, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -98,6 +98,20 @@ const api: DeckApi = {
   postureCamera: () => ipcRenderer.invoke('posture:camera') as Promise<boolean>,
   postureTracking: (on) => ipcRenderer.send('posture:tracking', on),
   postureAlert: (text) => ipcRenderer.send('posture:alert', text),
+  spaceStatus: () => ipcRenderer.invoke('space:status') as Promise<SpaceStatus | null>,
+  onSpaceStatus: (cb) => {
+    const h = (_e: unknown, st: SpaceStatus | null) => cb(st)
+    ipcRenderer.on('space:status', h)
+    return () => ipcRenderer.removeListener('space:status', h)
+  },
+  spaceItems: () => ipcRenderer.invoke('space:items') as Promise<SpaceItem[]>,
+  spaceAct: (req) => ipcRenderer.invoke('space:act', req) as Promise<unknown>,
+  spaceTrash: () => ipcRenderer.invoke('space:trash') as Promise<TrashGame | null>,
+  onSpaceTrash: (cb) => {
+    const h = (_e: unknown, g: TrashGame) => cb(g)
+    ipcRenderer.on('space:trash', h)
+    return () => ipcRenderer.removeListener('space:trash', h)
+  },
   setWordLiked: (id, liked) => ipcRenderer.invoke('store:liked', id, liked) as Promise<void>,
   vocabDeck: (limit?: number) => ipcRenderer.invoke('store:deck', limit) as Promise<StoredWord[]>,
   vocabList: (limit?: number) => ipcRenderer.invoke('store:list', limit) as Promise<StoredWord[]>,

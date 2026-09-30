@@ -44,6 +44,7 @@ import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
+import { Space } from './space'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
 // own tmux socket, own userData, own hook port. Override with DECK_PROFILE=name.
@@ -656,6 +657,42 @@ app.whenReady().then(async () => {
     })
     n.show()
   })
+  // The Space tile: ~/space's disk pathways. Its status.json is watched; a scan that needs Colin
+  // turns the tile on and makes Foxtrot bark. Decisions go through its CLI (main/space.ts).
+  const space = new Space(
+    userData,
+    () => settings!.get().spaceDir,
+    env,
+    (s) => send('space:status', s),
+    (_s, text) => {
+      if (!settings!.get().showSpace) settings!.update({ showSpace: true })
+      foxtrot?.external('space', text)
+    }
+  )
+  space.sync()
+  // The Trash game: read every minute; an empty is a bark (the renderer does the victory lap).
+  space.onTrash = (g) => send('space:trash', g)
+  space.onEmptied = (g) => {
+    const mb = Math.round((g.emptied?.bytes ?? 0) / 1048576)
+    foxtrot?.external('space', `Trash emptied: ${mb} MB gone. ${g.rank}${g.next ? `, ${Math.round(g.next.bytesToGo / 1048576)} MB to ${g.next.name}` : ''}.`)
+  }
+  space.startTrash()
+  settings.onChange(() => space.sync())
+  app.on('will-quit', () => space.stop())
+  ipcMain.handle('space:status', () => space.status())
+  ipcMain.handle('space:items', () => space.items())
+  ipcMain.handle('space:trash', () => space.trash())
+  ipcMain.handle('space:act', (_e, req) => space.act(req).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })))
+  // The door (`$DECK_SPACE open`, plugin/scripts/space.mjs): show the pane.
+  hooks.onSpace = async (body) => {
+    const b = (body ?? {}) as { op?: unknown }
+    if (b.op !== 'open') throw new Error(`unknown op “${String(b.op)}”: the door knows \`open\``)
+    if (!win || win.isDestroyed()) throw new Error('no window')
+    if (!settings!.get().showSpace) settings!.update({ showSpace: true })
+    send('deck:ui', { type: 'toggleSpace', open: true })
+    win.show()
+    return { ok: true, status: space.status() }
+  }
   both('store:stats', 'vocabStats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)

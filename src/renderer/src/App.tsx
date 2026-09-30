@@ -32,6 +32,8 @@ import { onPosturePane, posture } from './lib/posture'
 import { onFilesPane } from './lib/files'
 import { FilesPane } from './components/FilesPane'
 import { PosturePane } from './components/Posture'
+import { onSpacePane } from './lib/space'
+import { SpacePane } from './components/Space'
 import { onWebApp } from './lib/webapps'
 import { WebLayer } from './components/WebLayer'
 import { useSettings } from './lib/theme'
@@ -68,6 +70,8 @@ export default function App() {
   const [bookOpen, setBookOpen] = useState(false)
   // The Posture tile full size (the feed, the streak, the last two hours), the same way.
   const [postureOpen, setPostureOpen] = useState(false)
+  // The Space pane (~/space's disk pathways: every category and item), the same way.
+  const [spaceOpen, setSpaceOpen] = useState(false)
   // The Files pane (the tree at reading size beside the file it selected), the same way.
   const [filesOpen, setFilesOpen] = useState(false)
   // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
@@ -111,6 +115,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setWebOpen(null)
         setLeash(null)
@@ -128,6 +133,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setMolOpen((v) => (v === null ? (molTiles.current[0] ?? 1) : null))
       }
@@ -139,6 +145,7 @@ export default function App() {
         setAgentOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setLessonOpen((v) => (v === null ? (lessonTiles.current[0] ?? 1) : null))
       }
@@ -150,6 +157,7 @@ export default function App() {
         setAgentOpen(null)
         setLessonOpen(null)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setBookOpen((v) => !v)
       }
@@ -162,6 +170,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen((v) => !v)
       }
       if (ev.type === 'togglePosture') {
@@ -173,7 +182,21 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setFilesOpen(false)
+        setSpaceOpen(false)
         setPostureOpen((v) => !v)
+      }
+      if (ev.type === 'toggleSpace') {
+        const want = ev.open
+        setWebOpen(null)
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+        setLessonOpen(null)
+        setBookOpen(false)
+        setPostureOpen(false)
+        setFilesOpen(false)
+        setSpaceOpen((v) => (want === undefined ? !v : want))
       }
       if (ev.type === 'toggleStudio') {
         setWebOpen(null)
@@ -183,6 +206,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setStudioOpen((v) => !v)
       }
@@ -195,6 +219,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setWebOpen((v) => (v === id ? null : id))
       }
@@ -206,6 +231,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
         setPokemonOpen((v) => !v)
       }
@@ -218,6 +244,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen(false)
       setMolOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? molTiles.current[0] ?? 1)))
     })
@@ -229,6 +256,7 @@ export default function App() {
       setAgentOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen(false)
       setLessonOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? lessonTiles.current[0] ?? 1)))
     })
@@ -240,6 +268,7 @@ export default function App() {
       setAgentOpen(null)
       setLessonOpen(null)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen(false)
       setBookOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -252,7 +281,20 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setFilesOpen(false)
+      setSpaceOpen(false)
       setPostureOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offSpace = onSpacePane((want) => {
+      setWebOpen(null)
+      setMolOpen(null)
+      setStudioOpen(false)
+      setPokemonOpen(false)
+      setAgentOpen(null)
+      setLessonOpen(null)
+      setBookOpen(false)
+      setPostureOpen(false)
+      setFilesOpen(false)
+      setSpaceOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offFiles = onFilesPane((want) => {
       setWebOpen(null)
@@ -263,6 +305,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offStudio = onStudio((want) => {
@@ -273,6 +316,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen(false)
       setStudioOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -284,6 +328,7 @@ export default function App() {
       setLessonOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
+      setSpaceOpen(false)
       setFilesOpen(false)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -297,6 +342,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
       }
       setWebOpen((v) => (want.want === false || (want.want === 'toggle' && v === id) ? null : id))
@@ -318,6 +364,7 @@ export default function App() {
         setLessonOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
+        setSpaceOpen(false)
         setFilesOpen(false)
       }
       setAgentOpen(id)
@@ -338,6 +385,7 @@ export default function App() {
       offLesson()
       offBook()
       offPosture()
+      offSpace()
       offFiles()
       offWeb()
       window.clearTimeout(t)
@@ -353,6 +401,7 @@ export default function App() {
     setLessonOpen(null)
     setBookOpen(false)
     setPostureOpen(false)
+    setSpaceOpen(false)
     setFilesOpen(false)
     setAgentOpen(null)
     setWebOpen(null)
@@ -368,6 +417,9 @@ export default function App() {
     posture().enable(settings.showPosture)
     if (!settings.showPosture) setPostureOpen(false)
   }, [settings.showPosture])
+  useEffect(() => {
+    if (!settings.showSpace) setSpaceOpen(false)
+  }, [settings.showSpace])
 
   // So does the molecule viewer its own (`POST /mol`): a session can `show` before the tile has ever been scrolled to.
   useEffect(() => {
@@ -409,7 +461,7 @@ export default function App() {
   // A web app that was removed while showing gives the center back.
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || spaceOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort(byRecency(settings.attentionFirst))
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -465,6 +517,8 @@ export default function App() {
           <QuixotePane onClose={() => setBookOpen(false)} />
         ) : postureOpen ? (
           <PosturePane onClose={() => setPostureOpen(false)} />
+        ) : spaceOpen ? (
+          <SpacePane onClose={() => setSpaceOpen(false)} />
         ) : filesOpen ? (
           <FilesPane onClose={() => setFilesOpen(false)} />
         ) : studioOpen ? (

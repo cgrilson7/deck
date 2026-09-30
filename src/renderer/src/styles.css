@@ -7245,3 +7245,339 @@ button.foxlog-chip:hover {
 .posture-hands .dim {
   opacity: 0.7;
 }
+
+/* ---- Space: ~/space's disk pathways (components/Space.tsx) ---- */
+.space-glyph {
+  color: var(--accent);
+}
+.space-badge.needs {
+  color: var(--blocked);
+  border-color: color-mix(in srgb, var(--blocked) 60%, var(--line));
+}
+.space-badge.ok {
+  color: var(--green);
+}
+.space-badge.busy {
+  color: var(--busy);
+}
+.space-tile.space-needs {
+  border-color: color-mix(in srgb, var(--blocked) 55%, var(--line));
+}
+.space-face {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.space-free {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.space-free b {
+  font-size: 18px;
+}
+.space-free small,
+.space-top small,
+.space-item-sub small,
+.space-cat-head small {
+  color: var(--muted);
+}
+.space-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--fill);
+  border: 1px solid var(--line);
+}
+.space-bar-used {
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.space-bar-pending {
+  background: var(--accent);
+}
+.space-bar.full .space-bar-used {
+  background: color-mix(in srgb, var(--blocked) 55%, transparent);
+}
+.space-spark {
+  width: 100%;
+  height: 22px;
+  flex: 0 0 auto;
+}
+.space-spark polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.space-pending {
+  font-size: 12px;
+  color: var(--ink);
+}
+.space-top {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 11.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.space-top li,
+.space-item-main,
+.space-cat-head,
+.space-policy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.space-top li span:first-child,
+.space-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.space-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.space-pane {
+  min-height: 0;
+  outline: none;
+}
+.space-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+.space-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.space-summary .space-bar {
+  height: 12px;
+}
+.space-reasons {
+  color: var(--blocked);
+  font-size: 12px;
+}
+.space-warn {
+  font-size: 12px;
+  color: var(--blocked);
+  border: 1px solid color-mix(in srgb, var(--blocked) 40%, var(--line));
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+.space-legend {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.space-cat {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.space-cat.pw-keep {
+  opacity: 0.75;
+}
+.space-cat-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+.space-why {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.space-policy {
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.space-policy select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.space-standing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.space-standing.on {
+  color: var(--accent);
+}
+.space-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.space-item {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+.space-item.st-kept {
+  opacity: 0.7;
+}
+.space-item-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.space-item-name:hover {
+  color: var(--accent);
+}
+.space-size {
+  font-variant-numeric: tabular-nums;
+}
+.space-item-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.space-files {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  max-height: 160px;
+  overflow: auto;
+}
+.space-note {
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.space-result {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.space-result.failed,
+.space-result.waiting {
+  color: var(--blocked);
+}
+.space-item-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill.space-act {
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+.pill.space-act.armed {
+  border-color: var(--red);
+  color: var(--red);
+}
+.pill.space-act:disabled {
+  opacity: 0.5;
+}
+.space-cat-foot {
+  display: flex;
+  gap: 12px;
+}
+.space-pane .linkish,
+.space-tile .linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--accent);
+  cursor: pointer;
+}
+/* The Trash game (Space tile + pane) */
+.trash-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink);
+  padding: 3px 0;
+  border-top: 1px dashed var(--line);
+  overflow: hidden;
+}
+.trash-row small {
+  color: var(--muted);
+}
+.trash-rank {
+  color: var(--accent);
+  font-weight: 600;
+}
+.trash-row.lap b,
+.trash-card.lap .space-free b {
+  color: var(--green);
+}
+.trash-lap {
+  position: absolute;
+  top: 0;
+  left: -30px;
+  animation: trash-lap 2s linear infinite;
+  pointer-events: none;
+}
+@keyframes trash-lap {
+  to {
+    left: 100%;
+  }
+}
+.trash-rankline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.trash-rankline small {
+  color: var(--muted);
+}
+.trash-progress {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fill);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.trash-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.trash-card.lap {
+  border-color: var(--green);
+}

@@ -158,6 +158,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     molTiles: molTiles(raw.molTiles),
     showLesson: bool(raw.showLesson, d.showLesson),
     showPosture: bool(raw.showPosture, d.showPosture),
+    showSpace: bool(raw.showSpace, d.showSpace),
+    spaceDir: typeof raw.spaceDir === 'string' ? raw.spaceDir.trim().slice(0, 1024) : d.spaceDir,
     showFoxtrot: bool(raw.showFoxtrot, d.showFoxtrot),
     lessonTiles: molTiles(raw.lessonTiles, LESSON_TILES_MAX),
     webApps: webApps(raw.webApps, d.webApps),
