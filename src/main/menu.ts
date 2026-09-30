@@ -158,6 +158,14 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'Broadcast',
+          submenu: [
+            { label: 'Open Broadcast', click: () => ui({ type: 'toggleBroadcast' }) },
+            { label: 'Show Broadcast Tile', type: 'checkbox', checked: s.showBroadcast, click: () => patch({ showBroadcast: !settings().showBroadcast }) },
+            { label: 'Dark Tile (Whatever the Theme Shows)', type: 'checkbox', checked: s.broadcastLook === 'dark', click: () => patch({ broadcastLook: settings().broadcastLook === 'dark' ? 'theme' : 'dark' }) }
+          ]
+        },
+        {
           label: 'Files',
           submenu: [
             { label: 'Open Files', accelerator: 'CmdOrCtrl+Shift+F', click: () => ui({ type: 'toggleFiles' }) },

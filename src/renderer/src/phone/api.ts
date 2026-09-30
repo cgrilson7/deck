@@ -254,6 +254,7 @@ export const api: DeckApi = {
   wikiSummary: (key) => remote.call('wikiSummary', [key]),
   weather: () => remote.call('weather'),
   weatherSearch: (q) => remote.call('weatherSearch', [q]),
+  broadcast: () => remote.call('broadcast'),
   onSpotify: nothing,
   spotify: noop,
   spotifyPlay: noop,

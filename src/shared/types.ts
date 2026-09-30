@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -109,6 +109,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showPosture) out.push('posture')
   if (s.showFoxtrot) out.push('foxtrot')
   if (s.showSpace) out.push('space')
+  if (s.showBroadcast) out.push('broadcast')
   return out
 }
 
@@ -292,6 +293,68 @@ export interface WikiPicture {
   largeUrl: string
   /** The file page on Commons. */
   url: string
+}
+
+/** Red Sox @ Yankees, AL Wild Card Game 1, 9/29/2026: the game the Broadcast tile follows until told otherwise. */
+export const BROADCAST_EVENT_DEFAULT = '401907924'
+export type BroadcastLook = 'dark' | 'theme'
+
+/** One side of a gamecast. `color` / `altColor` are hex without '#', as ESPN sends them. */
+export interface GameTeam {
+  abbr: string
+  name: string
+  record: string
+  score: number | null
+  hits: number | null
+  errors: number | null
+  /** Runs by inning, as displayed ('' for an inning not played). */
+  innings: string[]
+  color: string
+  altColor: string
+  logo: string
+  logoDark: string
+}
+export type PitchKind = 'ball' | 'strike' | 'inplay'
+export interface GamePitch {
+  n: number
+  kind: PitchKind
+  /** "Strike Looking", "Ball", "In play, out(s)"… */
+  text: string
+  /** Pitch type abbreviation (FF, SL, CH…), '' when unknown. */
+  type: string
+  mph: number | null
+  /** In ESPN's pitchCoordinate space; null when the feed had none. */
+  x: number | null
+  y: number | null
+}
+export interface GamePlay {
+  half: 'top' | 'bottom'
+  inning: number
+  text: string
+  scoring: boolean
+}
+/** A game as the Broadcast tile draws it (main/broadcast.ts boils ESPN's summary down to this). */
+export interface Gamecast {
+  id: string
+  state: 'pre' | 'in' | 'post'
+  /** "Top 4th", "Final", "7:08 PM"… */
+  detail: string
+  away: GameTeam
+  home: GameTeam
+  balls: number
+  strikes: number
+  outs: number
+  bases: [boolean, boolean, boolean]
+  pitcher: string
+  batter: string
+  /** The current at-bat's pitches, first to last. */
+  atBat: GamePitch[]
+  /** The home side's chance to win, 0–100, null when the feed has none. */
+  homeWin: number | null
+  /** At-bat results, newest first (a dozen at most). */
+  plays: GamePlay[]
+  /** When main fetched it (ms). */
+  at: number
 }
 
 /** A place the Wikipedia tile shows the weather for. */
@@ -656,6 +719,12 @@ export interface DeckSettings {
   showSpace: boolean
   /** Where the space repo lives ('' = ~/space): main reads its state/status.json and runs its bin/space.mjs. */
   spaceDir: string
+  /** The Broadcast tile: a live MLB gamecast (ESPN's public game feed), with a link out to ESPN Radio. */
+  showBroadcast: boolean
+  /** The game it follows: an ESPN event id (digits). */
+  broadcastEvent: string
+  /** Its colours: `dark` (default) = the theme's DARK variant whatever the deck shows; `theme` = the deck's own appearance. */
+  broadcastLook: BroadcastLook
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -731,6 +800,9 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showPosture: false,
   showSpace: false,
   spaceDir: '',
+  showBroadcast: false,
+  broadcastEvent: BROADCAST_EVENT_DEFAULT,
+  broadcastLook: 'dark',
   showFoxtrot: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
@@ -985,7 +1057,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -1107,6 +1179,8 @@ export interface DeckApi {
   weather(): Promise<WeatherNow[]>
   /** Places by name ("Portland, Maine"), for the tile's "add a place" line. */
   weatherSearch(q: string): Promise<WeatherPlace[]>
+  /** The Broadcast tile's game (the `broadcastEvent` setting), normalized. Cached a few seconds in main. */
+  broadcast(): Promise<Gamecast>
   /** Spotify.app's state, now and on every change (main polls it while the tile is showing). */
   onSpotify(cb: (state: SpotifyState) => void): () => void
   spotify(cmd: SpotifyCommand): void

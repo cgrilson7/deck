@@ -12,7 +12,7 @@ export const REMOTE_PORT = { deck: 47810, other: 47811 } as const
 export const REMOTE_METHODS = [
   'getState', 'command', 'getTranscript', 'getSettings', 'setSettings', 'readDoc', 'foxLog', 'screen', 'openPath', 'agents',
   // the right drawer's apps: everything they ask for is fetched or stored by main, so it works the same from here
-  'wikiPicture', 'wikiSearch', 'wikiSummary', 'weather', 'weatherSearch',
+  'wikiPicture', 'wikiSearch', 'wikiSummary', 'weather', 'weatherSearch', 'broadcast',
   'translate', 'vocab', 'vocabWords', 'saveTranslation', 'saveWord', 'setWordLiked', 'savedForms', 'vocabDeck', 'vocabList', 'gradeWord', 'vocabStats',
   'quixoteIndex', 'quixoteSection', 'gitChanges', 'gitDiff'
 ] as const

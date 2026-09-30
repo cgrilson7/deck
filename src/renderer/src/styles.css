@@ -1659,6 +1659,7 @@ button {
 .hue-violet { --hue: color-mix(in oklab, var(--blue), var(--magenta)); }
 .hue-magenta { --hue: var(--magenta); }
 .hue-stone { --hue: color-mix(in oklab, var(--muted) 65%, var(--yellow)); }
+.hue-navy { --hue: color-mix(in oklab, var(--blue) 70%, var(--ink)); }
 .hue-web { --hue: var(--muted); }
 .picker-card-icon {
   flex: none;
@@ -1917,6 +1918,152 @@ button {
   justify-content: center;
   gap: 8px;
   color: var(--muted);
+}
+/* Broadcast (BroadcastTile): a live MLB gamecast. Its colours are the theme's variables — under
+   `broadcastLook: dark` the tile sets the theme's DARK variant on itself (BroadcastTile's lookVars),
+   so everything here reads --ink / --muted / --line and never a literal. --bc-away / --bc-home are
+   the teams' colours, set per game. Pitches: --green ball, --red strike, --blue in play. */
+.broadcast {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--ink);
+}
+.broadcast .bc-glyph { color: var(--accent); }
+.bc-live {
+  color: var(--red);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.bc-live::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--red);
+  vertical-align: 1px;
+  animation: bc-pulse 1.4s infinite;
+}
+@keyframes bc-pulse { 50% { opacity: 0.25; } }
+.bc-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  font-variant-numeric: tabular-nums;
+}
+.bc-body::-webkit-scrollbar { display: none; }
+.bc-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+}
+.bc-team { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.bc-team.is-home { flex-direction: row-reverse; text-align: right; }
+.bc-team img { width: 30px; height: 30px; flex: none; }
+.bc-abbr { font-weight: 700; font-size: 13px; }
+.bc-rec { font-size: 10px; color: var(--muted); }
+.bc-mid { display: flex; align-items: center; gap: 8px; }
+.bc-runs { font-size: 26px; font-weight: 800; min-width: 1.1em; text-align: center; }
+.bc-detail { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.bc-state {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 10px 8px;
+  font-size: 11px;
+}
+.bc-count { display: grid; gap: 2px; color: var(--muted); font-size: 10px; }
+.bc-count i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+.bc-count i.b.on { background: var(--green); }
+.bc-count i.s.on,
+.bc-count i.o.on { background: var(--red); }
+.bc-bases { width: 52px; height: 38px; }
+.bc-bases rect { fill: color-mix(in srgb, var(--muted) 30%, transparent); }
+.bc-bases rect.on { fill: var(--yellow); }
+.bc-who { min-width: 0; display: grid; gap: 3px; }
+.bc-who > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.bc-lbl { color: var(--muted); font-weight: 500; font-size: 10px; margin-right: 2px; }
+.bc-atbat {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+.bc-zone { width: 84px; height: 84px; }
+.bc-zone rect { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.bc-zone circle { stroke: var(--surface); stroke-width: 1.5; }
+.bc-zone text { font-size: 10px; font-weight: 700; fill: var(--panel); text-anchor: middle; dominant-baseline: central; }
+.bc-pitches { list-style: none; margin: 0; padding: 0; font-size: 11px; }
+.bc-pitches li { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.bc-pitches i {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font: 700 9px/1 inherit;
+  font-style: normal;
+  color: var(--panel);
+}
+.bc-mph { margin-left: auto; color: var(--muted); }
+.bc-wp { padding: 6px 10px 8px; border-top: 1px solid var(--line); }
+.bc-wpbar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
+.bc-wpbar i { display: block; transition: width 0.6s; }
+.bc-wpl { display: flex; justify-content: space-between; margin-top: 3px; font-size: 10px; color: var(--muted); }
+.bc-line { width: 100%; border-collapse: collapse; font-size: 11px; border-top: 1px solid var(--line); }
+.bc-line th,
+.bc-line td { padding: 3px 2px; text-align: center; }
+.bc-line th { color: var(--muted); font-weight: 500; }
+.bc-line th:first-child,
+.bc-line td:first-child { text-align: left; padding-left: 10px; font-weight: 700; }
+.bc-line th:last-child,
+.bc-line td:last-child { padding-right: 10px; }
+.bc-line .rhe { font-weight: 700; }
+.bc-line tbody tr td { border-top: 1px solid var(--line); }
+.bc-plays { list-style: none; margin: 0; padding: 0 10px 6px; border-top: 1px solid var(--line); }
+.bc-plays li { padding: 5px 0; font-size: 11.5px; border-bottom: 1px solid var(--line); user-select: text; }
+.bc-plays li:last-child { border-bottom: 0; }
+.bc-plays li.is-scoring { font-weight: 700; }
+.bc-inn { color: var(--muted); font-size: 10px; margin-right: 6px; font-weight: 500; }
+.broadcast.tile { cursor: pointer; }
+/* The pane: the same GameView in the center column, the now (score, count, the at-bat) beside the
+   story (line score, play-by-play), each scrolling on its own, at reading size by zoom. */
+.bc-pane { min-height: 0; outline: none; container-type: inline-size; }
+.bc-pane .bc-title { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-pane .bc-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  overflow: hidden;
+}
+.bc-pane .bc-now,
+.bc-pane .bc-story {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.bc-pane .bc-now { zoom: 1.6; padding-top: 6px; }
+.bc-pane .bc-story { zoom: 1.2; border-left: 1px solid var(--line); }
+.bc-pane .bc-story .bc-line { border-top: 0; }
+@container (max-width: 700px) {
+  .bc-pane .bc-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .bc-pane .bc-now { zoom: 1.3; }
+  .bc-pane .bc-story { border-left: 0; }
 }
 /* Music: Spotify.app's now-playing (artwork, meta, transport, playlist chips), or the lofi
    stream. `.music-swap` is the switch between the faces, bottom right of either. */

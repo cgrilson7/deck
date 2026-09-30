@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture, Foxtrot),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture, Foxtrot, Broadcast),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -912,6 +912,25 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   a link's way out) and the partition answers permission requests from an allowlist (clipboard, fullscreen,
   notifications; camera / mic / geolocation refused) with a plain-Chrome user agent (some sites refuse "Electron/").
   ⌘⇧B / View ▸ Web Apps opens the first (`toggleWeb`); the launcher has a button and a checkbox per app. Not on the phone.
+- **Broadcast** (`main/broadcast.ts`, `BroadcastTile`; the `showBroadcast` setting, off by default): a live MLB
+  gamecast for ONE game, the `broadcastEvent` setting (an ESPN event id; default `401907924`, Red Sox @
+  Yankees, ALWC Game 1, 9/29/2026). Main fetches ESPN's public summary feed (no key, undocumented;
+  statsapi.mlb.com is the fallback if it moves) with an HONEST app user agent (`deck/1.0`): Akamai in front of
+  ESPN 403s Electron's default AND a borrowed Chrome one, so never dress it up as a browser and boils the ~1 MB answer down to a `Gamecast` (`toGamecast`), cached 5 s; `both('broadcast:game',
+  'broadcast')` so the phone gets it too. The tile polls every 10 s live, every minute before the first
+  pitch, never after the final. A click on the tile (or ⤢, or View ▸ Broadcast ▸ Open Broadcast, the
+  `toggleBroadcast` UiEvent) opens `BroadcastPane` in the CENTER, the Space way (`lib/broadcast.ts`'s
+  window event; `broadcastOpen` in App is closed by every other pane, as they all are by it; Esc
+  closes): the SAME `GameView`, `.bc-now` beside `.bc-story`, zoomed to reading size. Facts that are not where you would look: the RUNNERS are on the last
+  play (`onFirst/onSecond/onThird`), not `situation`; player names come from the BOXSCORE as well as the
+  rosters (a player who came in mid-game is only in the boxscore); the strike zone box (`ZONE`) is
+  calibrated by hand in ESPN's `pitchCoordinate` space, approximate. LOOK (`broadcastLook`): `dark`, the
+  DEFAULT, is the theme's DARK variant set on the tile itself (`lookVars`, glass included) whatever the
+  deck shows; `theme` inherits the deck's appearance (so light under a light theme). Everything in
+  `.broadcast` reads the theme variables; team colours are the primary on a light face, the alternate
+  on a dark one. NO EMBEDDED AUDIO, on purpose: ESPN Radio's HLS stream is licensed MLB audio, so the
+  headphones button opens ESPN's own player (`openExternal`). The CSP's `img-src` allows
+  `a.espncdn.com` for the logos. `docs/broadcast/HANDOFF.md` is the original plan.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's

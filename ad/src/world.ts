@@ -384,6 +384,7 @@ class World {
       spaceAct: () => Promise.resolve(null),
       spaceTrash: () => Promise.resolve(null),
       onSpaceTrash: () => () => {},
+      broadcast: () => Promise.reject(new Error('no game in the ad')),
       setWordLiked: async () => {},
       vocabDeck: async () => [],
       vocabList: async () => [],
