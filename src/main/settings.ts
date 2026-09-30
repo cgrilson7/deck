@@ -161,7 +161,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     showSpace: bool(raw.showSpace, d.showSpace),
     spaceDir: typeof raw.spaceDir === 'string' ? raw.spaceDir.trim().slice(0, 1024) : d.spaceDir,
     showBroadcast: bool(raw.showBroadcast, d.showBroadcast),
-    broadcastEvent: typeof raw.broadcastEvent === 'string' && /^\d{1,12}$/.test(raw.broadcastEvent.trim()) ? raw.broadcastEvent.trim() : d.broadcastEvent,
+    broadcastGame: Number.isInteger(raw.broadcastGame) && raw.broadcastGame! > 0 && raw.broadcastGame! < 1e8 ? raw.broadcastGame! : d.broadcastGame,
     broadcastLook: raw.broadcastLook === 'theme' ? 'theme' : 'dark',
     showFoxtrot: bool(raw.showFoxtrot, d.showFoxtrot),
     lessonTiles: molTiles(raw.lessonTiles, LESSON_TILES_MAX),

@@ -912,25 +912,43 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   a link's way out) and the partition answers permission requests from an allowlist (clipboard, fullscreen,
   notifications; camera / mic / geolocation refused) with a plain-Chrome user agent (some sites refuse "Electron/").
   ⌘⇧B / View ▸ Web Apps opens the first (`toggleWeb`); the launcher has a button and a checkbox per app. Not on the phone.
-- **Broadcast** (`main/broadcast.ts`, `BroadcastTile`; the `showBroadcast` setting, off by default): a live MLB
-  gamecast for ONE game, the `broadcastEvent` setting (an ESPN event id; default `401907924`, Red Sox @
-  Yankees, ALWC Game 1, 9/29/2026). Main fetches ESPN's public summary feed (no key, undocumented;
-  statsapi.mlb.com is the fallback if it moves) with an HONEST app user agent (`deck/1.0`): Akamai in front of
-  ESPN 403s Electron's default AND a borrowed Chrome one, so never dress it up as a browser and boils the ~1 MB answer down to a `Gamecast` (`toGamecast`), cached 5 s; `both('broadcast:game',
-  'broadcast')` so the phone gets it too. The tile polls every 10 s live, every minute before the first
-  pitch, never after the final. A click on the tile (or ⤢, or View ▸ Broadcast ▸ Open Broadcast, the
-  `toggleBroadcast` UiEvent) opens `BroadcastPane` in the CENTER, the Space way (`lib/broadcast.ts`'s
-  window event; `broadcastOpen` in App is closed by every other pane, as they all are by it; Esc
-  closes): the SAME `GameView`, `.bc-now` beside `.bc-story`, zoomed to reading size. Facts that are not where you would look: the RUNNERS are on the last
-  play (`onFirst/onSecond/onThird`), not `situation`; player names come from the BOXSCORE as well as the
-  rosters (a player who came in mid-game is only in the boxscore); the strike zone box (`ZONE`) is
-  calibrated by hand in ESPN's `pitchCoordinate` space, approximate. LOOK (`broadcastLook`): `dark`, the
-  DEFAULT, is the theme's DARK variant set on the tile itself (`lookVars`, glass included) whatever the
-  deck shows; `theme` inherits the deck's appearance (so light under a light theme). Everything in
-  `.broadcast` reads the theme variables; team colours are the primary on a light face, the alternate
-  on a dark one. NO EMBEDDED AUDIO, on purpose: ESPN Radio's HLS stream is licensed MLB audio, so the
-  headphones button opens ESPN's own player (`openExternal`). The CSP's `img-src` allows
-  `a.espncdn.com` for the logos. `docs/broadcast/HANDOFF.md` is the original plan.
+- **Broadcast** (`main/broadcast.ts`, `BroadcastTile`, `lib/broadcast.ts`; the `showBroadcast` setting, off by default): a live MLB
+  gamecast for ONE game, the `broadcastGame` setting (MLB's gamePk; default `849851`, Red Sox @ Yankees, ALWC Game 1,
+  9/29/2026). Main reads MLB'S OWN STATS API (statsapi.mlb.com, public, no key: the feed Gameday runs on) and boils it down
+  to a `Gamecast` (`toGamecast`), cached 5 s; `both('broadcast:game', 'broadcast')` so the phone gets it too. Every request
+  is cut down with the API's `fields=` filter (it keeps any key of those names AT ANY DEPTH): the live feed every poll
+  (≈180 KB instead of 580), win probability (≈4 KB instead of 800) fetched again only when an at-bat finishes, the
+  schedule entry once per game for the series ("AL Wild Card Series · Game 1": a postseason feed's team record is the
+  SERIES record, so the tile shows none then). The Stats API has NO TEAM COLOURS: `TEAM_COLORS` in main is a table of all
+  30 by team id, and the renderer's `teamColor` takes the lighter of a team's two on a dark face, the darker on light.
+  Logos are mlbstatic's `team-cap-on-light` / `-on-dark` SVGs (CSP `img-src`). THE STRIKE ZONE IS TO SCALE, IN FEET
+  (Statcast's pX / pZ from the catcher's view; the plate's 17 in; the BATTER'S OWN top and bottom, off the last pitch or his
+  player record), so its strokes are `vector-effect: non-scaling-stroke` and the numbers' size an attribute. Runners are
+  `linescore.offense.first/second/third`; names are "C. Schlittler" built from the box score's spelling ("Abreu, W",
+  MLB's way of telling two apart, becomes "W. Abreu"). The tile polls every 10 s live, every minute before the first pitch,
+  never after the final. A click on the tile (or ⤢, or View ▸ Broadcast ▸ Open Broadcast, the `toggleBroadcast` UiEvent)
+  opens `BroadcastPane` in the CENTER, the Space way (`lib/broadcast.ts`'s window event; `broadcastOpen` in App is closed
+  by every other pane, as they all are by it; Esc closes): the SAME `GameView`, `.bc-now` beside `.bc-story`, zoomed to
+  reading size. Requests carry an HONEST app user agent (`deck/1.0`): when this read ESPN, Akamai 403'd Electron's default
+  AND a borrowed Chrome one. LOOK (`broadcastLook`): `dark`, the DEFAULT, is the theme's DARK variant set on the tile itself
+  (`lookVars`, glass included) whatever the deck shows; `theme` inherits the deck's appearance. Everything in `.broadcast`
+  reads the theme variables. NO EMBEDDED AUDIO, on purpose: ESPN Radio's HLS stream is licensed MLB audio, so the
+  headphones button opens ESPN's own player (`openExternal`). STATCAST on every pitch (spin, induced vertical break, `pfxX`
+  as horizontal movement in the zone's catcher's view, extension; exit velocity / launch angle / distance on the ball in
+  play), and SAVANT (baseballsavant.mlb.com/gf: xBA, barrels, bat speed) joined on by PLAY ID: Savant has no `fields=` and
+  runs 1.8 MB, so `savantRows` hands back what it has and refreshes in the BACKGROUND at most every 30 s — it never holds a
+  poll up, and a miss costs only those three numbers. THE AT-BAT NEVER GOES BLANK: a new one has no pitches for a while
+  (a pitching change, a mound visit) and between half-innings the "current" play is the FINISHED one, so `previous` says
+  whose pitches are drawn ("Last at-bat: …", dimmed) until the new batter's first pitch. The tile: the zone (dots drawn
+  larger than scale to be read at 84 px), a Statcast tooltip per pitch, the ball in play under it. The PANE adds the SCENE
+  (`Zone figures`): the batter in the RIGHT BOX (a righty on the catcher's left) scaled to his zone, and the pitcher small
+  on the mound behind throwing with the right arm — our own stylized SVG in feet (`BatterFigure` / `PitcherFigure`),
+  not MLB's art — the last pitch large beside it, the at-bat as a Statcast table; and in `.bc-story` the MOVEMENT chart
+  (the pitcher on the mound, every pitch tonight, `TYPE_VAR` = Savant's pitch families in the theme's palette) and the
+  SPRAY chart (every ball in play on a field to scale, Gameday coords: home ≈ (125.4, 198.3), 2.33 ft a unit, checked
+  against the feed's distances) with the three hardest-hit as cards. Team colours: when both sides would pick the same
+  (Red Sox and Yankees are both navy on a light face) the away side takes its other one (`teamColors`).
+  `docs/broadcast/HANDOFF.md` is the original (ESPN-era) plan.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's

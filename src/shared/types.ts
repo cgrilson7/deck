@@ -295,11 +295,11 @@ export interface WikiPicture {
   url: string
 }
 
-/** Red Sox @ Yankees, AL Wild Card Game 1, 9/29/2026: the game the Broadcast tile follows until told otherwise. */
-export const BROADCAST_EVENT_DEFAULT = '401907924'
+/** Red Sox @ Yankees, AL Wild Card Game 1, 9/29/2026 (MLB's gamePk): the game the Broadcast tile follows until told otherwise. */
+export const BROADCAST_GAME_DEFAULT = 849851
 export type BroadcastLook = 'dark' | 'theme'
 
-/** One side of a gamecast. `color` / `altColor` are hex without '#', as ESPN sends them. */
+/** One side of a gamecast. `color` / `altColor` are hex without '#' (main's table: the Stats API has no colours). */
 export interface GameTeam {
   abbr: string
   name: string
@@ -322,10 +322,51 @@ export interface GamePitch {
   text: string
   /** Pitch type abbreviation (FF, SL, CH…), '' when unknown. */
   type: string
+  /** "Four-Seam Fastball", '' when unknown. */
+  name: string
   mph: number | null
-  /** In ESPN's pitchCoordinate space; null when the feed had none. */
+  /** Statcast: rpm; induced vertical break and horizontal movement in INCHES (hb from the catcher's view, + toward first base); extension in feet. */
+  spin: number | null
+  ivb: number | null
+  hb: number | null
+  ext: number | null
+  /** The batted ball, on the pitch put in play: exit velocity (mph), launch angle (°), distance (ft). */
+  ev: number | null
+  la: number | null
+  dist: number | null
+  /** Savant: expected batting average (".730"), barrel, bat speed (mph, on any tracked swing). */
+  xba: string | null
+  barrel: boolean
+  batSpeed: number | null
+  /** Where it crossed the plate, in FEET from the catcher's view (Statcast pX / pZ): x from the middle of the plate, z off the ground. Null when not tracked. */
+  x: number | null
+  z: number | null
+}
+/** One pitch's shape, for the movement chart: the pitcher on the mound, every pitch tonight. */
+export interface PitchShape {
+  type: string
+  name: string
+  hb: number
+  ivb: number
+  mph: number | null
+}
+/** A ball put in play. x / y are Gameday's hit coordinates (home plate ≈ 125, 204; ≈ 2.3 ft a unit). */
+export interface GameBall {
+  side: 'away' | 'home'
+  inning: number
+  batter: string
+  /** "Single", "Flyout"… */
+  event: string
+  text: string
+  ev: number | null
+  la: number | null
+  dist: number | null
+  trajectory: string
   x: number | null
   y: number | null
+  xba: string | null
+  barrel: boolean
+  batSpeed: number | null
 }
 export interface GamePlay {
   half: 'top' | 'bottom'
@@ -333,12 +374,15 @@ export interface GamePlay {
   text: string
   scoring: boolean
 }
-/** A game as the Broadcast tile draws it (main/broadcast.ts boils ESPN's summary down to this). */
+/** A game as the Broadcast tile draws it (main/broadcast.ts boils MLB's live feed down to this). */
 export interface Gamecast {
-  id: string
+  /** MLB's gamePk. */
+  id: number
   state: 'pre' | 'in' | 'post'
   /** "Top 4th", "Final", "7:08 PM"… */
   detail: string
+  /** "AL Wild Card Series · Game 1" in the postseason, '' otherwise. */
+  series: string
   away: GameTeam
   home: GameTeam
   balls: number
@@ -347,8 +391,20 @@ export interface Gamecast {
   bases: [boolean, boolean, boolean]
   pitcher: string
   batter: string
-  /** The current at-bat's pitches, first to last. */
+  /** Which box the batter stands in, and the pitcher's arm. */
+  batSide: 'L' | 'R'
+  pitchHand: 'L' | 'R'
+  /** The batter's own strike zone, in feet off the ground. */
+  szTop: number
+  szBot: number
+  /** The current at-bat's pitches, first to last — or, before its first pitch, the last at-bat's (see `previous`). */
   atBat: GamePitch[]
+  /** Null when `atBat` is the current at-bat; else how the previous one ended ("Contreras lines out…"), whose pitches these are. */
+  previous: string | null
+  /** The pitcher on the mound: every pitch he has thrown tonight, for the movement chart. */
+  arsenal: PitchShape[]
+  /** Every ball put in play tonight, both sides, oldest first. */
+  batted: GameBall[]
   /** The home side's chance to win, 0–100, null when the feed has none. */
   homeWin: number | null
   /** At-bat results, newest first (a dozen at most). */
@@ -721,8 +777,8 @@ export interface DeckSettings {
   spaceDir: string
   /** The Broadcast tile: a live MLB gamecast (ESPN's public game feed), with a link out to ESPN Radio. */
   showBroadcast: boolean
-  /** The game it follows: an ESPN event id (digits). */
-  broadcastEvent: string
+  /** The game it follows: MLB's gamePk. */
+  broadcastGame: number
   /** Its colours: `dark` (default) = the theme's DARK variant whatever the deck shows; `theme` = the deck's own appearance. */
   broadcastLook: BroadcastLook
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
@@ -801,7 +857,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showSpace: false,
   spaceDir: '',
   showBroadcast: false,
-  broadcastEvent: BROADCAST_EVENT_DEFAULT,
+  broadcastGame: BROADCAST_GAME_DEFAULT,
   broadcastLook: 'dark',
   showFoxtrot: false,
   lessonTiles: [1],

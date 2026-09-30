@@ -617,7 +617,7 @@ app.whenReady().then(async () => {
   both('wiki:summary', 'wikiSummary', (key: string) => wikiSummary(String(key ?? '')))
   both('weather:now', 'weather', () => weatherNow(settings!.get().weatherPlaces, settings!.get().weatherUnit))
   both('weather:search', 'weatherSearch', (q: string) => weatherSearch(String(q ?? '')))
-  both('broadcast:game', 'broadcast', () => gamecast(settings!.get().broadcastEvent))
+  both('broadcast:game', 'broadcast', () => gamecast(settings!.get().broadcastGame))
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
   both('translate:run', 'translate', (text: string, hint: Lang, fixed?: boolean) => translate(text, hint, translateKey(), fixed === true))
   both('vocab:lookup', 'vocab', (word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))
