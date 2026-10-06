@@ -255,6 +255,7 @@ export const api: DeckApi = {
   weather: () => remote.call('weather'),
   weatherSearch: (q) => remote.call('weatherSearch', [q]),
   broadcast: () => remote.call('broadcast'),
+  spend: notHere,
   onSpotify: nothing,
   spotify: noop,
   spotifyPlay: noop,

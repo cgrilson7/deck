@@ -76,6 +76,9 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              scripts/space.mjs (open = the pane over POST /space; anything else is passed to ~/space/bin/space.mjs; DECK_SPACE in every session's env),
                              skills/doc/SKILL.md (`/deck:doc`: open a file the user should read or edit in the preview pane, NOT with macOS `open`),
                              scripts/doc.mjs (open <path> [--line N]; DECK_DOC in every session's env, beside mol.mjs like DECK_LESSON),
+                             skills/ledger/SKILL.md (`/deck:ledger`: log a piece of work's cost to the project's own docs/costs/ledger.jsonl — fridge's format; opt-in by `init`),
+                             scripts/ledger.mjs (init, log, show, where; DECK_LEDGER in every session's env, beside mol.mjs; this session = $CLAUDE_CODE_SESSION_ID),
+                             scripts/lib/spend.mjs (+ .d.mts) = THE PRICE TABLE and costOf / projectOf, pure, imported by main/spend.ts by relative path,
                              skills/trainer/SKILL.md (`/deck:trainer`: play Pokémon Yellow on the Game Boy, one command at a time),
                              scripts/trainer.mjs (look, press, advance, walk, goto, talk, fight, save / load, party, gift, encounter, name, elite, warp, sprite…; DECK_TRAINER in every session's env;
                                `gift <species> [--level 1] [--nick] [--party]` = a mon of the player's own into the CURRENT BOX in WRAM — the game
@@ -107,6 +110,8 @@ src/main/files.ts          reads a referenced path for the preview pane: text (c
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/posture.ts        the Posture tile's main side: the `pose:` scheme (MediaPipe's wasm + the pose model, fetched once into userData/posture), the camera prompt, background throttling
+src/main/spend.ts          the Spend tile's main side: tails EVERY project's transcripts (subagents + Workflows too), a response once by message.id, list prices from
+                             plugin/scripts/lib/spend.mjs (shared with the ledger CLI); 1h / 8h / 24h / 7d windows by project, binned; each project's docs/costs/ledger.jsonl read for its labels
 src/main/space.ts          the Space tile's main side: watches ~/space's state/status.json, runs its CLI (Electron as node), turns the tile on + barks when a scan needs Colin
 src/main/mol.ts            the Molecule tile's disk + network side: a target → structure text (library, RCSB, AlphaFold DB, PubChem, a file), cached in userData/mol
 src/shared/lesson.ts       THE LESSON FILE, pure (no DOM, no node): `parseLesson` (front matter, cards, the mol / fig / ask / dad blocks), `lintLesson`,

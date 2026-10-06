@@ -165,6 +165,7 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
             { label: 'Dark Tile (Whatever the Theme Shows)', type: 'checkbox', checked: s.broadcastLook === 'dark', click: () => patch({ broadcastLook: settings().broadcastLook === 'dark' ? 'theme' : 'dark' }) }
           ]
         },
+        { label: 'Show Spend Tile', type: 'checkbox', checked: s.showSpend, click: () => patch({ showSpend: !settings().showSpend }) },
         {
           label: 'Files',
           submenu: [

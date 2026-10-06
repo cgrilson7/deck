@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -110,6 +110,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showFoxtrot) out.push('foxtrot')
   if (s.showSpace) out.push('space')
   if (s.showBroadcast) out.push('broadcast')
+  if (s.showSpend) out.push('spend')
   return out
 }
 
@@ -298,6 +299,69 @@ export interface WikiPicture {
 /** Red Sox @ Yankees, AL Wild Card Game 1, 9/29/2026 (MLB's gamePk): the game the Broadcast tile follows until told otherwise. */
 export const BROADCAST_GAME_DEFAULT = 849851
 export type BroadcastLook = 'dark' | 'theme'
+
+/** The Spend tile's windows, each its own chip (main/spend.ts). */
+export type SpendWindowId = '1h' | '8h' | '24h' | '7d'
+/** Tokens by kind: input, cache writes (5m + 1h), cache reads, output. */
+export interface SpendTokens {
+  input: number
+  write: number
+  read: number
+  output: number
+}
+/** One project's share of a window. */
+export interface SpendSlice {
+  cost: number
+  calls: number
+  /** Every token the responses read or wrote (cache reads included). */
+  tokens: number
+}
+/** A window ending now: totals, the split by project and model, and the chart's bins. */
+export interface SpendWindow {
+  id: SpendWindowId
+  /** Its length and its bins' (ms); `start` = now − length, the first bin's start. */
+  ms: number
+  binMs: number
+  start: number
+  cost: number
+  calls: number
+  tokens: SpendTokens
+  /** Project key → its share (keys are `SpendProject.key`). */
+  byProject: Record<string, SpendSlice>
+  /** Short model name (`opus 5.5`) → $. */
+  byModel: Record<string, number>
+  /** Oldest first: per bin, project key → $. */
+  bins: Record<string, number>[]
+}
+/** A line of a project's own ledger (`docs/costs/ledger.jsonl`, the fridge's format; plugin/scripts/ledger.mjs writes it). */
+export interface SpendLedgerEntry {
+  at: number
+  /** `tag`, or the fridge's `game`. */
+  tag: string | null
+  kind: string | null
+  summary: string | null
+  cost: number
+  activeMin: number
+}
+export interface SpendProject {
+  /** The launch folder, a worktree folded into its repo (`projectOf` in plugin/scripts/lib/spend.mjs). */
+  key: string
+  /** Its folder's name, `~` for the home folder. */
+  name: string
+  /** The newest entries of its ledger (newest first), or null when it keeps none. */
+  ledger: SpendLedgerEntry[] | null
+}
+/** What Claude Code work cost, every project, read off the transcripts at list prices. */
+export interface SpendReport {
+  at: number
+  /** False until the first scan of the last week has finished. */
+  ready: boolean
+  /** Every project with spend in the last 7 days, the costliest first. */
+  projects: SpendProject[]
+  windows: SpendWindow[]
+  /** Responses from a model with no list price (costed as Opus 5.5). */
+  unpriced: number
+}
 
 /** One side of a gamecast. `color` / `altColor` are hex without '#' (main's table: the Stats API has no colours). */
 export interface GameTeam {
@@ -781,6 +845,8 @@ export interface DeckSettings {
   broadcastGame: number
   /** Its colours: `dark` (default) = the theme's DARK variant whatever the deck shows; `theme` = the deck's own appearance. */
   broadcastLook: BroadcastLook
+  /** The Spend tile: tokens and list-price dollars over the last hour / 8 hours / day / week, by project (main/spend.ts reads every transcript). */
+  showSpend: boolean
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -859,6 +925,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showBroadcast: false,
   broadcastGame: BROADCAST_GAME_DEFAULT,
   broadcastLook: 'dark',
+  showSpend: false,
   showFoxtrot: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
@@ -1237,6 +1304,8 @@ export interface DeckApi {
   weatherSearch(q: string): Promise<WeatherPlace[]>
   /** The Broadcast tile's game (the `broadcastEvent` setting), normalized. Cached a few seconds in main. */
   broadcast(): Promise<Gamecast>
+  /** The Spend tile's report: every project's Claude Code spend, read incrementally off the transcripts (refreshed at most every few seconds). */
+  spend(): Promise<SpendReport>
   /** Spotify.app's state, now and on every change (main polls it while the tile is showing). */
   onSpotify(cb: (state: SpotifyState) => void): () => void
   spotify(cmd: SpotifyCommand): void

@@ -187,7 +187,7 @@ export class HooksServer {
     })
     const settings = {
       statusLine: this.writeStatusScript(),
-      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs'), DECK_SPACE: join(dirname(this.molScript), 'space.mjs') },
+      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs'), DECK_SPACE: join(dirname(this.molScript), 'space.mjs'), DECK_LEDGER: join(dirname(this.molScript), 'ledger.mjs') },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
