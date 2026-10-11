@@ -20,7 +20,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -93,7 +93,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -101,6 +101,7 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showPokemon) out.push('pokemon')
   if (s.showGit) out.push('git')
   if (s.showFiles) out.push('files')
+  if (s.showEditor) out.push('editor')
   if (s.showVocab) out.push('vocab')
   if (s.showTranslate) out.push('translate')
   if (s.showQuixote) out.push('quixote')
@@ -212,6 +213,8 @@ export interface SessionView extends SessionRecord {
   tmuxAlive: boolean
   /** A beta paused from the deck: its next tool call is held (see `leashPause`). */
   paused: boolean
+  /** Claude's own title for the conversation, once it has one: the line under the name, never the name. */
+  title: string | null
 }
 
 /** What `DeckApi.newSession` takes: the `new` command's options plus a first prompt, a name, and whether to focus it. */
@@ -867,6 +870,8 @@ export interface DeckSettings {
   showGit: boolean
   /** The Files tile: a plain directory tree of the whole disk (disclosure triangles, a root you can move anywhere); a file opens in the preview pane. */
   showFiles: boolean
+  /** The Editor tile: the file selected in the Files tree as plain text, ⌘S saves (`writeDoc`'s rules: valid UTF-8, the mtime lock, atomic). */
+  showEditor: boolean
   /** languagelog's SQLite file; its single-word translations join the vocabulary supply. '' = skip. */
   languagelogDb: string
   /** Foxtrot barks (slay's silent comic bursts) when a session starts needing you or finishes a turn. */
@@ -937,6 +942,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   gbPatches: [],
   showGit: true,
   showFiles: true,
+  showEditor: false,
   languagelogDb: '~/languagelog/data/languagelog.db',
   foxBark: true,
   remote: true

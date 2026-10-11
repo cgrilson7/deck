@@ -1442,6 +1442,21 @@ button {
   text-overflow: ellipsis;
   min-width: 0;
 }
+/* With a title beside it the name keeps its room (up to half) and the title gives way. */
+.name:has(+ .subname) {
+  flex: 0 0 auto;
+  max-width: 50%;
+}
+/* Claude's title for the conversation, beside the session name; the name wins the room. */
+.subname {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .cwd {
   color: var(--muted);
   white-space: nowrap;
@@ -4645,6 +4660,84 @@ button.foxlog-chip:hover {
 /* Files: a plain directory tree (the Files tile). A head with the root as a button (click = type
    a path), ↑ ⌂ and the dotfile eye; then one row per entry, indented by depth, a disclosure
    triangle on folders. No icons, no columns. */
+/* The Editor tile (EditorTile.tsx): the Files tree's selected file as plain text, ⌘S saves. */
+.editortile {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+.ed-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 500 11px/18px var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ed-dir {
+  margin-left: 6px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.ed-dot {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 9px;
+}
+.ed-save {
+  flex: 0 0 auto;
+  font: 600 10px/16px var(--mono);
+  color: var(--panel);
+  background: var(--accent);
+  border: 0;
+  border-radius: 4px;
+  padding: 0 7px;
+  cursor: pointer;
+}
+.ed-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ed-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 6px 8px;
+  font: 12px/1.45 var(--mono);
+  color: var(--ink);
+  background: transparent;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+.ed-note {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ed-problem {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--red);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--red) 8%, var(--fill));
+}
 .filestile {
   display: flex;
   flex-direction: column;
@@ -4758,7 +4851,7 @@ button.foxlog-chip:hover {
 .ft-row.dir > .ft-name {
   font-weight: 600;
 }
-.ft-row.dot {
+.ft-row.dotfile {
   color: var(--muted);
 }
 .ft-row.link > .ft-name {

@@ -39,7 +39,14 @@ export function Tile({ session: s }: { session: SessionView }) {
           {beta ? 'β' : s.slot}
         </span>
         <FoxStatus id={s.id} status={s.status} attention={s.attention} coat={beta ? 'gold' : undefined} />
-        <span className="name">{s.name}</span>
+        <span className="name" title={s.name}>
+          {s.name}
+        </span>
+        {s.title && (
+          <span className="subname" title={s.title}>
+            {s.title}
+          </span>
+        )}
         {s.worktree && <span className="badge">wt</span>}
         {s.model && (
           <span className="badge" title={`--model ${s.model}`}>

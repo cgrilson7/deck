@@ -4,6 +4,7 @@ import { PLUGIN_KEYS, lessonKey, lessonTileOf, molKey, molTileOf, nextLessonTile
 import { arrange, homeSide, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
 import { FilesTile } from './FilesTile'
+import { EditorTile } from './EditorTile'
 import { CellToolsContext } from '../lib/celltools'
 import { PLUGINS, PlusTile, type Placed } from './PlusTile'
 import { Tile } from './Tile'
@@ -280,6 +281,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <GitTile session={focused} />
     case 'files':
       return <FilesTile />
+    case 'editor':
+      return <EditorTile />
     case 'vocab':
       return <VocabTile />
     case 'translate':

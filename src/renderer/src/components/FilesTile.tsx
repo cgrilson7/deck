@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowUp, Eye, EyeOff, FolderTree, House, Maximize2 } from 'lucide-react'
 import { childOf, openFiles, parentOf, select, setHidden, setRoot, tilde, toggle, useFiles, type FilesState } from '../lib/files'
 import { CellTools } from '../lib/celltools'
+import { useSettings } from '../lib/theme'
 
 /**
  * The tree itself, the good old kind: one line per entry, folders first, a disclosure
@@ -39,7 +40,7 @@ export function FileTree({ s, onFile }: { s: FilesState; onFile: (path: string) 
       rows.push(
         <div
           key={p}
-          className={`ft-row ${e.dir ? 'dir' : 'file'} ${isOpen ? 'open' : ''} ${e.hidden ? 'dot' : ''} ${e.link ? 'link' : ''} ${s.selected === p ? 'sel' : ''}`}
+          className={`ft-row ${e.dir ? 'dir' : 'file'} ${isOpen ? 'open' : ''} ${e.hidden ? 'dotfile' : ''} ${e.link ? 'link' : ''} ${s.selected === p ? 'sel' : ''}`}
           style={{ paddingLeft: pad }}
           title={e.link ? `${p} (a link)` : p}
           onClick={() => (e.dir ? toggle(p) : onFile(p))}
@@ -115,12 +116,13 @@ export function FileRoot({ s }: { s: FilesState }) {
 
 /**
  * The Files tile: the tree in a grid cell. A file's click opens the Files pane in the center
- * with that file up; ⤢ opens the pane as it is. The root can be anywhere — ↑ goes up a level
+ * with that file up (or, with the Editor tile on, opens it in that tile); ⤢ opens the pane as it is. The root can be anywhere — ↑ goes up a level
  * as far as `/`, ⌂ back to home, the path in the head takes a typed one, a double-click on a
  * folder makes it the root. Dotfiles hide behind the eye.
  */
 export function FilesTile() {
   const s = useFiles()
+  const { showEditor } = useSettings()
   return (
     <div className="tile tile-plugin filestile" onClick={(e) => e.stopPropagation()}>
       <div className="ft-head">
@@ -134,8 +136,9 @@ export function FilesTile() {
       <FileTree
         s={s}
         onFile={(p) => {
+          // With the Editor tile on, a file opens there; else in the Files pane.
           select(p)
-          openFiles(p)
+          if (!showEditor) openFiles(p)
         }}
       />
     </div>

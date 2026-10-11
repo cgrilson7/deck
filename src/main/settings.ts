@@ -181,6 +181,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     vocabCycleSeconds: clampInt(raw.vocabCycleSeconds, 5, 600, d.vocabCycleSeconds),
     showGit: bool(raw.showGit, d.showGit),
     showFiles: bool(raw.showFiles, d.showFiles),
+    showEditor: bool(raw.showEditor, d.showEditor),
     languagelogDb: typeof raw.languagelogDb === 'string' ? raw.languagelogDb.trim() : d.languagelogDb,
     foxBark: bool(raw.foxBark, d.foxBark),
     remote: bool(raw.remote, d.remote)

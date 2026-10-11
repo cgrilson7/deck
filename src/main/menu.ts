@@ -170,7 +170,8 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           label: 'Files',
           submenu: [
             { label: 'Open Files', accelerator: 'CmdOrCtrl+Shift+F', click: () => ui({ type: 'toggleFiles' }) },
-            { label: 'Show Files Tile', type: 'checkbox', checked: s.showFiles, click: () => patch({ showFiles: !settings().showFiles }) }
+            { label: 'Show Files Tile', type: 'checkbox', checked: s.showFiles, click: () => patch({ showFiles: !settings().showFiles }) },
+            { label: 'Show Editor Tile', type: 'checkbox', checked: s.showEditor, click: () => patch({ showEditor: !settings().showEditor }) }
           ]
         },
         {

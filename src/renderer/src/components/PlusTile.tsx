@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Atom, CircleDollarSign, PawPrint, BookOpen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
+import { Atom, CircleDollarSign, PawPrint, BookOpen, FilePen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
 import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { patchSettings, useSettings } from '../lib/theme'
@@ -70,6 +70,14 @@ export const PLUGINS: {
     setting: 'showFiles'
   },
   {
+    key: 'editor',
+    label: 'Editor',
+    hint: 'A plain text editor for the file picked in the Files tree (an .env, a config): edit, ⌘S saves',
+    icon: FilePen,
+    hue: 'stone',
+    setting: 'showEditor'
+  },
+  {
     key: 'vocab',
     label: 'Vocabulary',
     hint: 'A Spanish word every 30 seconds, with flash cards and a review list of what you saved',
@@ -130,7 +138,7 @@ export const PLUGINS: {
     label: 'Space',
     hint: 'Your disk: free space, and what ~/space found to delete, archive to iCloud or keep. Nothing moves until you say so',
     icon: HardDrive,
-    hue: 'slate',
+    hue: 'stone',
     setting: 'showSpace'
   },
   {

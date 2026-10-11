@@ -982,11 +982,16 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   is the frame), so a file here has everything the preview pane has: markdown, images, PDFs, folders, the edit mode and its task
   boxes, and its unsaved-edits guard (with a file up the reader owns Esc; the pane's own Esc is for the empty state). The head
   (both views: `FileRoot`) is the ROOT — its path as a button (click = type another, ⏎ goes, Esc cancels), ↑ up a level as far
-  as `/`, ⌂ home, and an eye that shows dotfiles (dimmed) — so the tree goes ANYWHERE on the disk; a double-click on a folder
+  as `/`, ⌂ home, and an eye that hides dotfiles (shown, dimmed, by default) — so the tree goes ANYWHERE on the disk; a double-click on a folder
   makes it the root; the selected file is lit in both views. Main lists one folder at a time (`file:list` → `listDir`: `readdir`
   with types, a symlink stat'ed to learn whether it unfolds, 2000 entries then "… n more"; an unreadable folder is a "No access."
   row, never a rejection); the store re-reads the root and every open folder every 4s while a view is mounted and the window
   is visible, and only a listing that changed re-renders. Not on the phone (`listDir` rejects there).
+- **Editor** (`EditorTile`; `showEditor`, off by default): THE FILES TREE'S SELECTED FILE AS PLAIN TEXT (an .env, a config),
+  a monospace textarea in a right-column cell; ⌘S / `save` writes through `writeDoc` (the preview pane's rules: valid UTF-8,
+  not cut at the cap, the mtime lock → `stale` offers reload, atomic). With it on, a file's click in the Files TILE selects it
+  here instead of opening the Files pane. Switching files with unsaved edits asks first; with none it re-reads every 4s.
+  A non-text file says so and offers the Files pane. Not on the phone.
 - **Translator** (`TranslateTile`, last grid cell): languagelog (~/languagelog) boiled down to two
   boxes, English over Spanish. Typing into either box translates after a 700ms pause or ⏎ (⇧⏎ =
   newline); the API's detected language decides which box the text belongs in, so Spanish typed
@@ -1270,6 +1275,12 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   Model is one-shot, Session ▸ Default Model for New Sessions sets `defaultModel` (what ⌘N uses).
   The record keeps it and a dead resume repeats it (`--resume` alone would fall back to the CLI's
   default); the pane head shows it as a badge next to the worktree one.
+- **A session tile is labelled by its SESSION NAME** (`SessionView.name` = the record's name, kept
+  in step with the fleet's `name`: the CLI's `fridge-af`, what ListAgents / SendMessage use, or
+  the `--name` given), NEVER by Claude's title for the conversation — several sessions in one
+  repo are only told apart by it. The title is `SessionView.title`, drawn as `.subname` beside
+  the name in the tile and focus heads (the name keeps up to half the room). Foxtrot still
+  names a session by its name.
 - **Close = park, not kill.** ⌘W / "park" kills only the pty client; the tmux session and the
   Claude conversation stay. Parked sessions are listed at the bottom of the `+` chooser
   and resume by tmux attach if alive, else `claude --resume <claudeSessionId>`.

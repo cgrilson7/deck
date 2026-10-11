@@ -476,7 +476,10 @@ export class SessionManager {
       const r = this.rt.get(rec.id)
       return {
         ...rec,
-        name: r?.title || rec.name,
+        // The NAME is the CLI's session name (`fridge-af`, what ListAgents / SendMessage use): it is
+        // how Colin tells sessions in one repo apart. Claude's title for the conversation rides beside it.
+        name: rec.name,
+        title: r?.title ?? null,
         status: r?.status ?? 'unknown',
         attention: r?.attention ?? false,
         attached: !!r?.pty,

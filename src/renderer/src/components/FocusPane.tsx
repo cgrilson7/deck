@@ -23,6 +23,11 @@ export function FocusPane({ session, state, settings, alpha }: { session: Sessio
         <span className="name" title={s.name}>
           {s.name}
         </span>
+        {s.title && (
+          <span className="subname" title={s.title}>
+            {s.title}
+          </span>
+        )}
         {beta && (
           <button className="badge badge-pack" title={alpha ? `Beta of slot ${alpha.slot} “${alpha.name}” — click to focus the alpha` : 'A wolfpack beta'} onClick={() => alpha && void window.deck.command({ type: 'focus', slot: alpha.slot! })}>
             pack of {alpha ? alpha.slot : '?'}

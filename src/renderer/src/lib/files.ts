@@ -34,15 +34,16 @@ let timer: number | null = null
 function load(): FilesState {
   let root = '~'
   let open: string[] = []
-  let hidden = false
+  // Dotfiles show unless turned off (stored as `dots`: an older `hidden: false` was the old default, not a choice).
+  let hidden = true
   let selected: string | null = null
   try {
     const raw = localStorage.getItem(STORE)
     if (raw) {
-      const s = JSON.parse(raw) as { root?: unknown; open?: unknown; hidden?: unknown; selected?: unknown }
+      const s = JSON.parse(raw) as { root?: unknown; open?: unknown; dots?: unknown; selected?: unknown }
       if (typeof s.root === 'string' && s.root) root = s.root
       if (Array.isArray(s.open)) open = s.open.filter((p): p is string => typeof p === 'string')
-      hidden = !!s.hidden
+      if (typeof s.dots === 'boolean') hidden = s.dots
       if (typeof s.selected === 'string' && s.selected) selected = s.selected
     }
   } catch {
@@ -53,7 +54,7 @@ function load(): FilesState {
 
 function save(): void {
   try {
-    localStorage.setItem(STORE, JSON.stringify({ root: state.root, open: [...state.open], hidden: state.hidden, selected: state.selected }))
+    localStorage.setItem(STORE, JSON.stringify({ root: state.root, open: [...state.open], dots: state.hidden, selected: state.selected }))
   } catch {
     /* storage may be off */
   }
