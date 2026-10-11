@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { PLUGIN_KEYS, lessonKey, lessonTileOf, molKey, molTileOf, nextLessonTile, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
+import { GRID_SPAN_MAX, PLUGIN_KEYS, lessonKey, lessonTileOf, molKey, molTileOf, nextLessonTile, nextMolTile, pluginCells, webAppOf, webKey, type AgentView, type DeckSettings, type DeckState, type SessionView, type WebApp } from '@shared/types'
 import { arrange, homeSide, moved, pruned, type GridOrder, type GridSide } from '@shared/gridorder'
 import { GitTile } from './GitTile'
 import { FilesTile } from './FilesTile'
@@ -344,7 +344,10 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
   const lessonTile = cell?.kind === 'plugin' ? lessonTileOf(cell.key) : null
   const plugin = cell?.kind === 'plugin' ? PLUGINS.find((p) => p.key === (molTile !== null ? 'mol' : lessonTile !== null ? 'lesson' : cell.key)) : undefined
   const web = cell?.kind === 'plugin' ? webAppOf(cell.key) : null
-  const { molTiles, lessonTiles, webApps } = useSettings()
+  const { molTiles, lessonTiles, webApps, gridSpan, gridRows } = useSettings()
+  // A fun tile can be taller: ↕ steps it 1 → 2 → … → the column's full height → 1.
+  const tall = cell?.kind === 'plugin' ? Math.min(gridSpan[cell.key] ?? 1, gridRows) : 1
+  const tallest = Math.min(GRID_SPAN_MAX, gridRows)
   const webApp = web !== null ? webApps.find((a) => a.id === web) : undefined
   const half = (e: React.DragEvent): 'before' | 'after' => {
     if (!cell) return 'before'
@@ -385,6 +388,20 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
             ×
           </button>
         )}
+        <button
+          className={`ct-x ct-tall ${tall > 1 ? 'on' : ''}`}
+          title={tall < tallest ? `Make it taller: ${tall + 1} rows of ${gridRows}` : `Back to one row`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            const next = { ...gridSpan }
+            if (tall < tallest) next[cell.key] = tall + 1
+            else delete next[cell.key]
+            patchSettings({ gridSpan: next })
+          }}
+        >
+          ↕
+        </button>
         <span
           className="ct-grip"
           draggable
@@ -411,6 +428,7 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
       className={`cell cell-${cell?.kind ?? 'empty'} ${over ? `drop-${over}` : ''} ${across ? 'drop-across' : ''}`}
       data-needy={cell?.needy ? '1' : undefined}
       data-key={cell?.key}
+      style={tall > 1 ? { gridRow: `span ${tall}` } : undefined}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(mimeOf(side))) return
         e.preventDefault()

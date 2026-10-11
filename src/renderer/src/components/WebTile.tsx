@@ -1,17 +1,24 @@
+import { useEffect, useRef } from 'react'
 import { Globe, Maximize2 } from 'lucide-react'
 import type { WebApp } from '@shared/types'
-import { openWebApp, shortUrl, useWebSnap } from '../lib/webapps'
+import { dockFace, openWebApp, shortUrl, useWebSnap } from '../lib/webapps'
 import { Fox } from './Fox'
 import { CellTools } from '../lib/celltools'
 
 /**
- * A web app as a grid cell: its name and the last snapshot of its page. The page itself lives
- * in ONE webview, in the center column (WebLayer) — a second one here would be a second copy
- * of the app — so the tile is a door: click it and the app takes the center, as it was left.
+ * A web app as a grid cell: its name and the live page. The page itself lives in ONE webview
+ * (WebLayer) — a second one here would be a second copy of the app — which is DOCKED over this
+ * tile's face while the center shows something else (the face registers itself for that), so
+ * the tile runs the page; ⤢ moves it to the center. The last snapshot sits under it while it loads.
  */
 export function WebTile({ app }: { app: WebApp }) {
   const snap = useWebSnap(app.id)
   const open = () => openWebApp(app.id)
+  const face = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    dockFace(app.id, face.current)
+    return () => dockFace(app.id, null)
+  }, [app.id])
   return (
     <div className="tile tile-plugin webapp" onClick={(e) => e.stopPropagation()}>
       <header className="pane-head">
@@ -26,7 +33,7 @@ export function WebTile({ app }: { app: WebApp }) {
         </button>
       <CellTools />
       </header>
-      <div className="webapp-face" onClick={open} title={`Open ${app.name}`}>
+      <div ref={face} className="webapp-face" onClick={open} title={`Open ${app.name}`}>
         {snap ? (
           <img className="webapp-snap" src={snap} alt="" draggable={false} />
         ) : (

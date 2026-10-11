@@ -489,6 +489,13 @@ button {
 .ct-grip {
   cursor: grab;
 }
+.ct-tall:hover {
+  color: var(--accent);
+}
+.cell .ct-tall.on {
+  opacity: 1;
+  color: var(--accent);
+}
 .ct-grip:hover {
   background: var(--bg);
   color: var(--ink);
@@ -6092,6 +6099,20 @@ button.foxlog-chip:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.web-app.web-docked {
+  /* Over the tile's face: WebLayer sets the box and the clip every frame. */
+  position: fixed;
+  inset: auto;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+}
+.web-docked > .pane-head,
+.web-docked > .mol-rail {
+  display: none;
 }
 .web-url {
   min-width: 0;

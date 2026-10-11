@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DEFAULT_SETTINGS, GB_PLACES, LESSON_TILES_MAX, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type GbPlaces, type WeatherPlace, type WebApp } from '@shared/types'
+import { DEFAULT_SETTINGS, GB_PLACES, GRID_SPAN_MAX, LESSON_TILES_MAX, MOL_TILES_MAX, WEATHER_PLACES_MAX, WEB_APPS_MAX, cleanWebUrl, isWebAppId, type DeckSettings, type GbPlaces, type WeatherPlace, type WebApp } from '@shared/types'
 import { THEMES } from '@shared/themes'
 import { cleanModel } from '@shared/models'
 import { GRID_ORDER_MAX, isGridKey } from '@shared/gridorder'
@@ -58,6 +58,14 @@ export class SettingsStore {
 /** One side column of `gridOrder`: tile keys only (`isGridKey` is built from PLUGIN_KEYS, so a new mini app is never dropped), each once. */
 function orderSide(raw: unknown): string[] {
   return Array.isArray(raw) ? [...new Set(raw.filter(isGridKey))].slice(0, GRID_ORDER_MAX) : []
+}
+
+/** Tile heights in rows, by grid key: 2..GRID_SPAN_MAX only (1 is the default and is not stored). */
+function gridSpan(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  for (const [k, n] of Object.entries(raw as Record<string, unknown>).slice(0, GRID_ORDER_MAX)) if (isGridKey(k) && Number.isInteger(n) && (n as number) >= 2 && (n as number) <= GRID_SPAN_MAX) out[k] = n as number
+  return out
 }
 
 /** The Molecule tiles (and the Lesson tiles): distinct numbers 1–99, at most `max`, never none. */
@@ -129,6 +137,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     gridColumns: raw.gridRows === undefined ? d.gridColumns : clampInt(raw.gridColumns, 1, 2, d.gridColumns),
     gridRows: clampInt(raw.gridRows, 2, 6, d.gridRows),
     gridOrder: { left: orderSide(raw.gridOrder?.left), right: orderSide(raw.gridOrder?.right) },
+    gridSpan: gridSpan(raw.gridSpan),
     focusWidth: oneOf(raw.focusWidth, ['third', 'twoFifths', 'half'] as const, d.focusWidth),
     attentionFirst: bool(raw.attentionFirst, d.attentionFirst),
     confirmKill: bool(raw.confirmKill, d.confirmKill),

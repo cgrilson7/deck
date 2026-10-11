@@ -71,3 +71,33 @@ export function shortUrl(url: string): string {
     return url
   }
 }
+
+// THE DOCK: a web app's tile is a live view of the page, not only a snapshot. The webview cannot
+// move into the tile (a webview that leaves the DOM loses its page), so the tile registers its
+// face here and WebLayer lays that app's webview over it, following it as the column scrolls.
+const faces = new Map<string, HTMLElement>()
+const faceSubs = new Set<() => void>()
+
+/** The tile's face for an app, or null as the tile goes away. */
+export function dockFace(id: string, el: HTMLElement | null): void {
+  if (el) faces.set(id, el)
+  else faces.delete(id)
+  for (const s of faceSubs) s()
+}
+
+let faceVersion = 0
+faceSubs.add(() => faceVersion++)
+const subscribeFaces = (cb: () => void) => {
+  faceSubs.add(cb)
+  return () => faceSubs.delete(cb)
+}
+
+/** The ids whose tiles are in the grid now (each a dock for its webview). */
+export function useDockedIds(): string[] {
+  useSyncExternalStore(subscribeFaces, () => faceVersion)
+  return [...faces.keys()]
+}
+
+export function faceOf(id: string): HTMLElement | null {
+  return faces.get(id) ?? null
+}

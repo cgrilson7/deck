@@ -64,6 +64,8 @@ export interface WebApp {
 }
 /** Each opened app is a renderer process of its own, kept until the window reloads. */
 export const WEB_APPS_MAX = 12
+/** The most rows a tile may span (`gridSpan`); `gridRows` caps it too. */
+export const GRID_SPAN_MAX = 6
 export const WEB_APPS_DEFAULT: WebApp[] = [{ id: 'village', name: 'Village', url: 'https://villagenotes.app/dream', show: true }]
 const WEB_ID = /^[a-z0-9][a-z0-9-]{0,23}$/
 export const isWebAppId = (id: unknown): id is string => typeof id === 'string' && WEB_ID.test(id)
@@ -777,6 +779,11 @@ export interface DeckSettings {
    * Written whole on every drag; a tile it does not name takes its default place.
    */
   gridOrder: GridOrder
+  /**
+   * How many rows a right-column tile spans (2..`GRID_SPAN_MAX`, capped at `gridRows` when drawn), by
+   * grid key; a key not here is one row. Set by the ↕ beside a mini app's grip, which steps it up and back to 1.
+   */
+  gridSpan: Record<string, number>
   /** How wide the focus column is. */
   focusWidth: 'third' | 'twoFifths' | 'half'
   /** Sessions needing you jump to the front of the grid. */
@@ -888,6 +895,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   gridColumns: 1,
   gridRows: 4,
   gridOrder: { left: [], right: [] },
+  gridSpan: {},
   focusWidth: 'third',
   attentionFirst: true,
   confirmKill: true,

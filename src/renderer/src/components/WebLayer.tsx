@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ExternalLink, Globe, Home, RotateCw, Trash2, X } from 'lucide-react'
 import type { WebApp } from '@shared/types'
 import { patchSettings } from '../lib/theme'
-import { openWebApp, shortUrl, writeSnap } from '../lib/webapps'
+import { faceOf, openWebApp, shortUrl, useDockedIds, writeSnap } from '../lib/webapps'
 import { Fox } from './Fox'
 
 /** One partition for every app (main/webapps.ts dresses it): a sign-in survives the deck quitting. */
@@ -17,7 +17,10 @@ const SNAP_AFTER_LOAD = 1_200
  * here and the layer is merely hidden (`visibility`, never `display: none`, which a webview
  * does not survive well) while the focus pane, the Studio or the Game Boy has the center. So
  * Village comes back to the note it was left on, mid-sentence. An app's webview is made the
- * first time it is opened, not before: each is a process of its own.
+ * first time it is opened or its tile is in the grid, not before: each is a process of its own.
+ * While the center is something else and the app's TILE is in the grid, its webview is DOCKED:
+ * laid over the tile's face (position fixed, following it as the column scrolls, clipped to the
+ * column), so the small tile is the live page — a stream plays there.
  */
 export function WebLayer({ apps, open, onClose }: { apps: WebApp[]; /** The app showing, or null while something else has the center. */ open: string | null; onClose: () => void }) {
   const [visited, setVisited] = useState<string[]>([])
@@ -36,26 +39,31 @@ export function WebLayer({ apps, open, onClose }: { apps: WebApp[]; /** The app 
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  const live = apps.filter((a) => visited.includes(a.id))
+  const docked = useDockedIds()
+  const live = apps.filter((a) => visited.includes(a.id) || docked.includes(a.id))
   if (live.length === 0) return null
   return (
     <section className={`focus web-pane ${open ? '' : 'web-off'}`} aria-hidden={!open}>
       {live.map((a) => (
-        <WebView key={a.id} app={a} rail={apps} active={a.id === open} onClose={onClose} />
+        <WebView key={a.id} app={a} rail={apps} active={a.id === open} docked={a.id !== open && docked.includes(a.id)} onClose={onClose} />
       ))}
     </section>
   )
 }
 
-function WebView({ app, rail, active, onClose }: { app: WebApp; rail: WebApp[]; active: boolean; onClose: () => void }) {
+function WebView({ app, rail, active, docked, onClose }: { app: WebApp; rail: WebApp[]; active: boolean; docked: boolean; onClose: () => void }) {
   const view = useRef<DeckWebview>(null)
+  const box = useRef<HTMLDivElement>(null)
+  // Docked and at least partly scrolled into view: it is seen, so it is heard.
+  const [inTile, setInTile] = useState(false)
+  const shown = active || (docked && inTile)
   // A webview's methods throw before its first dom-ready.
   const ready = useRef(false)
   const [nav, setNav] = useState({ url: app.url, title: '', loading: true, back: false, forward: false })
   const [failed, setFailed] = useState<string | null>(null)
   const [asking, setAsking] = useState(false)
-  const activeRef = useRef(active)
-  activeRef.current = active
+  const activeRef = useRef(shown)
+  activeRef.current = shown
 
   const snap = () => {
     const wv = view.current
@@ -104,16 +112,53 @@ function WebView({ app, rail, active, onClose }: { app: WebApp; rail: WebApp[]; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // In view: the keyboard goes to the page, sound is on, and the tile's snapshot keeps up. Out of view: silent.
+  // In view: sound is on and the tile's snapshot keeps up (in the center the keyboard goes to the page too). Out of view: silent.
   useEffect(() => {
     const wv = view.current
-    if (wv && ready.current) wv.setAudioMuted(!active)
-    if (!active) return
-    wv?.focus()
+    if (wv && ready.current) wv.setAudioMuted(!shown)
+    if (!shown) return
+    if (active) wv?.focus()
     const t = window.setInterval(snap, SNAP_EVERY)
     return () => window.clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active])
+  }, [shown, active])
+
+  // Docked: follow the tile's face every frame (the column scrolls, tiles move, the window resizes),
+  // clipped to its column; a face with no size (the right column dropped in a narrow window) hides it.
+  useEffect(() => {
+    const el = box.current
+    if (!docked || !el) return
+    let raf = 0
+    let last = ''
+    const step = () => {
+      raf = requestAnimationFrame(step)
+      const face = faceOf(app.id)
+      if (!face) return
+      const r = face.getBoundingClientRect()
+      const col = (face.closest('.grid-scroll') as HTMLElement | null)?.getBoundingClientRect() ?? r
+      const top = Math.max(r.top, col.top)
+      const bottom = Math.min(r.bottom, col.bottom)
+      const seen = r.width > 0 && bottom > top
+      const key = `${r.left} ${r.top} ${r.width} ${r.height} ${top} ${bottom}`
+      if (key === last) return
+      last = key
+      Object.assign(el.style, {
+        left: `${r.left}px`,
+        top: `${r.top}px`,
+        width: `${r.width}px`,
+        height: `${r.height}px`,
+        clipPath: `inset(${top - r.top}px 0 ${Math.max(0, r.bottom - bottom)}px 0)`,
+        visibility: seen ? 'visible' : 'hidden'
+      })
+      setInTile(seen)
+    }
+    step()
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeAttribute('style')
+      setInTile(false)
+    }
+  }, [docked, app.id])
 
   useEffect(() => {
     if (!asking) return
@@ -134,7 +179,7 @@ function WebView({ app, rail, active, onClose }: { app: WebApp; rail: WebApp[]; 
   }
 
   return (
-    <div className={`web-app ${active ? '' : 'web-off'}`}>
+    <div ref={box} className={`web-app ${active ? '' : docked ? 'web-docked' : 'web-off'}`}>
       <header className="pane-head">
         <Globe size={13} className="webapp-glyph" />
         <span className="name">{app.name}</span>
