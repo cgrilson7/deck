@@ -4063,19 +4063,26 @@ button {
   padding: 0 6px 0 10px;
   border-bottom: 1px solid var(--line);
 }
+/* The head never pushes its buttons out of the panel (the panel clips, so a long name in a narrow
+   center column once took ✕ off-screen): the texts shrink — the folder first, then the meta, then
+   the name — and the buttons never do. */
 .doc-name {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
   font-size: 12px;
   white-space: nowrap;
 }
 .doc-line {
+  flex: 0 0 auto;
   margin-left: -6px;
   color: var(--accent);
   font-size: 11px;
 }
 .doc-where {
-  flex: 0 1 auto;
+  flex: 0 100 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -4084,7 +4091,10 @@ button {
   font-size: 11px;
 }
 .doc-meta {
-  flex: 0 0 auto;
+  flex: 0 10 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
@@ -4112,6 +4122,7 @@ button {
   color: var(--accent);
 }
 .doc-dirty {
+  flex: 0 0 auto;
   margin-left: -4px;
   color: var(--accent);
   font-size: 10px;
