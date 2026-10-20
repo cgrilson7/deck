@@ -394,7 +394,9 @@ github.com/cgrilson7/casa, private) and will run on the mini.
     `workflowPhase` and the model (`agentKind()` writes "workflow · Build" where a type would
     go; the agent pane adds a phase badge); failing both a tile takes the prompt's first line
     once the transcript shows it (a Workflow agent's is the harness's preamble), else the type. A stop (or a tool call)
-    for an agent never seen to start still makes a tile. No terminal, nothing to type into:
+    for an agent never seen to start still makes a tile — ONLY IF ITS TRANSCRIPT EXISTS: the CLI's
+    internal forks (a background agent's progress summaries, ~every 30s) carry agent ids of their
+    own, call tools and stop, and never write one; they were tiles "working" forever. No terminal, nothing to type into:
     it is the parent's. A roster row (or a solo pack tile) = the AGENT PANE in the CENTER
     column, the way the Studio takes it (`.focus.agent-pane`; it, the Studio and the Game Boy
     take turns; the focused session shows as a grid tile meanwhile; a session tile, a focus

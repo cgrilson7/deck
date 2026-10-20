@@ -20,8 +20,10 @@
 // Workflow's agents have no such call: their name is the sidecar's `description` (the script's
 // `label` for that agent), read when the transcript is found, with the phase and model beside it.
 // Failing both, a tile takes the prompt's first line once the transcript shows it (a Workflow
-// agent's is the harness's preamble, which is why the sidecar matters). A stop for an agent never seen to start (the session began before the
-// hooks file had SubagentStart) still gets a tile, finished.
+// agent's is the harness's preamble, which is why the sidecar matters). A stop or a tool call for an agent never seen to start (the session
+// began before the hooks file had SubagentStart) still gets a tile, IF ITS TRANSCRIPT EXISTS: the CLI's
+// internal forks (background agents' progress summaries) carry agent ids of their own, call tools and
+// stop, and never write one.
 //
 // The LEASH: every tool call of every session comes through PreToolUse (hooks.ts) with the
 // subagent's id when it is one's, or the session's id when it is a beta's own. A PAUSED member's
@@ -144,8 +146,11 @@ export class AgentTracker {
         if (!id || this.stopped.has(id)) return
         let a = this.agents.get(id)
         if (!a) {
-          // Never seen to start: a tile all the same, already finished.
+          // Never seen to start: a tile all the same, already finished — but only with a transcript
+          // to show. The CLI's internal forks stop too, naming a file they never wrote.
           a = this.fresh(id, rec.id, String(p.agent_type ?? ''), p, null)
+          const path = p.agent_transcript_path
+          if (!(path && existsSync(path)) && !this.resolve(a)) return
           this.agents.set(id, a)
         }
         // The CLI says where the transcript is: that beats whatever was found (or not) before.
@@ -197,9 +202,13 @@ export class AgentTracker {
     if (stopped) return Promise.resolve(deny(stopped.reason))
     let a = this.agents.get(agentId)
     if (!a) {
-      a = this.fresh(agentId, rec.id, String(p.agent_type ?? ''), p, this.takePending(p.session_id!, String(p.agent_type ?? '')))
+      // Never seen to start: a tile only once its transcript is on disk. The CLI's own forks (a
+      // background agent's progress summaries, every ~30s) call tools under an agent_id of their
+      // own and never write one, and they were tiles that ran forever.
+      const found = this.fresh(agentId, rec.id, String(p.agent_type ?? ''), p, null)
+      if (!this.resolve(found)) return Promise.resolve(null)
+      a = found
       this.agents.set(agentId, a)
-      this.resolve(a)
       this.changed()
     } else if (!a.path && this.resolve(a)) this.changed()
     if (a.cancelled) return Promise.resolve(deny(a.cancelled.reason))
