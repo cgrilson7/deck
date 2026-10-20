@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from 'react'
 import { DEFAULT_SETTINGS, type DeckSettings } from '@shared/types'
-import { GLASS_ID, glassVariant, resolveVariant, type TermPalette, type ThemeVariant } from '@shared/themes'
+import { GLASS_ID, forcesDark, glassVariant, resolveVariant, seeThrough, type TermPalette, type ThemeVariant } from '@shared/themes'
+import { syncCosmos } from './cosmos'
 import { glassTint, setGlassListener, syncGlass } from './glass'
 
 /**
@@ -26,7 +27,7 @@ export function systemDark(): boolean {
 
 /** Is the app showing a dark variant right now? */
 export function isDark(s: DeckSettings): boolean {
-  return s.appearance === 'dark' || (s.appearance === 'system' && mq.matches)
+  return forcesDark(s.theme) || s.appearance === 'dark' || (s.appearance === 'system' && mq.matches)
 }
 
 /** The glass theme's variant is made from the picture on the wall (lib/glass.ts), not read from the catalog. */
@@ -39,17 +40,19 @@ const CSS_VARS: (keyof Omit<ThemeVariant, 'term'>)[] = ['bg', 'panel', 'ink', 'm
 
 export function applyTheme(s: DeckSettings): void {
   syncGlass(s)
+  syncCosmos(s)
   const v = liveVariant(s)
   const root = document.documentElement
   for (const k of CSS_VARS) root.style.setProperty(`--${k}`, v[k])
-  // Under glass the gutter is the picture, and --bg (every use of it is an inset or a hover) a shade of see-through ink.
-  if (s.theme === GLASS_ID) root.style.setProperty('--bg', 'color-mix(in srgb, var(--ink) 9%, transparent)')
+  // Over a wall the gutter is the wall, and --bg (every use of it is an inset or a hover) a shade of see-through ink.
+  if (seeThrough(s.theme)) root.style.setProperty('--bg', 'color-mix(in srgb, var(--ink) 9%, transparent)')
   // The diff colors in the changes tile are the terminal palette's green and red, so they sit with the theme.
   root.style.setProperty('--green', v.term.green)
   root.style.setProperty('--red', v.term.red)
   // The rest of its hues: the picker's cards are colour-coded from them (--hue-* in styles.css).
   for (const k of ['yellow', 'blue', 'magenta', 'cyan'] as const) root.style.setProperty(`--${k}`, v.term[k])
   root.dataset.theme = s.theme
+  root.dataset.wall = String(seeThrough(s.theme))
   root.dataset.dark = String(isDark(s))
   root.classList.toggle('compact', s.compact)
   // The tiles' tool lines and code blocks use the terminal font too.

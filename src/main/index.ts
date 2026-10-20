@@ -4,7 +4,7 @@ import type { DeckCommand, GbSpriteReq, NewSessionRequest, SpotifyCommand, DeckS
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
 import { molBody } from '@shared/lesson'
 import { REMOTE_PORT, type RemoteMethod } from '@shared/remote'
-import { resolveVariant } from '@shared/themes'
+import { forcesDark, resolveVariant } from '@shared/themes'
 import { shellEnv } from './env'
 import { Fleet } from './fleet'
 import { HooksServer } from './hooks'
@@ -234,9 +234,9 @@ app.whenReady().then(async () => {
   const userData = app.getPath('userData')
   settings = new SettingsStore(userData)
   // Drives the traffic lights / native dialogs, and what `system` resolves to in the renderer.
-  nativeTheme.themeSource = settings.get().appearance
+  nativeTheme.themeSource = forcesDark(settings.get().theme) ? 'dark' : settings.get().appearance
   settings.onChange((s) => {
-    nativeTheme.themeSource = s.appearance
+    nativeTheme.themeSource = forcesDark(s.theme) ? 'dark' : s.appearance
     win?.setBackgroundColor(windowBackground(s))
     win?.setWindowButtonPosition(lightsAt(s))
     send('settings:changed', s)

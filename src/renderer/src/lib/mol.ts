@@ -429,8 +429,8 @@ interface Hilite {
 }
 
 const css = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
-/** Under the glass theme the viewer's own background is clear: the tile behind it is the glass. */
-const bgAlpha = (): number => (document.documentElement.dataset.theme === 'glass' ? 0 : 1)
+/** Over a wall (glass, cosmos) the viewer's own background is clear: the tile behind it is see-through. */
+const bgAlpha = (): number => (document.documentElement.dataset.wall === 'true' ? 0 : 1)
 
 /**
  * How far one step of a PINCH zooms. Exponential in the raw deltaY, so the gesture reads as one

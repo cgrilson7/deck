@@ -564,7 +564,44 @@ export function glassVariant(dark: boolean, tint: GlassTint | null): ThemeVarian
 /** Glass in the catalog: the neutral variants, which is all main ever needs (the window color). */
 const glass: ThemeFamily = { id: GLASS_ID, name: 'Glass', light: glassVariant(false, null), dark: glassVariant(true, null) }
 
-export const THEMES: ThemeFamily[] = [cream, solarized, gruvbox, catppuccin, nord, graphite, glass]
+export const COSMOS_ID = 'cosmos'
+
+/**
+ * Deep Space: a flight through a field of stars and nebulae (lib/cosmos.ts paints it on canvases
+ * behind the window) with every pane a dark, see-through sheet over it, the terminal included.
+ * Space is dark, so the family is dark in both appearances (`forcesDark`). Catppuccin Mocha's
+ * status colors and ANSI palette (they mean something); the chrome is starlight on indigo; the
+ * terminal's own background is clear, like glass's.
+ */
+const cosmosVariant: ThemeVariant = (() => {
+  const base = catppuccin.dark
+  const panel = '#0a0c1d'
+  const ink = '#eceefe'
+  const accent = '#b99cff'
+  return {
+    ...base,
+    bg: '#04050d',
+    panel,
+    ink,
+    muted: '#a9aed6',
+    line: '#2f3566',
+    accent,
+    term: { ...base.term, background: `${panel}00`, cursorAccent: panel, foreground: ink, selectionForeground: ink, cursor: accent, selectionBackground: `${accent}59` }
+  }
+})()
+const cosmos: ThemeFamily = { id: COSMOS_ID, name: 'Deep Space', light: cosmosVariant, dark: cosmosVariant }
+
+/** Themes painted over a wall of their own (glass's picture, cosmos's sky): the panes are see-through. */
+export function seeThrough(themeId: string): boolean {
+  return themeId === GLASS_ID || themeId === COSMOS_ID
+}
+
+/** Themes that are dark whatever `appearance` says. */
+export function forcesDark(themeId: string): boolean {
+  return themeId === COSMOS_ID
+}
+
+export const THEMES: ThemeFamily[] = [cream, solarized, gruvbox, catppuccin, nord, graphite, glass, cosmos]
 export const DEFAULT_THEME_ID = cream.id
 
 export function themeById(id: string): ThemeFamily {

@@ -152,6 +152,7 @@ src/renderer/phone.html + src/renderer/src/phone/   the phone page: api.ts (wind
                                     ScreenView.tsx (tmux's screen + the key strip), ansi.tsx (SGR → spans), palette.ts (--ansi-N from the theme)
 src/renderer/src/lib/theme.ts       settings → CSS variables + xterm palettes; useSettings(), applied before first paint
 src/renderer/src/lib/glass.ts       THE GLASS THEME's wall: the blurred picture of the day behind the window, the tint read off it, kept in localStorage for boot
+src/renderer/src/lib/cosmos.ts      THE COSMOS THEME's wall ("Deep Space"): a flight through stars and procedural nebulae on two canvases behind the window
 src/renderer/src/lib/bus.ts         translator → vocabulary tile: window CustomEvent per finished translation
 src/renderer/src/lib/quixote.ts     THE READER's state: the book up and its reading place shared by tile + pane (localStorage, a place per book), the section cache, the saved words' marks (Highlight API), openQuixote()
 src/renderer/src/lib/studio.ts      openStudio()/closeStudio()/toggleStudio() (a window event; App owns the open state) + useStudioJobs(), the live gallery
@@ -1359,6 +1360,19 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   The last picture + tint live in localStorage (`glass:last`), so boot paints glass before main
   answers. Main only ever needs the catalog's neutral glass variants (the window color). On
   the phone `wikiBackdrop` rejects and the wall is the plain panel color.
+- **Deep Space** (the `cosmos` family, `COSMOS_ID`; `lib/cosmos.ts`, the cosmos block after glass's in
+  styles.css): the window is a ship's view, flying through a field of stars with nebulae drifting past,
+  and every pane — the terminal, the session column, the tiles — a THIN dark sheet over it (`--surface`
+  46%, the focus pane 54%: a terminal's text has no shadow to lift it). The sky is a small 3D world:
+  stars in a box ahead projected from a VANISHING POINT that wanders with a slight roll (steering, not
+  rails), drawn as short streaks; three nebulae (domain-warped fbm in a palette of two or three hues,
+  an irregular edge, made when each is born) further off and slower, fading in from the distance and
+  out as they pass, added light over a fixed backdrop of far stars and a dust band that only pans with
+  the heading. Nebulae at half resolution, stars at the screen's, 30fps, NOTHING while the window is
+  hidden, one still frame under `prefers-reduced-motion`. It is DARK IN BOTH APPEARANCES (`forcesDark`:
+  `isDark` in lib/theme.ts and main's `nativeTheme.themeSource` honour it). What being see-through
+  takes (body, sheet edges, popovers, scrims, prompt bars, the molecule viewer's clear background) is
+  keyed on `data-wall` (`seeThrough()`: glass and cosmos), not on either theme's name.
 - **Refresh UI** (⌘R, top bar): reloads the renderer, then main kills every pty client so
   `handlePtyExit` reattaches and tmux repaints. Sessions and conversations are untouched; a plain
   reload without the reattach leaves the terminals blank until something redraws.
