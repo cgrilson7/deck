@@ -106,7 +106,19 @@ export function ensureTerminal(id: string): Entry {
     macOptionIsMeta: false,
     // The glass theme's terminal background is clear. This cannot change after open(), so it is
     // always on; an opaque background draws the same with it (macOS has no subpixel text to lose).
-    allowTransparency: true
+    allowTransparency: true,
+    // OSC 8 hyperlinks: Claude Code writes a markdown link as one (tmux passes them on, tmux.conf's
+    // `hyperlinks` feature), so `[a-sheet.png](file:///private/tmp/…)` is a click however it wraps.
+    linkHandler: {
+      allowNonHttpProtocols: true,
+      activate: (ev, uri) => {
+        if (/^https?:\/\//i.test(uri)) return window.deck.openInBrowser(uri)
+        if (/^file:/i.test(uri)) {
+          const { path, line } = fileUri(uri)
+          return openRef(path, cwds.get(id), line, ev)
+        }
+      }
+    }
   })
   term.open(el)
 
@@ -116,19 +128,19 @@ export function ensureTerminal(id: string): Entry {
   term.onTitleChange((t) => window.deck.setTitle(id, t))
   term.onBell(() => window.deck.bell(id))
   term.attachCustomKeyEventHandler((ev) => !(ev.metaKey && isDeckShortcut(ev)))
-  // Paths printed in the TUI are links: hover underlines one, a click opens it in the preview
-  // pane over the grid, so the terminal itself is never covered. One buffer line at a time —
-  // a path the pane wrapped is left alone rather than guessed at.
+  // Paths printed in the TUI are links: hover underlines one, a click opens it (`openRef`). A path
+  // the TUI broke across lines is read whole (`logicalLine`), so a long scratchpad path still works.
   term.registerLinkProvider({
     provideLinks(y, cb) {
-      const line = term.buffer.active.getLine(y - 1)
-      if (!line) return cb(undefined)
-      const text = line.translateToString(true)
-      const links = pathRefs(text).map((r) => ({
-        range: { start: { x: r.start + 1, y }, end: { x: r.end, y } },
-        text: r.raw,
-        activate: () => openDoc(r.path, cwds.get(id), r.line)
-      }))
+      const run = logicalLine(term, y)
+      if (!run) return cb(undefined)
+      const links = pathRefs(run.text)
+        .filter((r) => run.at(r.start).y <= y && run.at(r.end - 1).y >= y)
+        .map((r) => ({
+          range: { start: run.at(r.start), end: run.at(r.end - 1) },
+          text: r.raw,
+          activate: (ev: MouseEvent) => openRef(r.path, cwds.get(id), r.line, ev)
+        }))
       cb(links.length > 0 ? links : undefined)
     }
   })
@@ -317,4 +329,86 @@ export function dispose(id: string): void {
 
 export function liveIds(): string[] {
   return [...entries.keys()]
+}
+
+// ---- terminal links ----------------------------------------------------------
+
+/** HTML is the browser's to show; everything else the preview pane's, unless ⌘-clicked. */
+function openRef(path: string, cwd: string | undefined, line: number | null, ev?: MouseEvent): void {
+  if (ev?.metaKey || /\.x?html?$/i.test(path)) window.deck.openInBrowser(path, cwd)
+  else openDoc(path, cwd, line)
+}
+
+/** A file:// URL → its path (decoded), and a `#L42` / `:42` line when it carries one. */
+function fileUri(uri: string): { path: string; line: number | null } {
+  let path = uri
+  let line: number | null = null
+  try {
+    const u = new URL(uri)
+    path = decodeURIComponent(u.pathname)
+    const m = /^#L?(\d+)/.exec(u.hash)
+    if (m) line = Number(m[1])
+  } catch {
+    path = uri.replace(/^file:\/\//i, '')
+  }
+  const m = /^(.*?):(\d+)$/.exec(path)
+  if (m && line === null) return { path: m[1], line: Number(m[2]) }
+  return { path, line }
+}
+
+const PATH_CHAR = /[A-Za-z0-9._~@+\-/]/
+/** How many screen lines one path may be read across. */
+const JOIN_MAX = 4
+
+/**
+ * Line `y` (1-based) with the lines it continues into and out of, as one string and a map back to
+ * cells. Two lines join when xterm wrapped them (`isWrapped`), or when the TUI did: Claude Code
+ * hard-breaks a word too long for the width, so the upper line runs to the right edge ending in a
+ * path character and the lower one, past its indent, starts with one. A wrong join costs only a
+ * "no such file" in the pane.
+ */
+function logicalLine(term: Terminal, y: number): { text: string; at(i: number): { x: number; y: number } } | null {
+  const buf = term.buffer.active
+  const read = (row: number) => buf.getLine(row - 1)
+  if (!read(y)) return null
+  const cols = term.cols
+  const joins = (upper: number): boolean => {
+    const a = read(upper)
+    const b = read(upper + 1)
+    if (!a || !b) return false
+    if (b.isWrapped) return true
+    const top = a.translateToString(true)
+    if (top.length < cols - 2 || !PATH_CHAR.test(top[top.length - 1])) return false
+    const tail = /[A-Za-z0-9._~@+\-/]+$/.exec(top)?.[0] ?? ''
+    if (!tail.includes('/')) return false
+    return PATH_CHAR.test(b.translateToString(true).trimStart()[0] ?? '')
+  }
+  let first = y
+  while (y - first < JOIN_MAX - 1 && first > 1 && joins(first - 1)) first--
+  let last = y
+  while (last - first < JOIN_MAX - 1 && joins(last)) last++
+  let text = ''
+  const starts: { i: number; x0: number; y: number }[] = []
+  for (let row = first; row <= last; row++) {
+    const line = read(row)!
+    // A row xterm wrapped into the next keeps its trailing cells: they are part of the text.
+    let str = line.translateToString(!(row < last && read(row + 1)?.isWrapped))
+    let x0 = 0
+    if (row > first && !line.isWrapped) {
+      // A TUI continuation: drop its indent, and the upper line's trailing blanks are already gone.
+      const lead = str.length - str.trimStart().length
+      str = str.slice(lead)
+      x0 = lead
+    }
+    starts.push({ i: text.length, x0, y: row })
+    text += str
+  }
+  return {
+    text,
+    at(i) {
+      let s = starts[0]
+      for (const st of starts) if (st.i <= i) s = st
+      return { x: s.x0 + (i - s.i) + 1, y: s.y }
+    }
+  }
 }

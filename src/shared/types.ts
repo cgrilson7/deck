@@ -847,6 +847,11 @@ export interface DeckSettings {
   geminiApiKey: string
   /** The Gemini image model the Studio generates with unless a request names one (`STUDIO_MODEL_DEFAULT`). */
   studioModel: string
+  /**
+   * The app a link clicked in a terminal opens in (`open -a`): an http(s) link, an .html file, and any file ⌘-clicked.
+   * '' = whatever macOS uses for it (the default browser for a URL, the type's owner for a file).
+   */
+  linkBrowser: string
   /** Google Cloud API key with the Cloud Translation API enabled. Falls back to $GOOGLE_CLOUD_API_KEY. */
   translateApiKey: string
   /** The vocabulary tile (Wiktionary: definitions, synonyms, etymology) takes the grid cell left of the translator. */
@@ -948,6 +953,7 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showStudio: true,
   geminiApiKey: '',
   studioModel: 'gemini-3.1-flash-image',
+  linkBrowser: 'Safari',
   translateApiKey: '',
   showVocab: true,
   vocabCycleSeconds: 30,
@@ -1402,6 +1408,8 @@ export interface DeckApi {
   /** Put text on the clipboard (the preview pane's "copy path"). */
   copyText(text: string): void
   openExternal(url: string): void
+  /** A terminal link's way out: a URL, or a file path / file:// URL (resolved against `cwd`), opened in the `linkBrowser` app. */
+  openInBrowser(target: string, cwd?: string): void
   /**
    * Detect whether `text` is English or Spanish and translate it to the other one. `hint` is the
    * box it was typed into; it only breaks ties when detection is unsure. `fixed`: the text is

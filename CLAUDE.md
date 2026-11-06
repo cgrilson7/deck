@@ -1208,7 +1208,15 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   NotebookEdit put the file on the ChatBlock as `path`, Grep / Glob their search folder), Claude's
   prose (a path alone in a code span, or bare in a sentence), your own prompts (a dropped file
   pastes one), and the focus pane's TERMINAL (an xterm link provider, one buffer line at a time) —
-  a path is clickable. `pathRefs` matches three shapes, plus a `:42`: rooted at `/ ~/ ./ ../`, a
+  a path is clickable. In the TERMINAL a path the TUI broke across lines is read whole (`logicalLine` in
+  terminals.ts: xterm's `isWrapped`, or an upper line run to the right edge ending in a path with a `/`
+  and a lower one starting with path characters past its indent), and OSC 8 HYPERLINKS work: Claude Code
+  writes every markdown link as one inside tmux 3.4+, tmux.conf passes them on (`terminal-features …
+  hyperlinks`), xterm's `linkHandler` opens them, and a SessionStart hook (`session-context.md` in
+  userData, written by hooks.ts) tells every deck session to name files as `[name](file:///abs/path)`.
+  A terminal click on an `.html` file, an http(s) link, or ANY file ⌘-clicked goes to the `linkBrowser`
+  setting's app (`open -a`, Safari by default; '' = what macOS uses; `deck:openInBrowser`); else the
+  preview pane. `pathRefs` matches three shapes, plus a `:42`: rooted at `/ ~/ ./ ../`, a
   name (nested or not) ending in a known extension, or a folder written with a trailing slash. A
   URL is not one (the lookbehind refuses a match after `:`), and a wrong guess costs nothing: the
   pane says "no such file". Relative paths resolve against the session's cwd — the tile hands it

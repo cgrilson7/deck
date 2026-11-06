@@ -94,6 +94,7 @@ const api: DeckApi = {
   revealPath: (path) => ipcRenderer.send('file:reveal', path),
   copyText: (text) => ipcRenderer.send('file:copy', text),
   openExternal: (url) => ipcRenderer.send('deck:openExternal', url),
+  openInBrowser: (target, cwd) => ipcRenderer.send('deck:openInBrowser', target, cwd),
   translate: (text: string, hint: Lang, fixed?: boolean) => ipcRenderer.invoke('translate:run', text, hint, fixed) as Promise<TranslateResult>,
   vocab: (word: string, hint: Lang, counterpart?: string) => ipcRenderer.invoke('vocab:lookup', word, hint, counterpart) as Promise<VocabResult>,
   vocabWords: () => ipcRenderer.invoke('vocab:words') as Promise<VocabWord[]>,

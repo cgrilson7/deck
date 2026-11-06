@@ -186,6 +186,7 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     gbPlaces: gbPlaces(raw.gbPlaces),
     gbPatches: Array.isArray(raw.gbPatches) ? [...new Set(raw.gbPatches.filter((n): n is string => typeof n === 'string' && SPRITE_NAME.test(n)))].slice(0, 16) : d.gbPatches,
     geminiApiKey: typeof raw.geminiApiKey === 'string' ? raw.geminiApiKey.trim() : d.geminiApiKey,
+    linkBrowser: typeof raw.linkBrowser === 'string' && /^[\w .&'()+-]{0,60}$/.test(raw.linkBrowser.trim()) ? raw.linkBrowser.trim() : d.linkBrowser,
     studioModel: typeof raw.studioModel === 'string' && /^[\w.-]*$/.test(raw.studioModel.trim()) ? raw.studioModel.trim() : d.studioModel,
     translateApiKey: typeof raw.translateApiKey === 'string' ? raw.translateApiKey.trim() : d.translateApiKey,
     showVocab: bool(raw.showVocab, d.showVocab),

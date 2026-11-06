@@ -46,6 +46,7 @@ import { Mol } from './mol'
 import { LessonWatch, lessonFigure, lintLessonFile, readCurriculum, readLesson } from './lesson'
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
 import { existsSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
@@ -731,6 +732,20 @@ app.whenReady().then(async () => {
   both('store:stats', 'vocabStats', () => store!.stats())
   ipcMain.on('deck:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
+  })
+  // A terminal link's way out (an OSC 8 hyperlink, an .html path, a ⌘-click): the `linkBrowser`
+  // app by `open -a`, else what macOS uses. Only http(s) URLs and paths that exist; never a shell.
+  ipcMain.on('deck:openInBrowser', (_e, target: string, cwd?: string) => {
+    const t = String(target ?? '').trim()
+    const url = /^https?:\/\//.test(t)
+    const path = url ? '' : resolveRef(t, typeof cwd === 'string' ? cwd : undefined)
+    if (!url && !existsSync(path)) return
+    const app = settings!.get().linkBrowser
+    const fallback = () => void (url ? shell.openExternal(t) : shell.openPath(path))
+    if (!app) return fallback()
+    execFile('/usr/bin/open', ['-a', app, url ? t : path], (err) => {
+      if (err) fallback()
+    })
   })
 
   // A referenced file, for the preview pane over the grid: read it here, and let macOS open

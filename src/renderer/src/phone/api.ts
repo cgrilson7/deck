@@ -280,6 +280,7 @@ export const api: DeckApi = {
   revealPath: noop,
   copyText: (text) => void navigator.clipboard?.writeText(text).catch(noop),
   openExternal: (url) => void window.open(url, '_blank', 'noopener'),
+  openInBrowser: noop,
   translate: (text, hint, fixed) => remote.call('translate', [text, hint, fixed]),
   vocab: (word, hint, counterpart) => remote.call('vocab', [word, hint, counterpart]),
   vocabWords: () => remote.call('vocabWords'),

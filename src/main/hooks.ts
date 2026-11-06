@@ -23,6 +23,17 @@ import { appendFileSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+
+/** SessionStart context for every deck session: how to name a file so the user can click it. */
+const SESSION_CONTEXT = [
+  'You are running inside the deck, whose terminal makes file:// links clickable (the file opens in the deck\'s preview pane;',
+  'an .html file, or any file ⌘-clicked, in the browser). Whenever you tell the user about a file they may want to open —',
+  'above all one outside the project (your scratchpad, /tmp, /private/tmp) — write it as a markdown link with an absolute',
+  'file:// URL, the file name as the text: [a-sheet.png](file:///private/tmp/…/scratchpad/a-sheet.png). Percent-encode',
+  'spaces (%20). The link stays one click however the line wraps; a bare long path does not.',
+  ''
+].join('\n')
+
 export type HookEvent = 'Notification' | 'Stop' | 'UserPromptSubmit' | 'SubagentStart' | 'SubagentStop' | 'PreToolUse'
 
 /** What a PreToolUse hook may answer (hooks-guide: `permissionDecision` deny cancels the call and hands Claude the reason). */
@@ -187,10 +198,15 @@ export class HooksServer {
         }
       ]
     })
+    // What every deck session is told at its start (SessionStart's stdout is added as context):
+    // the deck's terminal opens file:// links, so a file Claude made somewhere private is a click.
+    const contextFile = join(dirname(this.settingsPath), 'session-context.md')
+    writeFileSync(contextFile, SESSION_CONTEXT)
     const settings = {
       statusLine: this.writeStatusScript(),
       env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs'), DECK_SPACE: join(dirname(this.molScript), 'space.mjs'), DECK_LEDGER: join(dirname(this.molScript), 'ledger.mjs'), DECK_REMINDERS: join(dirname(this.molScript), 'reminders.mjs') },
       hooks: {
+        SessionStart: [{ hooks: [{ type: 'command', command: `cat '${contextFile.replace(/'/g, `'\\''`)}' 2>/dev/null; exit 0`, timeout: 5 }] }],
         Notification: [post('notification')],
         Stop: [post('stop')],
         UserPromptSubmit: [post('prompt')],

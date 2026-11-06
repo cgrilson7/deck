@@ -451,6 +451,10 @@ function KeysCard({ settings: s }: { settings: DeckSettings }) {
         <div className="lrow">
           <TextSetting value={s.studioModel} mono placeholder="gemini-3.1-flash-image" title="The Gemini image model a request that names none generates with" onCommit={(v) => patchSettings({ studioModel: v })} />
         </div>
+        <span className="lset-label">Link browser</span>
+        <div className="lrow">
+          <TextSetting value={s.linkBrowser} placeholder="what macOS uses" title="The app a terminal's web links, .html files and ⌘-clicked files open in (Safari, Google Chrome, Arc…); empty = the macOS default" onCommit={(v) => patchSettings({ linkBrowser: v })} />
+        </div>
         <span className="lset-label">Translation</span>
         <div className="lrow">
           <TextSetting type="password" value={s.translateApiKey} placeholder="$GOOGLE_CLOUD_API_KEY" title="Google Cloud Translation v2: the translator and the vocabulary counterpart" onCommit={(v) => patchSettings({ translateApiKey: v })} />
