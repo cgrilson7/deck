@@ -29,8 +29,9 @@ const MODELS: Record<string, string> = {
 const WASM = new Set(['vision_wasm_internal.js', 'vision_wasm_internal.wasm'])
 
 /** Before `ready`: the scheme must be privileged to be fetched from and to load scripts. */
-export function registerPoseScheme(): void {
-  protocol.registerSchemesAsPrivileged([{ scheme: POSE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }])
+export function registerPoseScheme(...others: Electron.CustomScheme[]): void {
+  // Electron takes ONE call for every privileged scheme: the other tiles' ride along (the PS1's `psx:`).
+  protocol.registerSchemesAsPrivileged([{ scheme: POSE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }, ...others])
 }
 
 export class Posture {

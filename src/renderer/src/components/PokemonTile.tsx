@@ -39,14 +39,20 @@ export function PokemonTile() {
         </button>
       <CellTools />
       </header>
-      <div className="pokemon-face" onClick={openPokemon} title="Play (⌘⇧G)">
-        <canvas ref={canvas} className="pokemon-canvas" style={{ display: st.rom ? undefined : 'none' }} />
-        {!st.rom && (
-          <div className="plugin-empty">
-            <Fox anim={st.loading ? 'run' : 'idle'} scale={2} />
-            <span>{st.loading ? 'loading the cartridge…' : st.error ? st.error : 'Open to pick a ROM'}</span>
+      {/* A Game Boy Color in Dandelion yellow: the screen in its dark bezel, the power lamp lit while a cartridge runs. */}
+      <div className="pokemon-face gbc" onClick={openPokemon} title="Play (⌘⇧G)">
+        <div className="gbc-bezel">
+          <span className={`gbc-led ${st.rom && !st.paused ? 'on' : ''}`} />
+          <div className="gbc-screen">
+            <canvas ref={canvas} className="pokemon-canvas" style={{ display: st.rom ? undefined : 'none' }} />
+            {!st.rom && (
+              <div className="plugin-empty">
+                <Fox anim={st.loading ? 'run' : 'idle'} scale={2} />
+                <span>{st.loading ? 'loading the cartridge…' : st.error ? st.error : 'Open to pick a ROM'}</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { useDropTarget } from './useDropTarget'
 import { leashOfBeta } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
+import { closePs1 } from '../lib/ps1events'
 import { ContextBadge } from './ContextBadge'
 
 /**
@@ -18,6 +19,7 @@ export function Tile({ session: s }: { session: SessionView }) {
   const focus = () => {
     closeStudio() // …and the agent pane with it (App); the Game Boy too: the center goes back to the session
     closePokemon()
+    closePs1()
     void window.deck.command({ type: 'focus', slot: s.slot! })
   }
   const beta = !!s.pack

@@ -58,6 +58,7 @@
     "3dmol": "^2.5.5",
     "lucide-react": "^1.43.0",
     "node-pty": "^1.1.0",
+    "nostalgist": "0.23.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

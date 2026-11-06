@@ -207,6 +207,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'PS1',
+          submenu: [
+            { label: 'Play PS1', click: () => ui({ type: 'togglePs1' }) },
+            { label: 'Show PS1 Tile', type: 'checkbox', checked: s.showPs1, click: () => patch({ showPs1: !settings().showPs1 }) }
+          ]
+        },
+        {
           label: 'Web Apps',
           submenu: s.webApps.length
             ? s.webApps.flatMap((a, i): MenuItemConstructorOptions[] => [

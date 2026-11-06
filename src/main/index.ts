@@ -50,6 +50,7 @@ import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
+import { Ps1, PSX_SCHEME_ENTRY } from './ps1'
 import { Space } from './space'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -66,8 +67,9 @@ app.setName("Foxtrot's Workshop")
 // by hand. The menu-bar name only changes with a real bundle (`npm run dist`).
 const iconPath = join(app.getAppPath(), 'build', 'icon.png')
 app.setPath('userData', join(app.getPath('appData'), profile))
-// The Posture tile's MediaPipe files and model (main/posture.ts): privileged schemes are declared before `ready`.
-registerPoseScheme()
+// The Posture tile's MediaPipe files and model (main/posture.ts) and the PS1's core, BIOS and discs
+// (main/ps1.ts): privileged schemes are declared before `ready`, all in one call.
+registerPoseScheme(PSX_SCHEME_ENTRY)
 
 if (!app.requestSingleInstanceLock({ profile })) {
   app.quit()
@@ -313,6 +315,41 @@ app.whenReady().then(async () => {
       gbPending.set(id, { resolve, timer })
       send('gameboy:req', { id, body: b })
     })
+  // The PS1 (main/ps1.ts): the core, the BIOS and the discs over `psx:`, saves under userData/ps1,
+  // and its door — POST /ps1 relayed to the renderer's emulator the way /gameboy is.
+  const ps1 = new Ps1(userData, () => settings!.get())
+  ps1.serve()
+  ipcMain.handle('ps1:listDiscs', () => ps1.listDiscs())
+  ipcMain.handle('ps1:bios', () => ps1.bios())
+  ipcMain.handle('ps1:info', (_e, path: string) => ps1.info(String(path ?? '')))
+  ipcMain.handle('ps1:saveState', (_e, disc: string, slot: number | string, data: Uint8Array) => ps1.saveState(String(disc ?? ''), slot ?? 0, data ?? new Uint8Array()))
+  ipcMain.handle('ps1:loadState', (_e, disc: string, slot: number | string) => ps1.loadState(String(disc ?? ''), slot ?? 0))
+  ipcMain.handle('ps1:states', (_e, disc: string) => ps1.states(String(disc ?? '')))
+  ipcMain.handle('ps1:saveCard', (_e, disc: string, data: Uint8Array) => ps1.saveCard(String(disc ?? ''), data ?? new Uint8Array()))
+  ipcMain.handle('ps1:loadCard', (_e, disc: string) => ps1.loadCard(String(disc ?? '')))
+  ipcMain.handle('ps1:shot', (_e, bytes: Uint8Array) => ps1.shot(bytes ?? new Uint8Array()))
+  const ps1Pending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
+  const ps1Call = (body: unknown): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      if (!win || win.isDestroyed()) return reject(new Error('no window'))
+      const id = randomUUID()
+      const b = (body ?? {}) as Record<string, unknown>
+      // A disc load fetches ~500 MB and boots; a wait or a held button runs as long as it was asked to.
+      const budget = b.op === 'disc' ? 120_000 : 20_000 + Math.min(600_000, Number(b.ms ?? 0))
+      const timer = setTimeout(() => {
+        ps1Pending.delete(id)
+        reject(new Error(b.op === 'disc' ? 'the PS1 did not finish loading in time' : 'no PS1 listening: turn on the PS1 tile (a mini app in the + picker) and pick a disc'))
+      }, budget)
+      ps1Pending.set(id, { resolve, timer })
+      send('ps1:req', { id, body: b })
+    })
+  ipcMain.on('ps1:reply', (_e, id: string, result: unknown) => {
+    const p = ps1Pending.get(id)
+    if (!p) return
+    clearTimeout(p.timer)
+    ps1Pending.delete(id)
+    p.resolve(result)
+  })
   ipcMain.on('gameboy:reply', (_e, id: string, result: unknown) => {
     const p = gbPending.get(id)
     if (!p) return
@@ -509,6 +546,7 @@ app.whenReady().then(async () => {
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
   hooks.onLesson = (body) => lessonCall(body)
+  hooks.onPs1 = (body) => ps1Call(body)
   // The Reminders tile's store and door: `$DECK_REMINDERS add|note|log|…` from any session. The tile
   // writes as "you"; a session as its own name, looked up here so a caller cannot claim to be anyone else.
   const reminders = new RemindersStore(userData, env, (s) => send('reminders:update', s))

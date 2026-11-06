@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, Ps1Disc, Ps1DiscInfo, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 import type { RemindersState } from '@shared/reminders'
 
 const api: DeckApi = {
@@ -198,6 +198,21 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('gameboy:req', h)
   },
   gameboyReply: (id: string, result: unknown) => ipcRenderer.send('gameboy:reply', id, result),
+  ps1ListDiscs: () => ipcRenderer.invoke('ps1:listDiscs') as Promise<Ps1Disc[]>,
+  ps1Bios: () => ipcRenderer.invoke('ps1:bios') as Promise<{ file: string; url: string; as: string } | null>,
+  ps1Info: (path: string) => ipcRenderer.invoke('ps1:info', path) as Promise<Ps1DiscInfo | null>,
+  ps1SaveState: (disc: string, slot: number | string, data: Uint8Array) => ipcRenderer.invoke('ps1:saveState', disc, slot, data) as Promise<void>,
+  ps1LoadState: (disc: string, slot: number | string) => ipcRenderer.invoke('ps1:loadState', disc, slot) as Promise<Uint8Array | null>,
+  ps1States: (disc: string) => ipcRenderer.invoke('ps1:states', disc) as Promise<string[]>,
+  ps1SaveCard: (disc: string, data: Uint8Array) => ipcRenderer.invoke('ps1:saveCard', disc, data) as Promise<void>,
+  ps1LoadCard: (disc: string) => ipcRenderer.invoke('ps1:loadCard', disc) as Promise<Uint8Array | null>,
+  ps1Shot: (bytes: Uint8Array) => ipcRenderer.invoke('ps1:shot', bytes) as Promise<string>,
+  onPs1: (cb) => {
+    const h = (_e: unknown, req: GameboyRequest) => cb(req)
+    ipcRenderer.on('ps1:req', h)
+    return () => ipcRenderer.removeListener('ps1:req', h)
+  },
+  ps1Reply: (id: string, result: unknown) => ipcRenderer.send('ps1:reply', id, result),
   molResolve: (target) => ipcRenderer.invoke('mol:resolve', target),
   molLibrary: () => ipcRenderer.invoke('mol:library'),
   molShot: (bytes, tile) => ipcRenderer.invoke('mol:shot', bytes, tile),

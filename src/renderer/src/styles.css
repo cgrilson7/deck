@@ -5704,6 +5704,760 @@ button.foxlog-chip:hover {
   }
 }
 
+/* ---- PS1: one WebGL canvas (lib/ps1) that moves between the tile's host and the pane's; the core
+   letterboxes the picture inside it. Parked off-screen (still rendering) while no view holds it.
+   DRESSED AS THE CONSOLE, whatever the theme: the game in a TV, under it the grey top of a PS1 (the disc
+   lid, POWER with its green lamp, RESET, the big OPEN button), and a controller with the four symbols in
+   their colours. Our own shapes and no marks: hints of the hardware, not its logo. */
+.ps1-host {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+}
+.ps1-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The deck presses the buttons; a click must never focus the core (its own hotkeys would hear the keyboard). */
+  pointer-events: none;
+}
+.ps1-park {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 640px;
+  height: 480px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ps1 {
+  --ps1-body: #c9c9cd;
+  --ps1-body-hi: #dcdce0;
+  --ps1-body-lo: #a7a7ad;
+  --ps1-ink: #55565e;
+}
+.ps1-pane {
+  --ps1-body: #c9c9cd;
+  --ps1-body-hi: #dcdce0;
+  --ps1-body-lo: #a7a7ad;
+  --ps1-ink: #55565e;
+}
+.ps1-tv {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050506;
+  border-radius: 10px;
+  /* A CRT's dark glass: a soft inner vignette, and a hard bezel line. */
+  box-shadow:
+    inset 0 0 24px rgba(0, 0, 0, 0.9),
+    0 0 0 3px #26272c,
+    0 0 0 4px #3a3b42;
+  overflow: hidden;
+  color: #9a9ba3;
+}
+.ps1-face.pokemon-face {
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 9px 6px;
+  background: linear-gradient(180deg, var(--ps1-body-hi), var(--ps1-body) 70%, var(--ps1-body-lo));
+}
+.ps1-stage.pokemon-stage {
+  align-items: stretch;
+  padding: 14px 18px;
+  background: radial-gradient(ellipse at 50% 30%, #2a2b31, #111114 75%);
+}
+
+/* The console's top surface. */
+.ps1-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--ps1-body-hi), var(--ps1-body) 55%, var(--ps1-body-lo));
+  border-radius: 10px 10px 4px 4px;
+  /* The moulded ridges that ran across the real one's top. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  color: var(--ps1-ink);
+}
+.ps1-top.small {
+  gap: 8px;
+  padding: 2px 4px 0;
+  background: none;
+  box-shadow: none;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.ps1-lid {
+  position: relative;
+  flex: 0 0 auto;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  /* A disc lid: a shallow dome inside a recessed ring, a small hub at the centre. */
+  background:
+    radial-gradient(circle at 50% 50%, #b9b9be 0 9%, var(--ps1-body-lo) 9.5% 11%, transparent 11.5%),
+    radial-gradient(circle at 42% 38%, var(--ps1-body-hi), var(--ps1-body) 60%, var(--ps1-body-lo));
+  box-shadow:
+    0 0 0 3px var(--ps1-body-lo),
+    0 0 0 4px rgba(255, 255, 255, 0.55),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.18);
+}
+.ps1-lid::after {
+  /* A faint sheen that turns while a disc spins. */
+  content: '';
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 40%, rgba(255, 255, 255, 0.45) 46%, transparent 52% 90%, rgba(255, 255, 255, 0.25) 95%, transparent);
+  opacity: 0.5;
+}
+.ps1-lid.spin::after {
+  animation: ps1-spin 1.6s linear infinite;
+  opacity: 0.9;
+}
+@keyframes ps1-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ps1-top.small .ps1-lid {
+  width: 16px;
+  height: 16px;
+  box-shadow: 0 0 0 1px var(--ps1-body-lo);
+}
+.ps1-keys {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-left: auto;
+}
+.ps1-top.small .ps1-keys {
+  gap: 6px;
+  align-items: center;
+}
+.ps1-key-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.ps1-key-wrap small {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ps1-ink);
+}
+.ps1-key,
+.ps1-open {
+  position: relative;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 40% 35%, #e4e4e8, #b4b4ba 70%);
+  box-shadow:
+    0 0 0 2px var(--ps1-body-lo),
+    0 2px 0 #8e8e95,
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+.ps1-open {
+  width: 40px;
+  height: 40px;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 55%, rgba(0, 0, 0, 0.12) 57% 59%, transparent 61%),
+    radial-gradient(circle at 40% 35%, #e6e6ea, #b0b0b7 70%);
+}
+.ps1-key:active:not(:disabled),
+.ps1-open:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    0 0 0 2px var(--ps1-body-lo),
+    0 1px 0 #8e8e95;
+}
+.ps1-key:disabled,
+.ps1-open:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.ps1-top.small .ps1-key {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 1px var(--ps1-body-lo);
+}
+.ps1-top.small .ps1-open {
+  width: 15px;
+  height: 15px;
+  box-shadow: 0 0 0 1px var(--ps1-body-lo);
+}
+.ps1-led {
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: #33402f;
+}
+.ps1-led.on {
+  background: #4cff5c;
+  box-shadow: 0 0 6px 1px rgba(76, 255, 92, 0.75);
+}
+.ps1-top.small .ps1-led {
+  top: -6px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+}
+
+/* The pane's lower half: the console, then the controller. */
+.ps1-console.pokemon-bar {
+  gap: 10px;
+  padding: 12px 14px 8px;
+  background: linear-gradient(180deg, #2b2c31, #18181b);
+  border-top: 1px solid #000;
+}
+.ps1-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.ps1-tray-row,
+.ps1-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ps1-slot-n {
+  font-size: 10px;
+  color: var(--ps1-ink);
+  font-weight: 600;
+  padding: 0 2px;
+}
+.ps1-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: inherit;
+  font-size: 11px;
+  color: #3e3f46;
+  padding: 2px 7px;
+  border-radius: 9px;
+  border: 1px solid var(--ps1-body-lo);
+  background: linear-gradient(180deg, #e2e2e6, #c3c3c8);
+  cursor: pointer;
+}
+.ps1-chip.on {
+  color: #1d5a24;
+  border-color: #6aa86f;
+}
+.ps1-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ps1-select {
+  font: inherit;
+  font-size: 11px;
+  color: #3e3f46;
+  background: #e2e2e6;
+  border: 1px solid var(--ps1-body-lo);
+  border-radius: 6px;
+  padding: 1px 5px;
+  max-width: 200px;
+}
+
+/* The controller. */
+.ps1-pad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 18px;
+  border-radius: 46px;
+  background: linear-gradient(180deg, #d2d2d6, #b3b3b9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 3px 8px rgba(0, 0, 0, 0.45);
+  user-select: none;
+}
+.ps1-pad button {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.ps1-shoulders {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ps1-sh {
+  width: 34px;
+  height: 16px;
+  border-radius: 6px;
+  font-size: 9px !important;
+  color: #4a4b52;
+  background: linear-gradient(180deg, #a9a9af, #8e8e95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.ps1-dpad,
+.ps1-face-btns {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle, #c4c4c9 55%, #a8a8ae 72%);
+}
+.ps1-dir {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(180deg, #5b5c63, #3c3d43);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 #2a2b30;
+}
+.ps1-dir.up {
+  left: 28px;
+  top: 6px;
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
+}
+.ps1-dir.down {
+  left: 28px;
+  bottom: 6px;
+  clip-path: polygon(50% 0, 100% 30%, 100% 100%, 0 100%, 0 30%);
+}
+.ps1-dir.left {
+  left: 6px;
+  top: 28px;
+  clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%);
+}
+.ps1-dir.right {
+  right: 6px;
+  top: 28px;
+  clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%, 0 50%);
+}
+.ps1-mid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 10px;
+  justify-items: center;
+}
+.ps1-mid small {
+  grid-column: 1 / -1;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #5b5c63;
+}
+.ps1-small {
+  width: 22px;
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #6a6b72, #4a4b52);
+}
+.ps1-fb {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50% !important;
+  font-size: 13px !important;
+  line-height: 24px;
+  font-weight: 700;
+  background: radial-gradient(circle at 40% 35%, #4f5057, #2c2d32);
+  box-shadow: 0 2px 0 #1d1e22;
+}
+.ps1-fb.triangle {
+  left: 27px;
+  top: 3px;
+  color: #3fc98c;
+}
+.ps1-fb.circle {
+  right: 3px;
+  top: 27px;
+  color: #ff6b5f;
+}
+.ps1-fb.cross {
+  left: 27px;
+  bottom: 3px;
+  color: #8fb4ff;
+}
+.ps1-fb.square {
+  left: 3px;
+  top: 27px;
+  color: #f09ad0;
+}
+.ps1-dir:active,
+.ps1-fb:active,
+.ps1-sh:active,
+.ps1-small:active {
+  transform: translateY(1px);
+  filter: brightness(1.25);
+}
+.ps1-console .pokemon-keys .pokemon-hint {
+  color: #8d8e96;
+}
+
+/* FULL SCREEN: the pane over everything (and, through the Fullscreen API, over the whole display): the game as
+   large as it fits, the session dock along the bottom. */
+.ps1-pane.ps1-theater {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  border-radius: 0;
+  background: #000;
+}
+.ps1-pane.ps1-theater > .pane-head {
+  background: rgba(16, 16, 19, 0.92);
+  color: #c9c9d1;
+  border-bottom: 1px solid #222;
+}
+.ps1-pane.ps1-theater .ps1-stage {
+  padding: 0;
+  background: #000;
+}
+.ps1-pane.ps1-theater .ps1-tv {
+  border-radius: 0;
+  box-shadow: none;
+}
+.ps1-pane:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+.ps1-dock {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(16, 16, 19, 0.96);
+  border-top: 1px solid #26262c;
+}
+.ps1-dock-list {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ps1-dock-empty {
+  color: #6c6d75;
+  font-size: 12px;
+}
+.ps1-dock-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 300px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  color: #d6d6dc;
+  background: #222228;
+  border: 1px solid #33333b;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ps1-dock-chip:hover {
+  background: #2c2c34;
+}
+.ps1-dock-chip.focused {
+  border-color: #55555f;
+}
+.ps1-dock-chip.needs {
+  border-color: var(--blocked);
+  animation: ps1-needs 1.4s ease-in-out infinite;
+}
+@keyframes ps1-needs {
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--blocked) 35%, transparent);
+  }
+}
+.ps1-dock-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idle);
+}
+.ps1-dock-dot.busy {
+  background: var(--busy);
+  box-shadow: 0 0 6px var(--busy);
+}
+.ps1-dock-dot.blocked,
+.ps1-dock-dot.needs {
+  background: var(--blocked);
+}
+.ps1-dock-dot.dead {
+  background: #444;
+}
+.ps1-dock-slot {
+  font-size: 10px;
+  color: #8a8b93;
+  font-variant-numeric: tabular-nums;
+}
+.ps1-dock-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ps1-dock-title {
+  color: #8a8b93;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.ps1-dock-exit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  color: #c9c9d1;
+  background: transparent;
+  border: 1px solid #3a3a42;
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+/* ---- The Game Boy, dressed as a Game Boy Color in Dandelion yellow, whatever the theme: a dark bezel around
+   the screen with its red power lamp, the cross pad, SELECT / START on their slant, B and A, the speaker
+   slots. Our own drawing, no marks. */
+.gbc {
+  --gbc-body: #f3c531;
+  --gbc-body-hi: #fbd85a;
+  --gbc-body-lo: #d9a514;
+  --gbc-bezel: #3b3d4b;
+  --gbc-ink: #6b4f00;
+}
+.gbc-pane {
+  --gbc-body: #f3c531;
+  --gbc-body-hi: #fbd85a;
+  --gbc-body-lo: #d9a514;
+  --gbc-bezel: #3b3d4b;
+  --gbc-ink: #6b4f00;
+}
+.pokemon-face.gbc,
+.pokemon-stage.gbc {
+  padding: 9px;
+  background: linear-gradient(160deg, var(--gbc-body-hi), var(--gbc-body) 45%, var(--gbc-body-lo));
+}
+.pokemon-stage.gbc {
+  padding: 16px 22px 10px;
+}
+.gbc-bezel {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: 10px 12px 12px 22px;
+  background: var(--gbc-bezel);
+  /* The real bezel's lower right corner swept round. */
+  border-radius: 8px 8px 26px 8px;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.pokemon-stage.gbc .gbc-bezel {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 20px 20px 36px;
+  border-radius: 10px 10px 44px 10px;
+}
+.gbc-screen {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #10110f;
+  border-radius: 2px;
+  color: #b8b9c4;
+}
+.gbc-led {
+  position: absolute;
+  left: 8px;
+  top: 40%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5a2626;
+}
+.gbc-led.on {
+  background: #ff4040;
+  box-shadow: 0 0 6px 1px rgba(255, 64, 64, 0.8);
+}
+.pokemon-stage.gbc .gbc-led {
+  left: 14px;
+  width: 8px;
+  height: 8px;
+}
+.gbc-body.pokemon-bar {
+  background: linear-gradient(180deg, var(--gbc-body), var(--gbc-body-lo));
+  border-top: 0;
+  color: var(--gbc-ink);
+}
+.gbc-body .pill {
+  color: #4a3600;
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(107, 79, 0, 0.35);
+}
+.gbc-body .pokemon-row .pill.on {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: #6b4f00;
+}
+.gbc-body .pokemon-hint,
+.gbc-body .pokemon-slot-n {
+  color: #7a5c00;
+}
+.gbc-body .pokemon-select {
+  color: #4a3600;
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(107, 79, 0, 0.35);
+}
+.gbc-controls {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 110px;
+  padding: 4px 28px;
+  user-select: none;
+}
+.gbc-controls button {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.gbc-dpad {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  justify-self: start;
+}
+.gbc-dir {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: #2f3038;
+  box-shadow: 0 3px 0 #1c1d22;
+}
+.gbc-dir.up {
+  left: 28px;
+  top: 0;
+  border-radius: 4px 4px 0 0;
+}
+.gbc-dir.down {
+  left: 28px;
+  bottom: 0;
+  border-radius: 0 0 4px 4px;
+}
+.gbc-dir.left {
+  left: 0;
+  top: 28px;
+  border-radius: 4px 0 0 4px;
+}
+.gbc-dir.right {
+  right: 0;
+  top: 28px;
+  border-radius: 0 4px 4px 0;
+}
+.gbc-dir.mid {
+  left: 28px;
+  top: 28px;
+  background: radial-gradient(circle, #26272d 30%, #2f3038 34%);
+}
+.gbc-menu {
+  display: flex;
+  gap: 12px;
+  align-self: end;
+  margin-bottom: 4px;
+}
+.gbc-menu > span,
+.gbc-ab > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.gbc-menu small,
+.gbc-ab small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gbc-ink);
+}
+.gbc-pill {
+  width: 34px;
+  height: 10px;
+  border-radius: 6px;
+  background: #6b6c74;
+  transform: rotate(-25deg);
+  box-shadow: 0 2px 0 #4a4b51;
+}
+.gbc-ab {
+  justify-self: end;
+  display: flex;
+  gap: 14px;
+  /* B low and to the left, A high and to the right, the way the thumb lies. */
+  transform: rotate(-22deg);
+}
+.gbc-ab > span:first-child {
+  margin-top: 22px;
+}
+.gbc-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #4a4b55, #26272d 70%);
+  box-shadow: 0 3px 0 #17181b;
+}
+.gbc-ab small {
+  transform: rotate(22deg);
+}
+.gbc-dir:active,
+.gbc-btn:active,
+.gbc-pill:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.gbc-pill:active {
+  transform: rotate(-25deg) translateY(2px);
+}
+.gbc-speaker {
+  position: absolute;
+  right: 22px;
+  bottom: 2px;
+  width: 46px;
+  height: 26px;
+  /* Six slots cut on the slant. */
+  background: repeating-linear-gradient(-60deg, transparent 0 5px, rgba(80, 58, 0, 0.45) 5px 7px);
+  clip-path: polygon(20% 0, 100% 0, 80% 100%, 0 100%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 /* ---- Pokemon: a Game Boy Color (serverboy) as a tile, and full size in the center column.
    The canvas is always 160×144 and CSS scales it, pixelated, to whatever room there is. */
 .pokemon-glyph {

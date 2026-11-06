@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Atom, ListChecks, CircleDollarSign, HeartPulse, PawPrint, BookOpen, FilePen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, ArrowDown, ArrowUp, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
+import { Atom, ListChecks, CircleDollarSign, HeartPulse, PawPrint, BookOpen, FilePen, FolderTree, Disc3, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, ArrowDown, ArrowUp, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
 import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, lessonKey, molKey, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { patchSettings, useSettings } from '../lib/theme'
@@ -53,6 +53,14 @@ export const PLUGINS: {
     icon: Gamepad2,
     hue: 'red',
     setting: 'showPokemon'
+  },
+  {
+    key: 'ps1',
+    label: 'PS1',
+    hint: 'A PlayStation in a tile (your BIOS, your discs); click it to play in the center column',
+    icon: Disc3,
+    hue: 'blue',
+    setting: 'showPs1'
   },
   {
     key: 'git',

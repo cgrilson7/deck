@@ -21,7 +21,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend', 'sleepgod', 'reminders'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'ps1', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend', 'sleepgod', 'reminders'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -96,12 +96,13 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend' | 'showSleepgod' | 'showReminders'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showPs1' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend' | 'showSleepgod' | 'showReminders'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
   if (s.showStudio) out.push('studio')
   if (s.showPokemon) out.push('pokemon')
+  if (s.showPs1) out.push('ps1')
   if (s.showGit) out.push('git')
   if (s.showFiles) out.push('files')
   if (s.showEditor) out.push('editor')
@@ -892,6 +893,12 @@ export interface DeckSettings {
   showPokemon: boolean
   /** Where to look for .gbc/.gb ROMs. */
   pokemonRomDir: string
+  /** The PS1 tile (a PlayStation: RetroArch's pcsx_rearmed core in wasm, through Nostalgist). */
+  showPs1: boolean
+  /** Where the PS1 tile looks for discs (.cue + .bin, .chd, .pbp, .iso), four folders deep. */
+  ps1DiscDir: string
+  /** The folder holding the PS1 BIOS (a 512 KB scph*.bin): DuckStation's by default, so one dump serves both. */
+  ps1BiosDir: string
   /** The sprite gag (Village vs Notes): main runs `trainer.mjs sprite watch` as a child of its own, repainting every battle. */
   spriteGag: boolean
   /** Which moveset the sprite gag gives Village (a key of plugin/data/sprites/movesets.json: update, release, gamer, download). */
@@ -974,6 +981,9 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   webApps: WEB_APPS_DEFAULT,
   showPokemon: false,
   pokemonRomDir: '~/Downloads',
+  showPs1: false,
+  ps1DiscDir: '~/rushing-attack-247',
+  ps1BiosDir: '~/Library/Application Support/DuckStation/bios',
   spriteGag: false,
   spriteGagMoves: 'download',
   gbPlaces: {},
@@ -1224,7 +1234,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleReminders' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'togglePs1' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleReminders' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -1530,6 +1540,25 @@ export interface DeckApi {
   /** The trainer's door: main relays `POST /gameboy` here; the renderer answers with `gameboyReply`. */
   onGameboy(cb: (req: GameboyRequest) => void): () => void
   gameboyReply(id: string, result: unknown): void
+  /** The PS1 tile: every disc under `ps1DiscDir`, its files as psx:// URLs. */
+  ps1ListDiscs(): Promise<Ps1Disc[]>
+  /** The BIOS to boot with (`as` = the name the core is to find it under), or null when the BIOS folder has none. */
+  ps1Bios(): Promise<{ file: string; url: string; as: string } | null>
+  /** A disc's boot executable and the RAM finder's samples (null for an image main cannot read: .chd, .pbp). */
+  ps1Info(path: string): Promise<Ps1DiscInfo | null>
+  /** Save states: a numbered slot (0–2) or a named checkpoint (the door's). */
+  ps1SaveState(disc: string, slot: number | string, data: Uint8Array): Promise<void>
+  ps1LoadState(disc: string, slot: number | string): Promise<Uint8Array | null>
+  /** The named checkpoints a disc has. */
+  ps1States(disc: string): Promise<string[]>
+  /** The memory card (RetroArch's .srm) of a disc. */
+  ps1SaveCard(disc: string, data: Uint8Array): Promise<void>
+  ps1LoadCard(disc: string): Promise<Uint8Array | null>
+  /** Write a screenshot's PNG bytes under userData/ps1/shots and return its path. */
+  ps1Shot(bytes: Uint8Array): Promise<string>
+  /** The PS1's door: main relays `POST /ps1` here; the renderer answers with `ps1Reply`. */
+  onPs1(cb: (req: GameboyRequest) => void): () => void
+  ps1Reply(id: string, result: unknown): void
   /** The Molecule tile: a target (library name, PDB id, AF-<uniprot>, a name, smiles:, a path) → its structure text. Main fetches and caches. */
   molResolve(target: string): Promise<MolStructure>
   /** The built-in library, for the empty tile's chips. */
@@ -1609,6 +1638,28 @@ export interface MolLibraryItem {
 export interface MolRequest {
   id: string
   body: Record<string, unknown>
+}
+
+/** A PS1 disc under `ps1DiscDir`: `path` is the .cue (or the single-file image); `files` everything the core loads, as psx:// URLs. */
+export interface Ps1Disc {
+  name: string
+  path: string
+  files: { name: string; url: string }[]
+}
+
+/**
+ * What main reads off a disc image for the PS1 door (main/ps1.ts): the boot executable's header and a few
+ * 64-byte runs of its code, each with the PHYSICAL RAM address it loads at — the renderer finds the PS1's
+ * RAM inside the core's wasm heap by looking for them.
+ */
+export interface Ps1DiscInfo {
+  volume: string
+  /** The boot executable's name, e.g. SLUS_015.84. */
+  serial: string
+  entry: number
+  textAddr: number
+  textSize: number
+  samples: { addr: number; hex: string }[]
 }
 
 /** One request through the trainer's door (main/hooks.ts `/gameboy` → the renderer's emulator). */

@@ -10,6 +10,7 @@ import { agentPose, agentState, blockLine, closeAgentPane, closesIn, isKept, kee
 import { killPack, leashOfAgent } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
+import { closePs1 } from '../lib/ps1events'
 
 /** Past this many, a row is one line instead of two. */
 const DENSE_FROM = 5
@@ -39,6 +40,7 @@ export function PackTile({ alpha, agents, openId }: { alpha: SessionView | null;
     closeAgentPane()
     closeStudio()
     closePokemon()
+    closePs1()
     void window.deck.command({ type: 'focus', slot: alpha.slot! })
   }
   return (

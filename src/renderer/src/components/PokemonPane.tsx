@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Gamepad2, Pause, Play, RotateCcw, Save, Sparkles, Volume2, VolumeX } from 'lucide-react'
-import { gameboy, GB_KEYS, SPEEDS, STATE_SLOTS, useGameBoy, type GbKey, type Speed } from '../lib/gameboy'
+import { gameboy, SPEEDS, STATE_SLOTS, useGameBoy, type GbKey, type Speed } from '../lib/gameboy'
 import { usePokemonRoms } from '../lib/pokemon'
 import { patchSettings, useSettings } from '../lib/theme'
 import { Fox } from './Fox'
@@ -89,7 +89,7 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <section ref={pane} className="focus pokemon-pane" tabIndex={-1}>
+    <section ref={pane} className="focus pokemon-pane gbc-pane" tabIndex={-1}>
       <header className="pane-head">
         <Gamepad2 size={14} className="pokemon-glyph" />
         <span className="name">Pokemon</span>
@@ -106,7 +106,11 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
         </button>
       </header>
 
-      <div className="pokemon-stage">
+      {/* The handheld itself: the upper half is the bezel and screen, the bar below is the lower half with its buttons. */}
+      <div className="pokemon-stage gbc">
+        <div className="gbc-bezel">
+        <span className={`gbc-led ${st.rom && !st.paused ? 'on' : ''}`} />
+        <div className="gbc-screen">
         <canvas ref={canvas} className="pokemon-canvas" style={{ display: st.rom ? undefined : 'none' }} />
         {!st.rom && (
           <div className="pokemon-pick">
@@ -129,9 +133,11 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
             )}
           </div>
         )}
+        </div>
+        </div>
       </div>
 
-      <div className="pokemon-bar">
+      <div className="pokemon-bar gbc-body">
         <div className="pokemon-row">
           <button className="pill" disabled={!st.rom} title="Write the battery save now (it is also written every 30s and on close)" onClick={() => gb.saveNow()}>
             <Save size={12} /> save
@@ -185,16 +191,39 @@ export function PokemonPane({ onClose }: { onClose: () => void }) {
             </select>
           )}
         </div>
+        {/* The lower half of the handheld: the cross pad, Select and Start, B and A on their slant, the speaker. */}
+        <div className="gbc-controls">
+          <div className="gbc-dpad" aria-label="Pad">
+            <button className="gbc-dir up" {...pad('UP')} title="Hold up (↑)" />
+            <button className="gbc-dir left" {...pad('LEFT')} title="Hold left (←)" />
+            <span className="gbc-dir mid" />
+            <button className="gbc-dir right" {...pad('RIGHT')} title="Hold right (→)" />
+            <button className="gbc-dir down" {...pad('DOWN')} title="Hold down (↓)" />
+          </div>
+          <div className="gbc-menu">
+            <span>
+              <button className="gbc-pill" {...pad('SELECT')} title="Hold Select (⇧)" />
+              <small>SELECT</small>
+            </span>
+            <span>
+              <button className="gbc-pill" {...pad('START')} title="Hold Start (⏎)" />
+              <small>START</small>
+            </span>
+          </div>
+          <div className="gbc-ab">
+            <span>
+              <button className="gbc-btn" {...pad('B')} title="Hold B (X)" />
+              <small>B</small>
+            </span>
+            <span>
+              <button className="gbc-btn" {...pad('A')} title="Hold A (Z)" />
+              <small>A</small>
+            </span>
+          </div>
+          <span className="gbc-speaker" />
+        </div>
         <div className="pokemon-row pokemon-keys">
           <span className="pokemon-hint">← ↑ ↓ → pad · Z = A · X = B · ⏎ = Start · ⇧ = Select · Esc closes</span>
-          <span className="spacer" />
-          <span className="pokemon-pad">
-            {GB_KEYS.map((k) => (
-              <button key={k} className="pill" {...pad(k)} title={`Hold ${k}`}>
-                {k === 'RIGHT' ? '→' : k === 'LEFT' ? '←' : k === 'UP' ? '↑' : k === 'DOWN' ? '↓' : k.toLowerCase()}
-              </button>
-            ))}
-          </span>
         </div>
       </div>
     </section>

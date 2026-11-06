@@ -22,6 +22,9 @@ import { onStudio, readStudioChat, writeStudioChat } from './lib/studio'
 import { StudioPane } from './components/StudioPane'
 import { onPokemon } from './lib/pokemon'
 import { PokemonPane } from './components/PokemonPane'
+import { Ps1Pane } from './components/Ps1Pane'
+import { onPs1 as onPs1Pane } from './lib/ps1events'
+import { installPs1, shutdownPs1 } from './lib/ps1'
 import { installGameboy } from './lib/gameboy'
 import { installMol, onMolPane, rethemeMol, syncMolTiles } from './lib/mol'
 import { MolPane } from './components/MolPane'
@@ -67,6 +70,8 @@ export default function App() {
   const [studioOpen, setStudioOpen] = useState(false)
   // The Game Boy in the center, the same way; it and the Studio take turns.
   const [pokemonOpen, setPokemonOpen] = useState(false)
+  // The PS1 in the center, the same way (lib/ps1: one canvas, moved from its tile to this pane).
+  const [ps1Open, setPs1Open] = useState(false)
   // A molecule viewer, the same way (the Molecule tile it belongs to): the three of them and an open agent take turns.
   const [molOpen, setMolOpen] = useState<number | null>(null)
   // A Lesson tile at reading size, the same way (which tile's).
@@ -138,6 +143,7 @@ export default function App() {
         setWebOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -153,6 +159,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setBookOpen(false)
         setPostureOpen(false)
@@ -167,6 +174,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setPostureOpen(false)
@@ -181,6 +189,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -195,6 +204,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -210,6 +220,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -224,6 +235,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -238,6 +250,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -251,6 +264,7 @@ export default function App() {
         setWebOpen(null)
         setMolOpen(null)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -266,6 +280,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -288,13 +303,30 @@ export default function App() {
         setBroadcastOpen(false)
         setRemindersOpen(false)
         setFilesOpen(false)
+        setPs1Open(false)
         setPokemonOpen((v) => !v)
+      }
+      if (ev.type === 'togglePs1') {
+        setWebOpen(null)
+        setMolOpen(null)
+        setStudioOpen(false)
+        setAgentOpen(null)
+        setLessonOpen(null)
+        setBookOpen(false)
+        setPostureOpen(false)
+        setSpaceOpen(false)
+        setBroadcastOpen(false)
+        setRemindersOpen(false)
+        setFilesOpen(false)
+        setPokemonOpen(false)
+        setPs1Open((v) => !v)
       }
     })
     const offMol = onMolPane((want) => {
       setWebOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -310,6 +342,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setBookOpen(false)
       setPostureOpen(false)
@@ -324,6 +357,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setPostureOpen(false)
@@ -338,6 +372,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -352,6 +387,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -366,6 +402,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -380,6 +417,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -394,6 +432,7 @@ export default function App() {
       setMolOpen(null)
       setStudioOpen(false)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -407,6 +446,7 @@ export default function App() {
       setWebOpen(null)
       setMolOpen(null)
       setPokemonOpen(false)
+      setPs1Open(false)
       setAgentOpen(null)
       setLessonOpen(null)
       setBookOpen(false)
@@ -429,7 +469,23 @@ export default function App() {
       setBroadcastOpen(false)
       setRemindersOpen(false)
       setFilesOpen(false)
+      setPs1Open(false)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offPs1 = onPs1Pane((want) => {
+      setWebOpen(null)
+      setMolOpen(null)
+      setStudioOpen(false)
+      setAgentOpen(null)
+      setLessonOpen(null)
+      setBookOpen(false)
+      setPostureOpen(false)
+      setSpaceOpen(false)
+      setBroadcastOpen(false)
+      setRemindersOpen(false)
+      setFilesOpen(false)
+      setPokemonOpen(false)
+      setPs1Open((v) => (want === 'toggle' ? !v : want))
     })
     const offWeb = onWebApp((want) => {
       const id = want.id ?? webApps.current[0]?.id ?? null
@@ -437,6 +493,7 @@ export default function App() {
         setMolOpen(null)
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setAgentOpen(null)
         setLessonOpen(null)
         setBookOpen(false)
@@ -460,6 +517,7 @@ export default function App() {
       if (id) {
         setStudioOpen(false)
         setPokemonOpen(false)
+        setPs1Open(false)
         setMolOpen(null)
         setWebOpen(null)
         setLessonOpen(null)
@@ -484,6 +542,7 @@ export default function App() {
       offLeash()
       offStudio()
       offPokemon()
+      offPs1()
       offMol()
       offLesson()
       offBook()
@@ -502,6 +561,7 @@ export default function App() {
   useEffect(() => {
     setStudioOpen(false)
     setPokemonOpen(false)
+    setPs1Open(false)
     setMolOpen(null)
     setLessonOpen(null)
     setBookOpen(false)
@@ -518,6 +578,15 @@ export default function App() {
   useEffect(() => {
     if (settings.showPokemon) installGameboy()
   }, [settings.showPokemon])
+
+  // The PS1 likewise (its door answers from boot); turning the tile off stops the console, its memory card written first.
+  useEffect(() => {
+    if (settings.showPs1) installPs1()
+    else {
+      shutdownPs1()
+      setPs1Open(false)
+    }
+  }, [settings.showPs1])
 
   // The posture tracker watches from boot while its tile is on (the camera off with it), whichever cell it is in.
   useEffect(() => {
@@ -574,7 +643,7 @@ export default function App() {
   // A web app that was removed while showing gives the center back.
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || spaceOpen || broadcastOpen || remindersOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || ps1Open || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || spaceOpen || broadcastOpen || remindersOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort(byRecency(settings.attentionFirst))
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -623,6 +692,8 @@ export default function App() {
           <AgentPane agent={openAgent} parent={top.find((s) => s.id === openAgent.parent) ?? null} pack={agents.filter((a) => a.parent === openAgent.parent)} onClose={() => setAgentOpen(null)} />
         ) : openWeb !== null ? null : pokemonOpen ? (
           <PokemonPane onClose={() => setPokemonOpen(false)} />
+        ) : ps1Open ? (
+          <Ps1Pane onClose={() => setPs1Open(false)} sessions={top} focusSlot={state.focusSlot} />
         ) : molOpen !== null ? (
           <MolPane tile={molOpen} onClose={() => setMolOpen(null)} />
         ) : lessonOpen !== null ? (

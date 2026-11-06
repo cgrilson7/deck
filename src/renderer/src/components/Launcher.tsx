@@ -471,6 +471,14 @@ function KeysCard({ settings: s }: { settings: DeckSettings }) {
         <div className="lrow">
           <TextSetting value={s.pokemonRomDir} mono placeholder="~/Downloads" title="Where the Pokemon tile looks for .gb / .gbc files" onCommit={(v) => patchSettings({ pokemonRomDir: v })} />
         </div>
+        <span className="lset-label">PS1 discs</span>
+        <div className="lrow">
+          <TextSetting value={s.ps1DiscDir} mono placeholder="~/Games" title="Where the PS1 tile looks for discs (.cue + .bin, .chd, .pbp, .iso), four folders deep" onCommit={(v) => patchSettings({ ps1DiscDir: v })} />
+        </div>
+        <span className="lset-label">PS1 BIOS</span>
+        <div className="lrow">
+          <TextSetting value={s.ps1BiosDir} mono placeholder="~/Library/Application Support/DuckStation/bios" title="The folder holding your PS1 BIOS dump (a 512 KB scph*.bin)" onCommit={(v) => patchSettings({ ps1BiosDir: v })} />
+        </div>
         <span className="lset-label">Word every</span>
         <div className="lrow">
           <NumberSetting value={s.vocabCycleSeconds} min={5} max={600} title="Seconds each vocabulary word stays" onChange={(v) => patchSettings({ vocabCycleSeconds: v })} />
