@@ -21,7 +21,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'ps1', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend', 'sleepgod', 'reminders'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'ps1', 'ps2', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend', 'sleepgod', 'reminders'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -96,13 +96,14 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showPs1' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend' | 'showSleepgod' | 'showReminders'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showPs1' | 'showPs2' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend' | 'showSleepgod' | 'showReminders'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
   if (s.showStudio) out.push('studio')
   if (s.showPokemon) out.push('pokemon')
   if (s.showPs1) out.push('ps1')
+  if (s.showPs2) out.push('ps2')
   if (s.showGit) out.push('git')
   if (s.showFiles) out.push('files')
   if (s.showEditor) out.push('editor')
@@ -899,6 +900,10 @@ export interface DeckSettings {
   ps1DiscDir: string
   /** The folder holding the PS1 BIOS (a 512 KB scph*.bin): DuckStation's by default, so one dump serves both. */
   ps1BiosDir: string
+  /** The PS2 tile: PCSX2 (its own app, in /Applications) MIRRORED — its game window shown in the deck, played from the deck. */
+  showPs2: boolean
+  /** Where the PS2 tile looks for discs to start PCSX2 with (.iso, .chd, .cso), four folders deep. */
+  ps2DiscDir: string
   /** The sprite gag (Village vs Notes): main runs `trainer.mjs sprite watch` as a child of its own, repainting every battle. */
   spriteGag: boolean
   /** Which moveset the sprite gag gives Village (a key of plugin/data/sprites/movesets.json: update, release, gamer, download). */
@@ -984,6 +989,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   showPs1: false,
   ps1DiscDir: '~/rushing-attack-247',
   ps1BiosDir: '~/Library/Application Support/DuckStation/bios',
+  showPs2: false,
+  ps2DiscDir: '~/rushing-attack-247',
   spriteGag: false,
   spriteGagMoves: 'download',
   gbPlaces: {},
@@ -1234,7 +1241,7 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'togglePs1' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleReminders' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'togglePs1' } | { type: 'togglePs2' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleReminders' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
@@ -1559,6 +1566,13 @@ export interface DeckApi {
   /** The PS1's door: main relays `POST /ps1` here; the renderer answers with `ps1Reply`. */
   onPs1(cb: (req: GameboyRequest) => void): () => void
   ps1Reply(id: string, result: unknown): void
+  /** The PS2 tile: PCSX2's state — installed, running, its game window (a desktop-capture source id), the permissions, the discs. */
+  ps2Status(): Promise<Ps2Status>
+  /** Start PCSX2 on a disc from the disc folder. */
+  ps2Launch(path: string): Promise<void>
+  /** A pad button down / up in PCSX2 (posted to its process: the deck stays in front). */
+  ps2Key(button: Ps2Button, down: boolean): void
+  ps2ReleaseAll(): void
   /** The Molecule tile: a target (library name, PDB id, AF-<uniprot>, a name, smiles:, a path) → its structure text. Main fetches and caches. */
   molResolve(target: string): Promise<MolStructure>
   /** The built-in library, for the empty tile's chips. */
@@ -1638,6 +1652,18 @@ export interface MolLibraryItem {
 export interface MolRequest {
   id: string
   body: Record<string, unknown>
+}
+
+export type Ps2Button = 'up' | 'down' | 'left' | 'right' | 'cross' | 'circle' | 'square' | 'triangle' | 'start' | 'select' | 'l1' | 'r1' | 'l2' | 'r2' | 'l3' | 'r3' | 'lup' | 'ldown' | 'lleft' | 'lright'
+
+/** PCSX2 as the PS2 tile sees it (main/pcsx2.ts). `trusted` = the deck may post keys (Accessibility). */
+export interface Ps2Status {
+  installed: boolean
+  running: boolean
+  window: { id: number; title: string; width: number; height: number; source: string } | null
+  trusted: boolean
+  error: string | null
+  discs: { name: string; path: string }[]
 }
 
 /** A PS1 disc under `ps1DiscDir`: `path` is the .cue (or the single-file image); `files` everything the core loads, as psx:// URLs. */

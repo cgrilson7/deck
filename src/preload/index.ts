@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, Ps1Disc, Ps1DiscInfo, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, Ps1Disc, Ps1DiscInfo, Ps2Button, Ps2Status, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 import type { RemindersState } from '@shared/reminders'
 
 const api: DeckApi = {
@@ -213,6 +213,10 @@ const api: DeckApi = {
     return () => ipcRenderer.removeListener('ps1:req', h)
   },
   ps1Reply: (id: string, result: unknown) => ipcRenderer.send('ps1:reply', id, result),
+  ps2Status: () => ipcRenderer.invoke('ps2:status') as Promise<Ps2Status>,
+  ps2Launch: (path: string) => ipcRenderer.invoke('ps2:launch', path) as Promise<void>,
+  ps2Key: (button: Ps2Button, down: boolean) => ipcRenderer.send('ps2:key', button, down),
+  ps2ReleaseAll: () => ipcRenderer.send('ps2:releaseAll'),
   molResolve: (target) => ipcRenderer.invoke('mol:resolve', target),
   molLibrary: () => ipcRenderer.invoke('mol:library'),
   molShot: (bytes, tile) => ipcRenderer.invoke('mol:shot', bytes, tile),

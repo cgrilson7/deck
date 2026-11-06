@@ -9,6 +9,7 @@ import { leashOfBeta } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
 import { closePs1 } from '../lib/ps1events'
+import { closePs2 } from '../lib/ps2events'
 import { ContextBadge } from './ContextBadge'
 
 /**
@@ -20,6 +21,7 @@ export function Tile({ session: s }: { session: SessionView }) {
     closeStudio() // …and the agent pane with it (App); the Game Boy too: the center goes back to the session
     closePokemon()
     closePs1()
+    closePs2()
     void window.deck.command({ type: 'focus', slot: s.slot! })
   }
   const beta = !!s.pack

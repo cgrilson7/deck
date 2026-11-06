@@ -312,7 +312,7 @@ export function Ps1Pane({ onClose, sessions, focusSlot }: { onClose: () => void;
 const STATUS_WORD: Record<string, string> = { busy: 'working', idle: 'idle', blocked: 'needs you', starting: 'starting', dead: 'stopped', unknown: '' }
 
 /** Full screen's bottom strip: every open session as a chip (status lamp, name, its title), the ones that need you first. */
-function SessionDock({ sessions, focusSlot, onPick, onExit }: { sessions: SessionView[]; focusSlot: number | null; onPick: (s: SessionView) => void; onExit: () => void }) {
+export function SessionDock({ sessions, focusSlot, onPick, onExit }: { sessions: SessionView[]; focusSlot: number | null; onPick: (s: SessionView) => void; onExit: () => void }) {
   const sorted = [...sessions].sort((a, b) => Number(b.attention || b.status === 'blocked') - Number(a.attention || a.status === 'blocked') || (a.slot ?? 99) - (b.slot ?? 99))
   return (
     <nav className="ps1-dock" aria-label="Sessions">

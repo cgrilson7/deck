@@ -24,6 +24,7 @@ import { MusicTile } from './MusicTile'
 import { StudioTile } from './StudioTile'
 import { PokemonTile } from './PokemonTile'
 import { Ps1Tile } from './Ps1Tile'
+import { Ps2Tile } from './Ps2Tile'
 import { MolTile } from './MolTile'
 import { LessonTile } from './LessonTile'
 import { WebTile } from './WebTile'
@@ -287,6 +288,8 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <PokemonTile />
     case 'ps1':
       return <Ps1Tile />
+    case 'ps2':
+      return <Ps2Tile />
     case 'git':
       return <GitTile session={focused} />
     case 'files':

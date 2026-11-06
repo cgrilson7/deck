@@ -11,6 +11,7 @@ import { killPack, leashOfAgent } from '../lib/leash'
 import { closeStudio } from '../lib/studio'
 import { closePokemon } from '../lib/pokemon'
 import { closePs1 } from '../lib/ps1events'
+import { closePs2 } from '../lib/ps2events'
 
 /** Past this many, a row is one line instead of two. */
 const DENSE_FROM = 5
@@ -41,6 +42,7 @@ export function PackTile({ alpha, agents, openId }: { alpha: SessionView | null;
     closeStudio()
     closePokemon()
     closePs1()
+    closePs2()
     void window.deck.command({ type: 'focus', slot: alpha.slot! })
   }
   return (

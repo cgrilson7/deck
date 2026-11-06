@@ -182,6 +182,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     pokemonRomDir: typeof raw.pokemonRomDir === 'string' && raw.pokemonRomDir.trim() ? raw.pokemonRomDir.trim() : d.pokemonRomDir,
     showPs1: bool(raw.showPs1, d.showPs1),
     ps1DiscDir: typeof raw.ps1DiscDir === 'string' && raw.ps1DiscDir.trim() ? raw.ps1DiscDir.trim() : d.ps1DiscDir,
+    showPs2: bool(raw.showPs2, d.showPs2),
+    ps2DiscDir: typeof raw.ps2DiscDir === 'string' && raw.ps2DiscDir.trim() ? raw.ps2DiscDir.trim() : d.ps2DiscDir,
     ps1BiosDir: typeof raw.ps1BiosDir === 'string' && raw.ps1BiosDir.trim() ? raw.ps1BiosDir.trim() : d.ps1BiosDir,
     spriteGag: bool(raw.spriteGag, d.spriteGag),
     // A moveset's name reaches a child process's argv, so only a plain word ever does.

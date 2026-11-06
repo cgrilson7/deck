@@ -214,6 +214,13 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         {
+          label: 'PS2',
+          submenu: [
+            { label: 'Play PS2', click: () => ui({ type: 'togglePs2' }) },
+            { label: 'Show PS2 Tile (PCSX2, mirrored)', type: 'checkbox', checked: s.showPs2, click: () => patch({ showPs2: !settings().showPs2 }) }
+          ]
+        },
+        {
           label: 'Web Apps',
           submenu: s.webApps.length
             ? s.webApps.flatMap((a, i): MenuItemConstructorOptions[] => [

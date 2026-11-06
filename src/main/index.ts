@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Notification, shell } from 'electron'
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, nativeTheme, Notification, session, shell } from 'electron'
 import { join } from 'node:path'
 import type { DeckCommand, GbSpriteReq, NewSessionRequest, SpotifyCommand, DeckSettings, Lang, Screen, StudioRequest, TranslateResult, UiEvent, VocabChange, VocabResult, WordExtra } from '@shared/types'
 import { CAP, LESSON_TILES_MAX, MOL_TILES_MAX, nextLessonTile, nextMolTile, type LessonMolRun } from '@shared/types'
@@ -51,6 +51,7 @@ import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
 import { Ps1, PSX_SCHEME_ENTRY } from './ps1'
+import { Pcsx2 } from './pcsx2'
 import { Space } from './space'
 
 // Profiles keep a dev instance (npm run dev) fully separate from an installed build:
@@ -328,6 +329,25 @@ app.whenReady().then(async () => {
   ipcMain.handle('ps1:saveCard', (_e, disc: string, data: Uint8Array) => ps1.saveCard(String(disc ?? ''), data ?? new Uint8Array()))
   ipcMain.handle('ps1:loadCard', (_e, disc: string) => ps1.loadCard(String(disc ?? '')))
   ipcMain.handle('ps1:shot', (_e, bytes: Uint8Array) => ps1.shot(bytes ?? new Uint8Array()))
+  // The PS2 (main/pcsx2.ts): PCSX2 mirrored — its window found, its keys posted, through the Swift bridge.
+  const pcsx2 = new Pcsx2(userData, join(pluginDir, 'native', 'pcsx2-bridge.swift'), () => settings!.get())
+  ipcMain.handle('ps2:status', () => pcsx2.status())
+  ipcMain.handle('ps2:launch', (_e, path: string) => pcsx2.launch(String(path ?? '')))
+  ipcMain.on('ps2:key', (_e, button: string, down: boolean) => void pcsx2.key(button as never, !!down).catch(() => {}))
+  ipcMain.on('ps2:releaseAll', () => void pcsx2.releaseAll().catch(() => {}))
+  app.on('will-quit', () => pcsx2.dispose())
+  // The capture's second way in (lib/ps2 tries getUserMedia with the source id first): a getDisplayMedia()
+  // from the window is answered with PCSX2's game window, never a picker and never any other window.
+  session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => {
+    const want = pcsx2.lastSource
+    void desktopCapturer
+      .getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })
+      .then((sources) => {
+        const src = sources.find((s) => s.id === want)
+        cb(src ? { video: src } : {})
+      })
+      .catch(() => cb({}))
+  })
   const ps1Pending = new Map<string, { resolve: (v: unknown) => void; timer: NodeJS.Timeout }>()
   const ps1Call = (body: unknown): Promise<unknown> =>
     new Promise((resolve, reject) => {

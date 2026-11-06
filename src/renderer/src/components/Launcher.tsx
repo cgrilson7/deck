@@ -475,6 +475,10 @@ function KeysCard({ settings: s }: { settings: DeckSettings }) {
         <div className="lrow">
           <TextSetting value={s.ps1DiscDir} mono placeholder="~/Games" title="Where the PS1 tile looks for discs (.cue + .bin, .chd, .pbp, .iso), four folders deep" onCommit={(v) => patchSettings({ ps1DiscDir: v })} />
         </div>
+        <span className="lset-label">PS2 discs</span>
+        <div className="lrow">
+          <TextSetting value={s.ps2DiscDir} mono placeholder="~/Games" title="Where the PS2 tile looks for discs to start PCSX2 with (.iso, .chd, .cso), four folders deep" onCommit={(v) => patchSettings({ ps2DiscDir: v })} />
+        </div>
         <span className="lset-label">PS1 BIOS</span>
         <div className="lrow">
           <TextSetting value={s.ps1BiosDir} mono placeholder="~/Library/Application Support/DuckStation/bios" title="The folder holding your PS1 BIOS dump (a 512 KB scph*.bin)" onCommit={(v) => patchSettings({ ps1BiosDir: v })} />
