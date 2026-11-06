@@ -9,7 +9,10 @@
 //   sits in the core's in-memory file system (a JS buffer, ~500 MB for a full CD), not in its wasm heap.
 // - KEYS are pressed with Nostalgist's pressDown/pressUp (synthetic events straight to the core); the
 //   canvas is never focused, so the real keyboard never reaches RetroArch's own hotkeys (Esc would quit it).
-// - SOUND: the tile is silent, the pane plays (the Game Boy's rule) — RetroArch's MUTE command, toggled.
+// - SOUND: the tile is silent, the pane plays (the Game Boy's rule). Not with RetroArch's MUTE command: it
+//   mutes, but a second MUTE never brings the sound back. The core runs unmuted into a GAIN NODE of the
+//   deck's own instead — its WebAudio driver makes its AudioContext during launch, and for that moment
+//   `window.AudioContext` is a subclass whose `destination` is the gain (see `withGain`).
 // - SAVES: the memory card (RetroArch's .srm) every 30 s, on a disc swap and on pagehide; three state
 //   slots and named checkpoints, all in userData/ps1/saves/<disc>.
 // - THE DOOR (`POST /ps1`, plugin/scripts/ps1.mjs): read / write / find in the PS1's 2 MB of RAM, a value
@@ -83,8 +86,8 @@ class Ps1Machine {
   private hosts: { el: HTMLElement; name: string }[] = []
   private resizer: ResizeObserver | null = null
   private nost: Nostalgist | null = null
-  /** What RetroArch's mute is now (it starts muted: `audio_mute_enable`). */
-  private raMuted = true
+  /** The volume between the core and the speakers (0 or 1), made with the core's AudioContext. */
+  private gain: GainNode | null = null
   private ramBase: number | null = null
   private scan: Scan | null = null
   private readonly freezes = new Map<number, Freeze>()
@@ -205,7 +208,7 @@ class Ps1Machine {
         if (!bios) throw new Error('no PS1 BIOS: put a 512 KB scph*.bin in the BIOS folder (Keys & services on the launcher)')
         const [{ Nostalgist }, card, info] = await Promise.all([import('nostalgist'), window.deck.ps1LoadCard(disc.name), window.deck.ps1Info(disc.path)])
         this.set({ loading: `booting ${disc.name}…` })
-        const nost = await Nostalgist.launch({
+        const { result: nost, gain } = await withGain(() => Nostalgist.launch({
           element: this.canvas,
           size: this.size(),
           core: { name: 'pcsx_rearmed', js: 'psx://core/pcsx_rearmed_libretro.js', wasm: 'psx://core/pcsx_rearmed_libretro.wasm' },
@@ -217,15 +220,15 @@ class Ps1Machine {
             ...Object.fromEntries(Object.entries(RA_KEYS).map(([b, k]) => [`input_player1_${b}`, k])),
             input_exit_emulator: 'nul',
             input_menu_toggle: 'nul',
-            audio_mute_enable: true,
+            audio_mute_enable: false,
             savestate_auto_load: false,
             savestate_thumbnail_enable: false,
             video_smooth: true
           } as never,
           retroarchCoreConfig: { pcsx_rearmed_bios: 'auto' }
-        })
+        }), this.wantGain())
         this.nost = nost
-        this.raMuted = true
+        this.gain = gain
         this.ramBase = null
         this.scan = null
         this.freezes.clear()
@@ -259,6 +262,7 @@ class Ps1Machine {
       /* already gone */
     }
     this.nost = null
+    this.gain = null
     this.ramBase = null
     this.scan = null
     this.freezes.clear()
@@ -302,11 +306,16 @@ class Ps1Machine {
     this.set({ muted })
     this.syncSound()
   }
+  private wantGain(): number {
+    return this.status.muted || !this.status.audible ? 0 : 1
+  }
   private syncSound(): void {
-    const want = this.status.muted || !this.status.audible
-    if (!this.nost || want === this.raMuted) return
-    this.nost.sendCommand('MUTE')
-    this.raMuted = want
+    const g = this.gain
+    if (!g) return
+    // A short ramp, so muting does not click.
+    g.gain.setTargetAtTime(this.wantGain(), g.context.currentTime, 0.02)
+    // A context made before any click may start suspended; the pane opening is a click.
+    if (this.wantGain() > 0 && g.context.state === 'suspended') void (g.context as AudioContext).resume().catch(() => {})
   }
 
   // ---- saves -----------------------------------------------------------------------
@@ -587,6 +596,36 @@ class Ps1Machine {
       count: s.addrs.length,
       shown: Array.from({ length: n }, (_, i) => ({ addr: kseg0(s.addrs[i]), value: this.peek(ram, s.addrs[i], s.size) }))
     }
+  }
+}
+
+/**
+ * Run `launch` with `window.AudioContext` swapped for a subclass whose `destination` is a gain node in
+ * front of the real one, and hand back that gain: whatever the core connects to "the speakers" goes
+ * through it. Swapped only for the launch, so no other AudioContext in the deck (the barks, the Game Boy)
+ * is touched.
+ */
+async function withGain<T>(launch: () => Promise<T>, level: number): Promise<{ result: T; gain: GainNode | null }> {
+  const Real = window.AudioContext
+  let gain: GainNode | null = null
+  class Routed extends Real {
+    private readonly out: GainNode
+    constructor(options?: AudioContextOptions) {
+      super(options)
+      this.out = super.createGain()
+      this.out.gain.value = level
+      this.out.connect(super.destination)
+      gain = this.out
+    }
+    override get destination(): AudioDestinationNode {
+      return this.out as unknown as AudioDestinationNode
+    }
+  }
+  window.AudioContext = Routed
+  try {
+    return { result: await launch(), gain }
+  } finally {
+    window.AudioContext = Real
   }
 }
 
