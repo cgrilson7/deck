@@ -202,7 +202,7 @@ function WebView({ app, rail, active, docked, onClose }: { app: WebApp; rail: We
         <button className="ghost" title="Open this page in the browser" onClick={() => window.deck.openExternal(nav.url)}>
           <ExternalLink size={12} />
         </button>
-        <button className={`ghost ${asking ? 'web-danger' : ''}`} title={`Remove ${app.name} from the deck (its sign-in stays in the web partition)`} onClick={remove}>
+        <button className={`ghost ${asking ? 'web-danger' : ''}`} title={`Remove ${app.name} from the workshop (its sign-in stays in the web partition)`} onClick={remove}>
           {asking ? 'remove?' : <Trash2 size={12} />}
         </button>
         <button className="ghost" title="Give the center back to the session (Esc)" onClick={onClose}>

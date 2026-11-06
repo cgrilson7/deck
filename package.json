@@ -17,11 +17,11 @@
     "ad:typecheck": "tsc -p ad/tsconfig.json",
     "smoke": "node scripts/smoke.mjs",
     "tmux": "tmux -L deck-dev",
-    "dist": "electron-vite build && electron-builder --mac"
+    "dist": "electron-vite build && node scripts/stamp.mjs && electron-builder --mac"
   },
   "build": {
     "appId": "com.catalystdatascience.deck",
-    "productName": "Deck",
+    "productName": "Foxtrot's Workshop",
     "directories": {
       "buildResources": "build",
       "output": "dist"
@@ -42,7 +42,13 @@
       "category": "public.app-category.developer-tools",
       "target": [
         "dir"
-      ]
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "The Posture tile watches how you sit (nothing leaves the Mac)."
+      }
     }
   },
   "dependencies": {
@@ -67,6 +73,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.3.0",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6"

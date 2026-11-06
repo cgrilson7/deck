@@ -41,6 +41,8 @@ check('plugin ships skills/lesson/SKILL.md', existsSync(join(plugin, 'skills', '
 check('plugin ships scripts/lesson.mjs', existsSync(join(plugin, 'scripts', 'lesson.mjs')))
 check('plugin ships skills/doc/SKILL.md', existsSync(join(plugin, 'skills', 'doc', 'SKILL.md')))
 check('plugin ships scripts/doc.mjs', existsSync(join(plugin, 'scripts', 'doc.mjs')))
+check('plugin ships skills/reminders/SKILL.md', existsSync(join(plugin, 'skills', 'reminders', 'SKILL.md')))
+check('plugin ships scripts/reminders.mjs', existsSync(join(plugin, 'scripts', 'reminders.mjs')))
 
 // 2. tmux round trip on a private socket
 const tmux = (...args) => execFileSync('tmux', ['-L', SOCK, '-f', conf, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

@@ -173,6 +173,8 @@ export function sanitize(raw: Partial<DeckSettings>): DeckSettings {
     broadcastGame: Number.isInteger(raw.broadcastGame) && raw.broadcastGame! > 0 && raw.broadcastGame! < 1e8 ? raw.broadcastGame! : d.broadcastGame,
     broadcastLook: raw.broadcastLook === 'theme' ? 'theme' : 'dark',
     showSpend: bool(raw.showSpend, d.showSpend),
+    showSleepgod: bool(raw.showSleepgod, d.showSleepgod),
+    showReminders: bool(raw.showReminders, d.showReminders),
     showFoxtrot: bool(raw.showFoxtrot, d.showFoxtrot),
     lessonTiles: molTiles(raw.lessonTiles, LESSON_TILES_MAX),
     webApps: webApps(raw.webApps, d.webApps),

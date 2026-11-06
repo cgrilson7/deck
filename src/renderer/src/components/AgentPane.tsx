@@ -106,7 +106,7 @@ export function AgentPane({ agent: a, parent, pack, onClose }: { agent: AgentVie
       </div>
 
       {a.cancelled && <div className="agent-banner is-cancel">cancelled: {a.cancelled.reason}</div>}
-      {a.paused && !a.cancelled && <div className="agent-banner is-pause">{a.held ? 'Paused: its tool call is waiting in the deck. Resume lets it through.' : 'Pausing: its next tool call will wait.'}</div>}
+      {a.paused && !a.cancelled && <div className="agent-banner is-pause">{a.held ? 'Paused: its tool call is waiting in the workshop. Resume lets it through.' : 'Pausing: its next tool call will wait.'}</div>}
 
       {a.task && (
         <button className={`agent-brief ${briefOpen ? 'is-open' : ''}`} title="The brief it was given (its prompt's first line)" onClick={() => setBriefOpen((v) => !v)}>

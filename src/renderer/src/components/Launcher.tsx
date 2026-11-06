@@ -35,9 +35,9 @@ export function Launcher({ state, settings }: { state: DeckState; settings: Deck
         <header className="launcher-hero">
           <Fox anim="idle" scale={3} />
           <div className="launcher-hero-text">
-            <h1>deck</h1>
+            <h1>Foxtrot&apos;s Workshop</h1>
             <p>
-              {open === 0 ? 'Nothing open.' : `${open} of ${state.cap} slots open, none in focus.`} Start a session, pick a parked one back up, or set the deck up.
+              {open === 0 ? 'Nothing open.' : `${open} of ${state.cap} slots open, none in focus.`} Start a session, pick a parked one back up, or set the workshop up.
               {state.profile !== 'deck' && <span className="badge">{state.profile}</span>}
             </p>
             <div className="launcher-quick">
@@ -230,7 +230,7 @@ function AppsCard({ settings }: { settings: DeckSettings }) {
       <div className="lset">
         <span className="lset-label">Music face</span>
         <div className="segmented">
-          <button className={`seg ${settings.music === 'spotify' ? 'on' : ''}`} onClick={() => patchSettings({ music: 'spotify' })} title="Spotify.app over AppleScript: costs the deck no bandwidth">
+          <button className={`seg ${settings.music === 'spotify' ? 'on' : ''}`} onClick={() => patchSettings({ music: 'spotify' })} title="Spotify.app over AppleScript: costs no bandwidth here">
             Spotify
           </button>
           <button className={`seg ${settings.music === 'youtube' ? 'on' : ''}`} onClick={() => patchSettings({ music: 'youtube' })} title="The lofi stream; never plays until asked">
@@ -321,7 +321,7 @@ function DeckCard({ settings: s }: { settings: DeckSettings }) {
   )
   const inCatalog = MODELS.some((m) => m.id === s.defaultModel)
   return (
-    <Card title="Deck" note="the window and its defaults">
+    <Card title="Workshop" note="the window and its defaults">
       <div className="lset">
         <span className="lset-label">Theme</span>
         <div className="lrow">

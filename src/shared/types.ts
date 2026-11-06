@@ -1,3 +1,4 @@
+import type { RemindersOp, RemindersState } from './reminders'
 // Types shared by main, preload and renderer. Keep this file dependency-free (themes.ts is ours).
 
 import type { Appearance } from './themes'
@@ -20,7 +21,7 @@ export const BETA_SLOT_BASE = 100
 export const PACK_MAX = 8
 
 /** The keys a grid cell can hold, besides `slot:<n>` (a session), `beta:<id>` and `agent:<id>` (a wolfpack's members). */
-export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend'] as const
+export const PLUGIN_KEYS = ['wiki', 'music', 'studio', 'pokemon', 'git', 'files', 'editor', 'vocab', 'translate', 'quixote', 'mol', 'lesson', 'posture', 'foxtrot', 'space', 'broadcast', 'spend', 'sleepgod', 'reminders'] as const
 export type PluginKey = (typeof PLUGIN_KEYS)[number]
 
 /** The most Molecule tiles at once: each viewer holds a WebGL context, and Chromium caps those (16) for the whole window. */
@@ -95,7 +96,7 @@ export function webAppId(name: string, taken: string[]): string {
 export const isPluginKey = (k: string): boolean => (PLUGIN_KEYS as readonly string[]).includes(k) || molTileOf(k) !== null || lessonTileOf(k) !== null || webAppOf(k) !== null
 
 /** Which plugin tiles hold a grid cell under these settings (compact mode drops the two fun ones). */
-export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend'>): PluginKey[] {
+export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'showMusic' | 'showStudio' | 'showPokemon' | 'showGit' | 'showFiles' | 'showEditor' | 'showVocab' | 'showTranslate' | 'showQuixote' | 'showMol' | 'showLesson' | 'showPosture' | 'showFoxtrot' | 'showSpace' | 'showBroadcast' | 'showSpend' | 'showSleepgod' | 'showReminders'>): PluginKey[] {
   const out: PluginKey[] = []
   if (s.showWiki && !s.compact) out.push('wiki')
   if (s.showMusic && !s.compact) out.push('music')
@@ -114,6 +115,8 @@ export function pluginCells(s: Pick<DeckSettings, 'compact' | 'showWiki' | 'show
   if (s.showSpace) out.push('space')
   if (s.showBroadcast) out.push('broadcast')
   if (s.showSpend) out.push('spend')
+  if (s.showSleepgod) out.push('sleepgod')
+  if (s.showReminders) out.push('reminders')
   return out
 }
 
@@ -263,6 +266,8 @@ export type DeckCommand =
   | { type: 'forget'; id: string }
   /** Reload the renderer and reattach every tmux client so the terminals redraw. Sessions keep running. */
   | { type: 'refreshUi' }
+  /** Build the repo the app came from (`npm run dist`), swap the new bundle in, relaunch (main/updates.ts). */
+  | { type: 'installUpdate' }
   /** End an alpha's wolfpack: kill every beta (or park them, keeping their conversations). */
   | { type: 'dismissPack'; alpha: string; park?: boolean }
   /**
@@ -304,6 +309,19 @@ export interface WikiPicture {
 /** Red Sox @ Yankees, AL Wild Card Game 1, 9/29/2026 (MLB's gamePk): the game the Broadcast tile follows until told otherwise. */
 export const BROADCAST_GAME_DEFAULT = 849851
 export type BroadcastLook = 'dark' | 'theme'
+
+/** What the sleepgod server answers at /api/summary (main/sleepgod.ts). Unix seconds; null when it has no reading. */
+export interface SleepgodSummary {
+  now: number
+  last_sync: number | null
+  sync: { running: boolean; failure: string | null }
+  battery: number | null
+  heart_rate: { bpm: number | null; at: number | null; avg: number | null; low: number | null; high: number | null; recent: number[]; live_bpm: number | null; live_settling: boolean }
+  steps: { today: number; distance_m: number; kcal: number; active_hours: number }
+  temperature: { celsius: number | null; at: number | null; recent: number[] }
+  hrv: { ms: number | null; at: number | null }
+  sleep: { night_of: string; onset: string; wake: string; asleep_min: number; waso_min: number; efficiency: number; resting_hr: number; score: number; stages: Partial<Record<'light' | 'deep' | 'rem' | 'awake', number>> | null } | null
+}
 
 /** The Spend tile's windows, each its own chip (main/spend.ts). */
 export type SpendWindowId = '1h' | '8h' | '24h' | '7d'
@@ -857,6 +875,10 @@ export interface DeckSettings {
   broadcastLook: BroadcastLook
   /** The Spend tile: tokens and list-price dollars over the last hour / 8 hours / day / week, by project (main/spend.ts reads every transcript). */
   showSpend: boolean
+  /** The Sleepgod tile: the ring's numbers from the server on this Mac. */
+  showSleepgod: boolean
+  /** The Reminders tile: to do, notes and the running log, by project. */
+  showReminders: boolean
   /** The Lesson tiles that exist, by number (`lessonKey(n)` in the grid). A session adds one with `show … --new`. Never empty. */
   lessonTiles: number[]
   /** The registered web apps (Village, …): a tile each while `show`, the center column on click. */
@@ -939,6 +961,8 @@ export const DEFAULT_SETTINGS: DeckSettings = {
   broadcastGame: BROADCAST_GAME_DEFAULT,
   broadcastLook: 'dark',
   showSpend: false,
+  showSleepgod: false,
+  showReminders: true,
   showFoxtrot: false,
   lessonTiles: [1],
   webApps: WEB_APPS_DEFAULT,
@@ -1194,12 +1218,27 @@ export interface StudioInfo {
   model: string
 }
 
-export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleWeb'; id?: string }
+export type UiEvent = { type: 'openSettings' } | { type: 'closeOverlays' } | { type: 'toggleFoxLog' } | { type: 'toggleStudio' } | { type: 'togglePokemon' } | { type: 'toggleMol' } | { type: 'toggleLesson' } | { type: 'toggleQuixote' } | { type: 'togglePosture' } | { type: 'toggleFiles' } | { type: 'toggleSpace'; open?: boolean } | { type: 'toggleBroadcast' } | { type: 'toggleReminders' } | { type: 'toggleWeb'; id?: string }
 
 /** One of the account's rate-limit windows: how much of it is used (0–100) and when it starts over (ms). */
 export interface UsageWindow {
   pct: number
   resetsAt: number
+}
+
+/**
+ * Whether the repo the packaged app was built from has changed since (main/updates.ts):
+ * `available` = the top bar's "install update"; `building` / `installing` while it runs; `error`
+ * keeps the reason until the source changes again. Always `none` under `npm run dev`.
+ */
+export interface DeckUpdate {
+  state: 'none' | 'available' | 'building' | 'installing' | 'error'
+  fingerprint?: string
+  repo?: string
+  /** When the running app was built (epoch ms). */
+  builtAt?: number
+  startedAt?: number
+  error?: string
 }
 
 /** Usage as Claude Code reports it (main/usage.ts): the account's two windows (null = not known: no subscriber, or nothing said yet) and each session's context %. */
@@ -1320,6 +1359,13 @@ export interface DeckApi {
   broadcast(): Promise<Gamecast>
   /** The Spend tile's report: every project's Claude Code spend, read incrementally off the transcripts (refreshed at most every few seconds). */
   spend(): Promise<SpendReport>
+  /** Reminders, notes and the log, now and on every change. */
+  reminders(): Promise<RemindersState>
+  remindersDo(op: RemindersOp): Promise<Record<string, unknown>>
+  onReminders(cb: (state: RemindersState) => void): () => void
+  sleepgod(): Promise<SleepgodSummary | null>
+  /** Starts a sync. Null when it started, otherwise why it couldn't. */
+  sleepgodSync(): Promise<string | null>
   /** Spotify.app's state, now and on every change (main polls it while the tile is showing). */
   onSpotify(cb: (state: SpotifyState) => void): () => void
   spotify(cmd: SpotifyCommand): void
@@ -1419,6 +1465,9 @@ export interface DeckApi {
   /** The account's rate-limit windows and each session's context, as the sessions' status lines report them (main/usage.ts). Not on the phone. */
   usage(): Promise<DeckUsage>
   onUsage(cb: (u: DeckUsage) => void): () => void
+  /** Whether there is an update of the deck to install (main/updates.ts). Not on the phone. */
+  update(): Promise<DeckUpdate>
+  onUpdate(cb: (u: DeckUpdate) => void): () => void
   /** Every subagent of every open session, running or lately finished (main/agents.ts). */
   agents(): Promise<AgentView[]>
   onAgents(cb: (agents: AgentView[]) => void): () => void

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { GameboyRequest, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { RemindersState } from '@shared/reminders'
 
 const api: DeckApi = {
   getState: () => ipcRenderer.invoke('deck:getState') as Promise<DeckState>,
@@ -52,6 +53,15 @@ const api: DeckApi = {
   weatherSearch: (q: string) => ipcRenderer.invoke('weather:search', q) as Promise<WeatherPlace[]>,
   broadcast: () => ipcRenderer.invoke('broadcast:game') as Promise<Gamecast>,
   spend: () => ipcRenderer.invoke('spend:report') as Promise<SpendReport>,
+  reminders: () => ipcRenderer.invoke('reminders:get') as Promise<RemindersState>,
+  remindersDo: (op) => ipcRenderer.invoke('reminders:do', op) as Promise<Record<string, unknown>>,
+  onReminders: (cb) => {
+    const h = (_: unknown, s: RemindersState) => cb(s)
+    ipcRenderer.on('reminders:update', h)
+    return () => ipcRenderer.removeListener('reminders:update', h)
+  },
+  sleepgod: () => ipcRenderer.invoke('sleepgod:summary') as Promise<SleepgodSummary | null>,
+  sleepgodSync: () => ipcRenderer.invoke('sleepgod:sync') as Promise<string | null>,
   onSpotify: (cb) => {
     const h = (_e: unknown, state: SpotifyState) => cb(state)
     ipcRenderer.on('spotify:state', h)
@@ -133,6 +143,12 @@ const api: DeckApi = {
     const h = (_e: unknown, u: DeckUsage) => cb(u)
     ipcRenderer.on('usage:update', h)
     return () => ipcRenderer.removeListener('usage:update', h)
+  },
+  update: () => ipcRenderer.invoke('update:get') as Promise<DeckUpdate>,
+  onUpdate: (cb) => {
+    const h = (_e: unknown, u: DeckUpdate) => cb(u)
+    ipcRenderer.on('update:state', h)
+    return () => ipcRenderer.removeListener('update:state', h)
   },
   agents: () => ipcRenderer.invoke('agents:list') as Promise<AgentView[]>,
   onAgents: (cb) => {

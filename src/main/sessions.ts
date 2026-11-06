@@ -23,6 +23,13 @@ interface Runtime {
   userDetached: boolean
   /** A beta paused from the deck (main/agents.ts holds its tool calls); shown on the view. */
   paused?: boolean
+  /**
+   * Whether Claude's turn is open, as the hooks tell it: false after a Stop, true after a
+   * UserPromptSubmit, undefined until either has been seen (a session from before this boot).
+   * `claude agents --json` says `busy` while a BACKGROUND shell or agent is still running after
+   * the turn ended ("done · 1 shell still running"), so a closed turn overrules the fleet's busy.
+   */
+  turnOpen?: boolean
   /** Last size the renderer asked for, so a reattach starts at the right size. */
   cols?: number
   rows?: number
@@ -381,7 +388,11 @@ export class SessionManager {
       if (!r) continue
       const e = byId.get(rec.claudeSessionId)
       if (e) {
-        const status = normalizeStatus(e.status ?? e.state)
+        let status = normalizeStatus(e.status ?? e.state)
+        // The turn ended (Stop) and nothing has started one since: a busy here is a background
+        // shell / agent still alive, not Claude working. Idle the fleet says closes the turn too.
+        if (status === 'busy' && r.turnOpen === false) status = 'idle'
+        if (status === 'idle') r.turnOpen = false
         if (status !== r.status) {
           r.status = status
           changed = true
@@ -426,10 +437,12 @@ export class SessionManager {
       case 'Stop':
         r.attention = true
         r.status = 'idle'
+        r.turnOpen = false
         break
       case 'UserPromptSubmit':
         r.attention = false
         r.status = 'busy'
+        r.turnOpen = true
         break
     }
     this.broadcast()

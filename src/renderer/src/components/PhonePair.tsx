@@ -53,7 +53,7 @@ export function PhonePair() {
 
   return (
     <div className="phone-pair" ref={box}>
-      <button className={`bar-btn ${open ? 'on' : ''}`} onClick={() => setOpen((v) => !v)} title="Open this deck on your phone">
+      <button className={`bar-btn ${open ? 'on' : ''}`} onClick={() => setOpen((v) => !v)} title="Open Foxtrot's Workshop on your phone">
         <Smartphone size={13} />
         <span>phone</span>
       </button>
@@ -65,7 +65,7 @@ export function PhonePair() {
           ) : !info ? (
             <p className="phone-note">…</p>
           ) : !info.listening ? (
-            <p className="phone-note warn">The server could not listen on port {info.port}. Is another deck running?</p>
+            <p className="phone-note warn">The server could not listen on port {info.port}. Is another copy of Foxtrot&apos;s Workshop running?</p>
           ) : !info.url ? (
             <p className="phone-note warn">No network address to offer: this Mac is on neither a tailnet nor a Wi-Fi network.</p>
           ) : (

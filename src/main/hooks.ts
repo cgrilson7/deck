@@ -82,6 +82,8 @@ export class HooksServer {
   onDoc: ((body: unknown) => Promise<unknown>) | null = null
   /** `POST /space`: show the Space pane (main/index.ts). A field too; its CLI sits beside mol.mjs (DECK_SPACE). */
   onSpace: ((body: unknown) => Promise<unknown>) | null = null
+  /** `POST /reminders`: the Reminders tile's door (main/reminders.ts). A field too; its CLI sits beside mol.mjs (DECK_REMINDERS). */
+  onReminders: ((body: unknown) => Promise<unknown>) | null = null
 
   constructor(
     private readonly port: number,
@@ -187,7 +189,7 @@ export class HooksServer {
     })
     const settings = {
       statusLine: this.writeStatusScript(),
-      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs'), DECK_SPACE: join(dirname(this.molScript), 'space.mjs'), DECK_LEDGER: join(dirname(this.molScript), 'ledger.mjs') },
+      env: { DECK_HOOK_PORT: String(this.port), DECK_PROFILE: this.profile, DECK_WOLFPACK: this.wolfpackScript, DECK_STUDIO: this.studioScript, DECK_TRAINER: this.trainerScript, DECK_MOL: this.molScript, DECK_LESSON: join(dirname(this.molScript), 'lesson.mjs'), DECK_DOC: join(dirname(this.molScript), 'doc.mjs'), DECK_SPACE: join(dirname(this.molScript), 'space.mjs'), DECK_LEDGER: join(dirname(this.molScript), 'ledger.mjs'), DECK_REMINDERS: join(dirname(this.molScript), 'reminders.mjs') },
       hooks: {
         Notification: [post('notification')],
         Stop: [post('stop')],
@@ -250,9 +252,9 @@ export class HooksServer {
             return
           }
           if (path !== 'gameboy') this.log(path, payload)
-          if (path === 'pack' || path === 'studio' || path === 'gameboy' || path === 'mol' || path === 'lesson' || path === 'doc' || path === 'space') {
+          if (path === 'pack' || path === 'studio' || path === 'gameboy' || path === 'mol' || path === 'lesson' || path === 'doc' || path === 'space' || path === 'reminders') {
             // The wolfpack (or the Studio, the Game Boy, the Molecule tile, the Lesson tile, the preview pane) answers: JSON either way, and never hangs the caller.
-            const field = path === 'lesson' ? this.onLesson : path === 'doc' ? this.onDoc : path === 'space' ? this.onSpace : undefined
+            const field = path === 'lesson' ? this.onLesson : path === 'doc' ? this.onDoc : path === 'space' ? this.onSpace : path === 'reminders' ? this.onReminders : undefined
             void (field !== undefined ? (field ? field(payload) : Promise.reject(new Error('not ready'))) : path === 'pack' ? this.onPack(payload) : path === 'studio' ? this.onStudio(payload) : path === 'mol' ? this.onMol(payload) : this.onGameboy(payload)).then(
               (result) => {
                 res.statusCode = 200

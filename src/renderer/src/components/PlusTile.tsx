@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Atom, CircleDollarSign, PawPrint, BookOpen, FilePen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
-import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
+import { Atom, ListChecks, CircleDollarSign, HeartPulse, PawPrint, BookOpen, FilePen, FolderTree, Gamepad2, GitBranch, HardDrive, Globe, GraduationCap, Languages, Layers, Music, PersonStanding, Plus, Radio, ArrowDown, ArrowUp, Sparkles, Trash2, Wallpaper, X, type LucideIcon } from 'lucide-react'
+import { PLUGIN_KEYS, WEB_APPS_MAX, cleanWebUrl, lessonKey, molKey, nextLessonTile, nextMolTile, pluginCells, webAppId, webKey, type DeckSettings, type DeckState, type PluginKey, type WebApp } from '@shared/types'
 import type { GridSide } from '@shared/gridorder'
 import { patchSettings, useSettings } from '../lib/theme'
 import { writeSnap } from '../lib/webapps'
+import { forgetApp, goToTile, useAppUse } from '../lib/appuse'
 import { ParkedCard, StartCard } from './SessionForm'
 
 /** What the picker hands the grid: a mini app's key, or a web app's grid key (`web:<id>`). */
@@ -156,6 +157,22 @@ export const PLUGINS: {
     icon: CircleDollarSign,
     hue: 'lime',
     setting: 'showSpend'
+  },
+  {
+    key: 'sleepgod',
+    label: 'Sleepgod',
+    hint: "Your ring's heart rate, steps, skin temperature and last night's sleep, from the sleepgod server on this Mac",
+    icon: HeartPulse,
+    hue: 'rose',
+    setting: 'showSleepgod'
+  },
+  {
+    key: 'reminders',
+    label: 'Reminders',
+    hint: 'To do, notes and a running log of what got done, by project. Any Claude session can write to it',
+    icon: ListChecks,
+    hue: 'amber',
+    setting: 'showReminders'
   }
 ]
 
@@ -184,11 +201,50 @@ function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; sta
   const cwd = state.open.find((s) => s.slot === state.focusSlot)?.cwd
   const settings = useSettings()
   const shown = new Set(pluginCells(settings))
-  /** A mini app here: turned on if it was off, and moved to the foot of this column either way. */
-  const place = (p: (typeof PLUGINS)[number]) => {
+  const use = useAppUse()
+  /** A mini app or web app here: turned on if it was off, and moved to the foot of this column either way. */
+  const place = (key: Placed) => {
     onClose()
-    onPlace(p.key)
+    onPlace(key)
   }
+  /** Close and bring that tile into view in the grid. */
+  const goTo = (key: string) => {
+    onClose()
+    requestAnimationFrame(() => goToTile(key))
+  }
+
+  // ONE LIST of every mini app and web app, sorted by a header (last used, newest first, by default).
+  const [sort, setSort] = useState<Sort>({ by: 'used', desc: true })
+  const rows: Row[] = [
+    ...PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => ({
+      key: p.key as Placed,
+      label: p.label,
+      hint: p.hint,
+      icon: p.icon,
+      hue: p.hue,
+      open: shown.has(p.key),
+      tile: p.key === 'mol' ? molKey(settings.molTiles[0] ?? 1) : p.key === 'lesson' ? lessonKey(settings.lessonTiles[0] ?? 1) : p.key,
+      again: (p.key === 'mol' && nextMolTile(settings.molTiles) !== null) || (p.key === 'lesson' && nextLessonTile(settings.lessonTiles) !== null),
+      created: use[p.key]?.created ?? 0,
+      used: use[p.key]?.used ?? 0
+    })),
+    ...settings.webApps.map((a) => ({
+      key: webKey(a.id) as Placed,
+      id: a.id,
+      label: a.name,
+      hint: `${a.url.replace(/^https?:\/\/(www\.)?/, '')} — opens in the center column and stays signed in`,
+      icon: Globe,
+      hue: 'web',
+      open: a.show,
+      tile: webKey(a.id),
+      again: false,
+      created: use[webKey(a.id)]?.created ?? 0,
+      used: use[webKey(a.id)]?.used ?? 0
+    }))
+  ].sort((a, b) => {
+    const d = sort.by === 'name' ? a.label.localeCompare(b.label) : a[sort.by] - b[sort.by]
+    return (sort.desc ? -d : d) || a.label.localeCompare(b.label)
+  })
 
   // A web app: any site, by a name and a URL. Registered and placed in one step.
   const [webName, setWebName] = useState('')
@@ -207,6 +263,7 @@ function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; sta
   const [removing, setRemoving] = useState<string | null>(null)
   const removeWeb = (id: string) => {
     setRemoving(null)
+    forgetApp(webKey(id))
     writeSnap(id, '')
     patchSettings({ webApps: settings.webApps.filter((a) => a.id !== id) })
   }
@@ -232,79 +289,80 @@ function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; sta
         {side === 'right' && (
           <>
             <section className="picker-row">
-              <h4>Mini app</h4>
-              <div className="picker-grid">
-                {PLUGINS.filter((p) => PLUGIN_KEYS.includes(p.key)).map((p) => {
-                  const Icon = p.icon
-                  const again = (p.key === 'mol' && nextMolTile(settings.molTiles) !== null) || (p.key === 'lesson' && nextLessonTile(settings.lessonTiles) !== null)
-                  return (
-                    <button key={p.key} className={`picker-card hue-${p.hue} ${shown.has(p.key) ? 'on' : ''}`} onClick={() => place(p)}>
-                      <span className="picker-card-icon">
-                        <Icon size={28} strokeWidth={1.75} />
+              <div className="app-list" role="table" aria-label="Mini apps and web apps">
+                <div className="app-row app-row-head" role="row">
+                  <span />
+                  <SortHead label="App" by="name" sort={sort} setSort={setSort} />
+                  <SortHead label="Created" by="created" sort={sort} setSort={setSort} />
+                  <SortHead label="Last used" by="used" sort={sort} setSort={setSort} />
+                  <span className="app-col-state">In the grid</span>
+                </div>
+                {rows.map((r) =>
+                  removing === r.id ? (
+                    <div key={r.key} className="app-row app-row-confirm" role="alertdialog" aria-label={`Remove ${r.label}?`}>
+                      <span className="app-icon hue-red">
+                        <Trash2 size={16} strokeWidth={1.75} />
                       </span>
-                      <span className="picker-card-text">
-                        <span className="picker-card-head">
-                          <b>{p.label}</b>
-                          {shown.has(p.key) && <small>{again ? 'another here' : 'move here'}</small>}
-                        </span>
-                        <span className="picker-card-desc">{p.hint}</span>
+                      <span className="app-name">
+                        <b>Remove {r.label}?</b>
+                        <small>Its tile goes from the workshop. Its sign-in stays, so adding it again finds you signed in.</small>
                       </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-            <section className="picker-row">
-              <h4>Web app</h4>
-              <div className="picker-grid">
-                {settings.webApps.map((a) =>
-                  removing === a.id ? (
-                    <div key={a.id} className="picker-card hue-red picker-confirm" role="alertdialog" aria-label={`Remove ${a.name}?`}>
-                      <span className="picker-card-icon">
-                        <Trash2 size={24} strokeWidth={1.75} />
-                      </span>
-                      <span className="picker-card-text">
-                        <span className="picker-card-head">
-                          <b>Remove {a.name}?</b>
-                        </span>
-                        <span className="picker-card-desc">Its tile goes from the deck. Its sign-in stays, so adding it again finds you signed in.</span>
-                        <span className="picker-confirm-row">
-                          <button className="pill picker-danger" autoFocus onClick={() => removeWeb(a.id)}>
-                            remove
-                          </button>
-                          <button className="pill" onClick={() => setRemoving(null)}>
-                            cancel
-                          </button>
-                        </span>
+                      <span className="app-actions">
+                        <button className="pill picker-danger" autoFocus onClick={() => removeWeb(r.id!)}>
+                          remove
+                        </button>
+                        <button className="pill" onClick={() => setRemoving(null)}>
+                          cancel
+                        </button>
                       </span>
                     </div>
                   ) : (
-                    <div key={a.id} className="picker-card-wrap">
-                      <button
-                        className={`picker-card hue-web ${a.show ? 'on' : ''}`}
-                        title={a.url}
-                        onClick={() => {
-                          onClose()
-                          onPlace(webKey(a.id) as Placed)
-                        }}
-                      >
-                        <span className="picker-card-icon">
-                          <Globe size={28} strokeWidth={1.75} />
-                        </span>
-                        <span className="picker-card-text">
-                          <span className="picker-card-head">
-                            <b>{a.name}</b>
-                            {a.show && <small>move here</small>}
-                          </span>
-                          <span className="picker-card-desc">{a.url.replace(/^https?:\/\/(www\.)?/, '')} — opens in the center column and stays signed in</span>
-                        </span>
-                      </button>
-                      <button className="picker-card-remove" title={`Remove ${a.name}…`} aria-label={`Remove ${a.name}`} onClick={() => setRemoving(a.id)}>
-                        <Trash2 size={13} />
-                      </button>
+                    <div key={r.key} className={`app-row ${r.open ? 'on' : ''}`} role="row">
+                      <span className={`app-icon hue-${r.hue}`}>
+                        <r.icon size={16} strokeWidth={1.75} />
+                      </span>
+                      <span className="app-name" title={r.hint}>
+                        <b>{r.label}</b>
+                        <small>{r.hint}</small>
+                      </span>
+                      <span className="app-date" title={r.created ? new Date(r.created).toLocaleString() : 'Never in the grid'}>
+                        {r.created ? when(r.created) : '—'}
+                      </span>
+                      <span className="app-date" title={r.used ? new Date(r.used).toLocaleString() : 'Never used'}>
+                        {r.used ? when(r.used) : 'never'}
+                      </span>
+                      <span className="app-actions">
+                        {r.open ? (
+                          <>
+                            <span className="app-open" title="This tile is in the grid">
+                              <span className="app-dot" /> open
+                            </span>
+                            <button className="pill" title="Scroll the grid to this tile" onClick={() => goTo(r.tile)}>
+                              go to
+                            </button>
+                            <button className="pill" title={r.again ? 'Another tile of it, at the foot of this column' : 'Move it to the foot of this column'} onClick={() => place(r.key)}>
+                              {r.again ? 'another' : 'move here'}
+                            </button>
+                          </>
+                        ) : (
+                          <button className="pill" title="Add it at the foot of this column" onClick={() => place(r.key)}>
+                            add here
+                          </button>
+                        )}
+                        {r.id !== undefined && (
+                          <button className="app-remove" title={`Remove ${r.label}…`} aria-label={`Remove ${r.label}`} onClick={() => setRemoving(r.id!)}>
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </span>
                     </div>
                   )
                 )}
+              </div>
+            </section>
+            <section className="picker-row">
+              <h4>Add a web app</h4>
+              <div className="picker-grid">
                 <form
                   className="picker-card hue-web web-add"
                   onSubmit={(e) => {
@@ -339,4 +397,44 @@ function Picker({ side, state, onPlace, canAdd, onClose }: { side: GridSide; sta
       </div>
     </div>
   )
+}
+
+type Sort = { by: 'name' | 'created' | 'used'; desc: boolean }
+
+interface Row {
+  key: Placed
+  /** A web app's id (it can be removed). */
+  id?: string
+  label: string
+  hint: string
+  icon: LucideIcon
+  hue: string
+  /** In the grid now. */
+  open: boolean
+  /** The grid key "go to" scrolls to (the first Molecule / Lesson tile). */
+  tile: string
+  /** Placing it again makes another tile (Molecule, Lesson). */
+  again: boolean
+  created: number
+  used: number
+}
+
+/** A column head that sorts the list: a click picks it (dates newest first, names A–Z), again flips it. */
+function SortHead({ label, by, sort, setSort }: { label: string; by: Sort['by']; sort: Sort; setSort: (s: Sort) => void }) {
+  const on = sort.by === by
+  return (
+    <button className={`app-sort ${on ? 'on' : ''}`} onClick={() => setSort(on ? { by, desc: !sort.desc } : { by, desc: by !== 'name' })}>
+      {label}
+      {on && (sort.desc ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}
+    </button>
+  )
+}
+
+/** A date for the list: the time today, the weekday this week, else the day (and year when not this one). */
+function when(ms: number): string {
+  const d = new Date(ms)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (now.getTime() - ms < 6 * 86400_000) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleDateString([], d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }

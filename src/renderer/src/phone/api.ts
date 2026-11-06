@@ -120,7 +120,7 @@ class Remote {
     }
     if (unauthorized) {
       this.setLink('unauthorized')
-      this.failPending('not paired with this deck')
+      this.failPending('not paired with this Mac')
       return
     }
     this.setLink('closed')
@@ -186,7 +186,7 @@ class Remote {
 
   call<T>(method: RemoteMethod, args: unknown[] = []): Promise<T> {
     if (!this.token) return Promise.reject(new Error('not paired: open the link from the Mac'))
-    if (this.link === 'unauthorized') return Promise.reject(new Error('not paired with this deck'))
+    if (this.link === 'unauthorized') return Promise.reject(new Error('not paired with this Mac'))
     const id = ++this.seq
     return new Promise<T>((resolve, reject) => {
       const timer = window.setTimeout(() => {
@@ -256,6 +256,11 @@ export const api: DeckApi = {
   weatherSearch: (q) => remote.call('weatherSearch', [q]),
   broadcast: () => remote.call('broadcast'),
   spend: notHere,
+  reminders: notHere,
+  remindersDo: notHere,
+  onReminders: nothing,
+  sleepgod: notHere,
+  sleepgodSync: notHere,
   onSpotify: nothing,
   spotify: noop,
   spotifyPlay: noop,
@@ -307,6 +312,8 @@ export const api: DeckApi = {
   onFoxEntry: (cb) => remote.on('fox', cb),
   usage: () => Promise.resolve({ fiveHour: null, sevenDay: null, at: 0, context: {} }),
   onUsage: nothing,
+  update: () => Promise.resolve({ state: 'none' }),
+  onUpdate: nothing,
   agents: () => remote.call('agents', []),
   onAgents: (cb) => remote.on('agents', cb),
   onUi: nothing,

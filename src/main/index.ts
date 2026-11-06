@@ -9,6 +9,7 @@ import { shellEnv } from './env'
 import { Fleet } from './fleet'
 import { HooksServer } from './hooks'
 import { UsageTracker } from './usage'
+import { Updater } from './updates'
 import { buildMenu } from './menu'
 import { SessionManager } from './sessions'
 import { SettingsStore } from './settings'
@@ -22,6 +23,8 @@ import { wikiBackdrop, wikiPicture, wikiSearch, wikiSummary } from './wiki'
 import { weatherNow, weatherSearch } from './weather'
 import { gamecast } from './broadcast'
 import { SpendWatcher } from './spend'
+import { sleepgodSummary, sleepgodSync } from './sleepgod'
+import { RemindersStore } from './reminders'
 import { TranscriptWatcher } from './transcript'
 import { homedir } from 'node:os'
 import { Spotify, spotifyItems } from './spotify'
@@ -56,7 +59,7 @@ const HOOK_PORT = profile === 'deck' ? 47800 : 47801
 const SPOTIFY_AUTH_PORT = profile === 'deck' ? 47820 : 47821
 const REMOTE_PORT_N = profile === 'deck' ? REMOTE_PORT.deck : REMOTE_PORT.other
 
-app.setName('Deck')
+app.setName("Foxtrot's Workshop")
 // The Dock icon. A packaged build carries build/icon.icns in its bundle; under `npm run dev` the
 // process is Electron's own bundle (Electron icon, "Electron" in the menu bar), so set the icon
 // by hand. The menu-bar name only changes with a real bundle (`npm run dist`).
@@ -79,6 +82,7 @@ let remote: RemoteServer | null = null
 let wolfpack: Wolfpack | null = null
 let studio: Studio | null = null
 let agents: AgentTracker | null = null
+let updater: Updater | null = null
 
 /** A broadcast reaches the window and, relayed by channel name, every phone (main/remote.ts). */
 function send(channel: string, ...args: unknown[]): void {
@@ -105,7 +109,7 @@ function createWindow(): void {
     height: 1100,
     minWidth: 640, // half a laptop screen: below 1400 the renderer drops the right column
     minHeight: 700,
-    title: 'Deck',
+    title: "Foxtrot's Workshop",
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: lightsAt(settings!.get()),
     backgroundColor: windowBackground(settings!.get()),
@@ -175,6 +179,10 @@ async function runCommand(cmd: DeckCommand): Promise<{ ok: true } | { ok: false;
         break
       case 'refreshUi':
         refreshUi()
+        break
+      case 'installUpdate':
+        if (!updater) return { ok: false, error: 'no updater' }
+        await updater.install()
         break
       case 'dismissPack':
         await manager.dismissPack(cmd.alpha, !!cmd.park)
@@ -500,6 +508,18 @@ app.whenReady().then(async () => {
     (payload, gone) => (agents ? agents.onPreTool(payload, gone) : Promise.resolve(null))
   )
   hooks.onLesson = (body) => lessonCall(body)
+  // The Reminders tile's store and door: `$DECK_REMINDERS add|note|log|…` from any session. The tile
+  // writes as "you"; a session as its own name, looked up here so a caller cannot claim to be anyone else.
+  const reminders = new RemindersStore(userData, env, (s) => send('reminders:update', s))
+  hooks.onReminders = (body) => {
+    const session = (body as { session?: unknown } | null)?.session
+    const rec = typeof session === 'string' && session ? manager?.find({ claudeSessionId: session }) : null
+    return reminders.handle(body, rec?.name || 'claude')
+  }
+  // A completed reminder leaves the list when its day ends: checked each minute, so a Mac that slept through midnight catches up.
+  setInterval(() => reminders.sweep(), 60_000)
+  ipcMain.handle('reminders:get', () => reminders.get())
+  ipcMain.handle('reminders:do', (_e, body: unknown) => reminders.handle(body, 'you'))
   // The preview pane's door: `$DECK_DOC open <path> [--line N]` (plugin/scripts/doc.mjs) — a file
   // the user should read or edit opens here instead of in whatever app macOS would pick.
   hooks.onDoc = async (body) => {
@@ -568,6 +588,12 @@ app.whenReady().then(async () => {
   hooks.onStatus = (body) => usage.onStatus(body)
   ipcMain.handle('usage:get', () => usage.get())
 
+  // Install update: the repo this app was built from, compared every minute (main/updates.ts).
+  updater = new Updater(env, join(userData, 'update.log'), (u) => send('update:state', u))
+  ipcMain.handle('update:get', () => updater!.get())
+  updater.start()
+  app.on('browser-window-focus', () => void updater?.check())
+
   ipcMain.handle('deck:getState', () => manager!.getState())
   // A dropped file that lives in a temp dir (a screenshot thumbnail, a promised file) is copied somewhere that lasts.
   ipcMain.handle('drop:keep', (_e, file: DroppedFile) => keepDrop(userData, file))
@@ -622,6 +648,9 @@ app.whenReady().then(async () => {
   // The Spend tile: every project's Claude Code spend off the transcripts (desktop only; nothing read until the tile asks).
   const spend = new SpendWatcher(projectsDir)
   ipcMain.handle('spend:report', () => spend.report())
+  // The Sleepgod tile: the ring's numbers from the sleepgod server on this Mac (nothing asked until the tile asks).
+  ipcMain.handle('sleepgod:summary', () => sleepgodSummary())
+  ipcMain.handle('sleepgod:sync', () => sleepgodSync())
   const translateKey = () => settings!.get().translateApiKey || env.GOOGLE_CLOUD_API_KEY || ''
   both('translate:run', 'translate', (text: string, hint: Lang, fixed?: boolean) => translate(text, hint, translateKey(), fixed === true))
   both('vocab:lookup', 'vocab', (word: string, hint: Lang, counterpart?: string) => lookupVocab(word, hint, translateKey(), counterpart))

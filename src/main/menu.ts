@@ -166,6 +166,14 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
           ]
         },
         { label: 'Show Spend Tile', type: 'checkbox', checked: s.showSpend, click: () => patch({ showSpend: !settings().showSpend }) },
+        { label: 'Show Sleepgod Tile', type: 'checkbox', checked: s.showSleepgod, click: () => patch({ showSleepgod: !settings().showSleepgod }) },
+        {
+          label: 'Reminders',
+          submenu: [
+            { label: 'Open Reminders', accelerator: 'CmdOrCtrl+Shift+R', click: () => ui({ type: 'toggleReminders' }) },
+            { label: 'Show Reminders Tile', type: 'checkbox', checked: s.showReminders, click: () => patch({ showReminders: !settings().showReminders }) }
+          ]
+        },
         {
           label: 'Files',
           submenu: [

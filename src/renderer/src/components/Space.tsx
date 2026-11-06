@@ -93,7 +93,7 @@ function TrashCard({ g, lapAt, busy }: { g: TrashGame | null; lapAt: number; bus
         {lap && <Fox anim="leap" scale={2} />}
       </header>
       {g.unreadable ? (
-        <p className="space-why">The deck cannot read ~/.Trash ({g.unreadable}).</p>
+        <p className="space-why">Foxtrot&apos;s Workshop cannot read ~/.Trash ({g.unreadable}).</p>
       ) : (
         <>
           <div className="space-free">

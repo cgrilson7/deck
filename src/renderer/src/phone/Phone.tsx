@@ -241,7 +241,7 @@ export function Phone() {
       ) : open.length === 0 ? (
         <div className="ph-empty">
           <Fox anim={state ? 'sleep' : 'look'} scale={4} />
-          <p>{state ? 'No open sessions.' : 'Waiting for the deck…'}</p>
+          <p>{state ? 'No open sessions.' : "Waiting for Foxtrot's Workshop…"}</p>
           {state && (
             <button type="button" className="ph-btn" onClick={() => setSheet('new')}>
               new session
@@ -449,8 +449,8 @@ function Unpaired({ link }: { link: Link }) {
   return (
     <div className="ph ph-empty">
       <Fox anim="look" scale={4} />
-      <p>{link === 'unauthorized' ? 'This link no longer matches the deck.' : 'Not paired with a deck yet.'}</p>
-      <p className="ph-hint">On the Mac, press the phone button in Deck's top bar and scan the code (or open the link) on this phone.</p>
+      <p>{link === 'unauthorized' ? "This link no longer matches Foxtrot's Workshop." : "Not paired with Foxtrot's Workshop yet."}</p>
+      <p className="ph-hint">On the Mac, press the phone button in Foxtrot&apos;s Workshop&apos;s top bar and scan the code (or open the link) on this phone.</p>
       {link === 'unauthorized' && (
         <button type="button" className="ph-btn" onClick={() => remote.unpair()}>
           forget this pairing

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { UpdateButton } from './components/UpdateButton'
 import type { AgentView, DeckState } from '@shared/types'
 import { DocPane } from './components/DocPane'
 import { FocusPane } from './components/FocusPane'
@@ -36,6 +37,8 @@ import { onSpacePane } from './lib/space'
 import { SpacePane } from './components/Space'
 import { onBroadcastPane } from './lib/broadcast'
 import { BroadcastPane } from './components/BroadcastTile'
+import { onRemindersPane } from './lib/reminders'
+import { RemindersPane } from './components/Reminders'
 import { onWebApp } from './lib/webapps'
 import { WebLayer } from './components/WebLayer'
 import { useSettings } from './lib/theme'
@@ -75,6 +78,7 @@ export default function App() {
   // The Space pane (~/space's disk pathways: every category and item), the same way.
   const [spaceOpen, setSpaceOpen] = useState(false)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [remindersOpen, setRemindersOpen] = useState(false)
   // The Files pane (the tree at reading size beside the file it selected), the same way.
   const [filesOpen, setFilesOpen] = useState(false)
   // A web app (Village, …), the same way — its id. Its webview outlives this: see WebLayer.
@@ -120,6 +124,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setWebOpen(null)
         setLeash(null)
@@ -139,6 +144,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setMolOpen((v) => (v === null ? (molTiles.current[0] ?? 1) : null))
       }
@@ -152,6 +158,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setLessonOpen((v) => (v === null ? (lessonTiles.current[0] ?? 1) : null))
       }
@@ -165,6 +172,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setBookOpen((v) => !v)
       }
@@ -179,6 +187,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen((v) => !v)
       }
       if (ev.type === 'togglePosture') {
@@ -192,6 +201,7 @@ export default function App() {
         setFilesOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setPostureOpen((v) => !v)
       }
       if (ev.type === 'toggleSpace') {
@@ -206,6 +216,7 @@ export default function App() {
         setPostureOpen(false)
         setFilesOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setSpaceOpen((v) => (want === undefined ? !v : want))
       }
       if (ev.type === 'toggleBroadcast') {
@@ -219,7 +230,22 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setFilesOpen(false)
+        setRemindersOpen(false)
         setBroadcastOpen((v) => !v)
+      }
+      if (ev.type === 'toggleReminders') {
+        setWebOpen(null)
+        setMolOpen(null)
+        setStudioOpen(false)
+        setPokemonOpen(false)
+        setAgentOpen(null)
+        setLessonOpen(null)
+        setBookOpen(false)
+        setPostureOpen(false)
+        setSpaceOpen(false)
+        setFilesOpen(false)
+        setBroadcastOpen(false)
+        setRemindersOpen((v) => !v)
       }
       if (ev.type === 'toggleStudio') {
         setWebOpen(null)
@@ -231,6 +257,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setStudioOpen((v) => !v)
       }
@@ -245,6 +272,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setWebOpen((v) => (v === id ? null : id))
       }
@@ -258,6 +286,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
         setPokemonOpen((v) => !v)
       }
@@ -272,6 +301,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen(false)
       setMolOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? molTiles.current[0] ?? 1)))
     })
@@ -285,6 +315,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen(false)
       setLessonOpen((v) => (want.want === false || (want.want === 'toggle' && v !== null) ? null : (want.tile ?? v ?? lessonTiles.current[0] ?? 1)))
     })
@@ -298,6 +329,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen(false)
       setBookOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -312,6 +344,7 @@ export default function App() {
       setFilesOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setPostureOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offSpace = onSpacePane((want) => {
@@ -325,6 +358,7 @@ export default function App() {
       setPostureOpen(false)
       setFilesOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setSpaceOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offBroadcast = onBroadcastPane((want) => {
@@ -338,7 +372,22 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setFilesOpen(false)
+      setRemindersOpen(false)
       setBroadcastOpen((v) => (want === 'toggle' ? !v : want))
+    })
+    const offReminders = onRemindersPane((want) => {
+      setWebOpen(null)
+      setMolOpen(null)
+      setStudioOpen(false)
+      setPokemonOpen(false)
+      setAgentOpen(null)
+      setLessonOpen(null)
+      setBookOpen(false)
+      setPostureOpen(false)
+      setSpaceOpen(false)
+      setFilesOpen(false)
+      setBroadcastOpen(false)
+      setRemindersOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offFiles = onFilesPane((want) => {
       setWebOpen(null)
@@ -351,6 +400,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen((v) => (want === 'toggle' ? !v : want))
     })
     const offStudio = onStudio((want) => {
@@ -363,6 +413,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen(false)
       setStudioOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -376,6 +427,7 @@ export default function App() {
       setPostureOpen(false)
       setSpaceOpen(false)
       setBroadcastOpen(false)
+      setRemindersOpen(false)
       setFilesOpen(false)
       setPokemonOpen((v) => (want === 'toggle' ? !v : want))
     })
@@ -391,6 +443,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
       }
       setWebOpen((v) => (want.want === false || (want.want === 'toggle' && v === id) ? null : id))
@@ -414,6 +467,7 @@ export default function App() {
         setPostureOpen(false)
         setSpaceOpen(false)
         setBroadcastOpen(false)
+        setRemindersOpen(false)
         setFilesOpen(false)
       }
       setAgentOpen(id)
@@ -436,6 +490,7 @@ export default function App() {
       offPosture()
       offSpace()
       offBroadcast()
+      offReminders()
       offFiles()
       offWeb()
       window.clearTimeout(t)
@@ -453,6 +508,7 @@ export default function App() {
     setPostureOpen(false)
     setSpaceOpen(false)
     setBroadcastOpen(false)
+    setRemindersOpen(false)
     setFilesOpen(false)
     setAgentOpen(null)
     setWebOpen(null)
@@ -474,6 +530,9 @@ export default function App() {
   useEffect(() => {
     if (!settings.showBroadcast) setBroadcastOpen(false)
   }, [settings.showBroadcast])
+  useEffect(() => {
+    if (!settings.showReminders) setRemindersOpen(false)
+  }, [settings.showReminders])
 
   // So does the molecule viewer its own (`POST /mol`): a session can `show` before the tile has ever been scrolled to.
   useEffect(() => {
@@ -504,7 +563,7 @@ export default function App() {
     for (const id of liveIds()) if (!open.has(id)) dispose(id)
   }, [state])
 
-  if (!state) return <div className="boot">deck</div>
+  if (!state) return <div className="boot">Foxtrot&apos;s Workshop</div>
 
   const focused = state.open.find((s) => s.slot === state.focusSlot) ?? null
   // Top-level sessions hold the ⌘ slots; a wolfpack's members (betas, subagents) are cells of their own behind them.
@@ -515,7 +574,7 @@ export default function App() {
   // A web app that was removed while showing gives the center back.
   const openWeb = webOpen !== null && settings.webApps.some((a) => a.id === webOpen) ? webOpen : null
   const others = top
-    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || spaceOpen || broadcastOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
+    .filter((s) => (studioOpen ? s.id !== studioChat : pokemonOpen || molOpen !== null || lessonOpen !== null || bookOpen || postureOpen || spaceOpen || broadcastOpen || remindersOpen || filesOpen || openAgent || openWeb !== null ? true : s.slot !== state.focusSlot))
     .sort(byRecency(settings.attentionFirst))
   // Members grouped by alpha (in slot order): its betas needing you first, then its subagents as they started (the grid draws those as ONE pack tile per alpha).
   const members: Member[] = []
@@ -540,7 +599,7 @@ export default function App() {
           }}
         />
         <div className="topbar-tools">
-          <span className="wordmark">deck</span>
+          <span className="wordmark">Foxtrot&apos;s Workshop</span>
           <HeaderStatus state={state} agents={agents} />
           {state.profile !== 'deck' && <span className="badge">{state.profile}</span>}
           <button
@@ -551,6 +610,7 @@ export default function App() {
             <RefreshCw size={13} />
             <span>refresh UI</span>
           </button>
+          <UpdateButton />
           <PhonePair />
           <span className="spacer" />
           {error && <span className="error">{error}</span>}
@@ -575,6 +635,8 @@ export default function App() {
           <SpacePane onClose={() => setSpaceOpen(false)} />
         ) : broadcastOpen ? (
           <BroadcastPane onClose={() => setBroadcastOpen(false)} />
+        ) : remindersOpen ? (
+          <RemindersPane session={focused} onClose={() => setRemindersOpen(false)} />
         ) : filesOpen ? (
           <FilesPane onClose={() => setFilesOpen(false)} />
         ) : studioOpen ? (

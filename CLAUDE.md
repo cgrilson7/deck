@@ -4,7 +4,7 @@ Up to ten Claude Code sessions in one Electron window. The focused session fills
 as a real terminal; everything else lives in two columns of tiles either side of it, four to a
 column's height, each column scrolling on its own without end: the other sessions as conversation views (your
 prompts, Claude's replies as markdown, a line per tool call, a prompt bar to talk to each), the
-plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture, Foxtrot, Broadcast),
+plugin tiles (Wikipedia, music: Spotify.app or the lofi stream, Studio, Pokemon, changes, vocabulary, translator, the reader (La Odisea, Don Quijote), Molecule, Lesson, Posture, Foxtrot, Broadcast, Reminders),
 the WEB APPS (Village first: any site registered by name + URL, a tile each, the page itself in the center column),
 and any WOLFPACK — a Fable alpha's beta sessions, a tile each, and its Opus subagents together in
 the alpha's PACK TILE, a roster of miniature gold foxes (working, paused, finished, cancelled), a
@@ -35,8 +35,8 @@ npm run smoke        # tmux + login-shell env + `claude agents --json` checks, n
 npm run rebuild      # electron-rebuild node-pty (postinstall does this already)
 npm run tmux -- ls   # talk to the dev profile's tmux server (tmux -L deck-dev ...)
 npm run ad           # renders the ad (ad/) to ad/out/: deck-ad-9x16.mp4 (1080×1920) + deck-ad-16x9.mp4, 60fps; `npm run ad:dev` previews it live (add ?wide)
-npm run dist         # electron-vite build + electron-builder --mac → dist/ (needs `npm i -D electron-builder`;
-                     #   the `build` block in package.json: productName Deck, build/icon.icns, tmux.conf as an extraResource)
+npm run dist         # electron-vite build + scripts/stamp.mjs (out/build-info.json) + electron-builder --mac → dist/ (electron-builder is a devDependency;
+                     #   the `build` block in package.json: productName Foxtrot's Workshop, build/icon.icns, tmux.conf as an extraResource)
 ```
 
 Verification before handing off = `npm run typecheck && npm run build && npm run smoke`.
@@ -58,6 +58,10 @@ src/main/hooks.ts          local HTTP server + the --settings hooks file for ins
                              and POST /lesson, the Lesson tile's door (`onLesson`, a FIELD set after construction like `onStatus`, never a constructor argument),
                              and POST /doc, the preview pane's (`onDoc`, a field too: `$DECK_DOC open <path>` → the renderer's `openDoc`),
                              and POST /pretool, every tool call asking the leash (held while paused, refused with the reason when cancelled)
+src/main/updates.ts        INSTALL UPDATE: the packaged app's out/build-info.json (repo + source fingerprint, stamped by `npm run dist`) vs the repo now
+                             (scripts/lib/fingerprint.mjs: a temp-index `git add -A` of SOURCE_PATHS, never the real index), every minute + on window focus;
+                             the top bar's `UpdateButton` beside refresh UI → `installUpdate`: `npm run dist` in the repo, then a detached shell waits for
+                             this pid, ditto's the new bundle over the running one and opens it (sessions are tmux's). Silent under `npm run dev`
 src/main/usage.ts          USAGE for the header: every session's status line POSTs the CLI's status JSON to /status → the account's 5-hour / weekly
                              windows + each session's context % (`usage:update`; windows kept in userData/usage.json)
 src/main/agents.ts         subagents as tiles + THE LEASH: SubagentStart/Stop hooks → the list, names off the parent's Agent call, transcripts
@@ -79,6 +83,8 @@ plugin/                    the deck's Claude Code plugin, `--plugin-dir` on ever
                              skills/ledger/SKILL.md (`/deck:ledger`: log a piece of work's cost to the project's own docs/costs/ledger.jsonl — fridge's format; opt-in by `init`),
                              scripts/ledger.mjs (init, log, show, where; DECK_LEDGER in every session's env, beside mol.mjs; this session = $CLAUDE_CODE_SESSION_ID),
                              scripts/lib/spend.mjs (+ .d.mts) = THE PRICE TABLE and costOf / projectOf, pure, imported by main/spend.ts by relative path,
+                             skills/reminders/SKILL.md (`/deck:reminders`: write reminders, notes and log lines to the Reminders tile, from any repo),
+                             scripts/reminders.mjs (add, note, log, list, notes, history, done, undo, set, rm; DECK_REMINDERS in every session's env, beside mol.mjs),
                              skills/trainer/SKILL.md (`/deck:trainer`: play Pokémon Yellow on the Game Boy, one command at a time),
                              scripts/trainer.mjs (look, press, advance, walk, goto, talk, fight, save / load, party, gift, encounter, name, elite, warp, sprite…; DECK_TRAINER in every session's env;
                                `gift <species> [--level 1] [--nick] [--party]` = a mon of the player's own into the CURRENT BOX in WRAM — the game
@@ -110,6 +116,9 @@ src/main/files.ts          reads a referenced path for the preview pane: text (c
 src/main/git.ts            the changes tile's source: `git status` + numstat of a working tree, one file's diff (read-only, no index lock)
 src/main/studio.ts         the Studio: Gemini image generation (prompt + reference images → a PNG in userData/studio), the gallery, `POST /studio`
 src/main/posture.ts        the Posture tile's main side: the `pose:` scheme (MediaPipe's wasm + the pose model, fetched once into userData/posture), the camera prompt, background throttling
+src/shared/reminders.ts    the Reminders tile's data, pure: Reminder / ReminderNote / ReminderLogEntry, RemindersOp, the sort orders, `dayOf`
+src/main/reminders.ts      the Reminders tile's main side: RemindersStore, one JSON file + the one `handle()` the tile and `POST /reminders` both call, `sweep` (a completed reminder leaves when its day ends)
+src/main/sleepgod.ts       the Sleepgod tile's main side: asks the sleepgod server on this Mac (http://127.0.0.1:8484/api/summary, a separate project in ~/sleepgod) for the ring's numbers; null when it isn't answering
 src/main/spend.ts          the Spend tile's main side: tails EVERY project's transcripts (subagents + Workflows too), a response once by message.id, list prices from
                              plugin/scripts/lib/spend.mjs (shared with the ledger CLI); 1h / 8h / 24h / 7d windows by project, binned; each project's docs/costs/ledger.jsonl read for its labels
 src/main/space.ts          the Space tile's main side: watches ~/space's state/status.json, runs its CLI (Electron as node), turns the tile on + barks when a scan needs Colin
@@ -340,8 +349,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `gridSpan[key]` 1 → 2 → … → `gridRows` (at most `GRID_SPAN_MAX`) → 1, and the cell spans that many rows
   (`grid-row: span n`); 1 is never stored, `isGridKey` filters the keys. View ▸ Grid ▸ Reset Layout (and the launcher) empties `gridOrder`. Each
   column ends in a `+` (`PlusTile`) that opens the PICKER, a modal over the window: the RIGHT one is 70% of the window wide, the mini apps
-  and web apps as a GRID OF CARDS four across (icon, name, `PLUGINS[].hint` as the description; never a horizontal scroll) (turned on if off, moved to the foot of THAT column either way; one already
-  showing says "move here"), and below the cap THE LAUNCHER'S OWN SESSION FORM and parked list
+  and web apps as ONE SORTABLE LIST (icon, name + `PLUGINS[].hint`, CREATED, LAST USED, and for a tile in the grid a green
+  "open" with GO TO — `goToTile` scrolls the column to it and flashes it — and "move here"; else "add here"; sorted by last used,
+  newest first, a column head re-sorts; the dates are `lib/appuse.ts`, localStorage `deck.apps.use`, keyed by app (`mol:3` → `mol`,
+  `web:<id>`): created = first seen in the grid, used = a pointer down in its cell or a pick) (turned on if off, moved to the foot of THAT column either way), and below the cap THE LAUNCHER'S OWN SESSION FORM and parked list
   (`StartCard` / `ParkedCard` from `SessionForm.tsx`, the one module both draw them from: the
   focused folder leads the pills there, and starting or resuming closes the picker). A tile that
   needs you (attention / blocked, a pack with a held agent) and is scrolled out of sight raises
@@ -962,6 +973,23 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   against the feed's distances) with the three hardest-hit as cards. Team colours: when both sides would pick the same
   (Red Sox and Yankees are both navy on a light face) the away side takes its other one (`teamColors`).
   `docs/broadcast/HANDOFF.md` is the original (ESPN-era) plan.
+- **Reminders** (`shared/reminders.ts`, `main/reminders.ts`, `components/Reminders.tsx`, `lib/reminders.ts`, `plugin/skills/reminders/`, `plugin/scripts/reminders.mjs`;
+  `showReminders`, on by default): TO DO, NOTES AND A RUNNING LOG, BY PROJECT. A project is an absolute folder: the git toplevel of
+  whatever folder is named, a `.claude/worktrees/` path counting as its repo (`projectOf`), a non-repo folder as itself; it must exist.
+  ONE STORE, `userData/reminders.json` (main is the only writer; atomic on every change; a file it cannot parse is renamed
+  `.unreadable-<ms>` and never overwritten), pushed whole as `reminders:update`. The tile and the door call the SAME `handle(body, by)`;
+  `by` is the caller's identity and is NEVER read from the body: the tile passes 'you', the door the session's name looked up by
+  CLAUDE_CODE_SESSION_ID (else 'claude'), shown as a tag on anything a session wrote. COMPLETING a reminder writes its log line at once
+  (`undo` takes it back the same day; editing the text keeps the two in step; `rm` of a completed one takes the line too) and strikes it
+  through; `sweep` removes it once its LOCAL DAY has ended, checked each minute by main (so a Mac asleep at midnight catches up) and on
+  every read. THE LOG IS NEVER SWEPT: only an explicit `rm` removes a line. PRIORITY is high / normal / low (the flag cycles it), plus
+  an optional due date (amber today, red late). There are NO ALERTS: a due date only colours and sorts. The TILE has three tabs (To do,
+  Notes, Log), a project filter, sorts by project / priority / due / newest (kept in localStorage `deck.reminders.view`), and a composer
+  whose project is the filter, else the one picked, else the FOCUSED session's. A row's text unfolds it: edit, notes on that reminder,
+  priority, due, project, a two-click delete. Notes are markdown, click to edit. The PANE (⌘⇧R, View ▸ Reminders, the tile's ⤢) is the
+  same view at reading size in the CENTER, taking turns with the others (Esc closes). THE DOOR (`POST /reminders`, `hooks.onReminders`, a
+  field; `DECK_REMINDERS` derived beside mol.mjs in `hooks.ts`, so an older session uses `$(dirname "$DECK_MOL")/reminders.mjs`) needs no tile
+  on, only the deck running. Sessions outside the deck have no door. Not on the phone.
 - **Changes** (`GitTile`, a plugin tile; `main/git.ts`):
   the FOCUSED session's working tree as git sees it. Main resolves the tree from the session's
   pane (`tmux #{pane_current_path}`, so a `--worktree` session reads its worktree; the record's
@@ -1305,7 +1333,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   leash (see Wolfpack), whose stdout is the server's answer and which waits only while the
   user has that member paused.
 - **Status** = fleet poll (truth) + hooks (instant). Notification → attention; Stop → attention
-  + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention. Shown by
+  + idle; UserPromptSubmit → clear + busy; any keystroke into the tile clears attention.
+  The fleet's `busy` is NOT believed after a Stop until the next UserPromptSubmit (`turnOpen`
+  in sessions.ts): the CLI reports `busy` while a background shell or agent outlives the turn
+  ("done · 1 shell still running"), which left finished sessions "running" for hours. Shown by
   Foxtrot's pose in the pane head (see Foxtrot), not a dot.
 - **Profiles**: `deck` when packaged, `deck-dev` under `npm run dev`, or `DECK_PROFILE=x`.
   Profile = tmux socket name = userData folder name; hook port 47800 (deck) / 47801 (others).
@@ -1423,7 +1454,7 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   trying) from "wrong token" (the unpaired page, with "forget this pairing"). Safari's "Add to Home
   Screen" makes it an app.
 - **⌘ shortcuts** live in `menu.ts` AND in `isDeckShortcut()` in terminals.ts (xterm must
-  decline them). Add to both. Taken with ⇧: N M L I G A B E D P F. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
+  decline them). Add to both. Taken with ⇧: N M L I G A B E D P F R. View ▸ Grid holds the columns-per-side / rows radios and Reset Layout.
 
 ## State on disk
 
@@ -1441,16 +1472,18 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   `sprites/`, the compiled sprite library (`place.<place>.<art>.json`, `set.<rom>.<name>.json`; delete freely, it is rebuilt); see the Pokemon rule above
 - `glass/` — the glass theme's backdrops, a `<date>.json` (a 250px picture as a data: URL) per day ever shown; delete freely
 - `drops/` — copies of dropped files that had no lasting path (screenshot thumbnails, images out of pages); pruned after 30 days
+- `reminders.json` — the Reminders tile: reminders, notes and the running log (see the Reminders rule); the log is the only copy, so do not delete it freely
 - `space.json` — what Foxtrot last barked about the disk (the scan and its pending count); delete freely
 - `usage.json` — the account's rate-limit windows as last reported (see the top bar rule); delete freely
 - `statusline.sh` — the status-line command of every deck session, rewritten at each boot (posts to `/status`, then runs the user's own)
+- `update.log` — the last in-app `npm run dist` (install update), whole
 - `hooks.log` — one line per hook request the hooks server got (event, session, agent; a tool call only when the leash refused it); starts over past 1MB
 - `remote.json` — the phone's pairing token (see the phone rule); delete it to rotate
 - `spotify.json` — the connected Spotify account's tokens (see the music rule); delete it to disconnect
 - `config.json` — `DeckSettings` (theme, appearance, glassDate, gridColumns, gridRows, gridOrder, focusWidth, fonts, plugins, defaultCwd, defaultModel,
   weatherPlaces, weatherUnit,
   translateApiKey, showGit, showFiles, showVocab, vocabCycleSeconds, languagelogDb, showTranslate, showQuixote, showMusic, music, spotifyPlaylists, spotifyClientId,
-  showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, showSpace, spaceDir, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, gbPlaces, gbPatches, foxBark, remote…);
+  showReminders, showStudio, geminiApiKey, studioModel, showMol, molTiles, showLesson, lessonTiles, showPosture, showSpace, spaceDir, webApps, showPokemon, pokemonRomDir, spriteGag, spriteGagMoves, gbPlaces, gbPatches, foxBark, remote…);
   `showYouTube` in an older file is read as `showMusic`
   written by the app on every change, hand edits are sanitized on load (`main/settings.ts`)
 

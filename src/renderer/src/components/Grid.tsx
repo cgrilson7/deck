@@ -7,6 +7,7 @@ import { FilesTile } from './FilesTile'
 import { EditorTile } from './EditorTile'
 import { CellToolsContext } from '../lib/celltools'
 import { PLUGINS, PlusTile, type Placed } from './PlusTile'
+import { seenApps, touchApp } from '../lib/appuse'
 import { Tile } from './Tile'
 import { TranslateTile } from './TranslateTile'
 import { VocabTile } from './VocabTile'
@@ -15,6 +16,8 @@ import { PostureTile } from './Posture'
 import { SpaceTile } from './Space'
 import { BroadcastTile } from './BroadcastTile'
 import { SpendTile } from './SpendTile'
+import { SleepgodTile } from './SleepgodTile'
+import { RemindersTile } from './Reminders'
 import { FoxtrotTile } from './FoxtrotTile'
 import { WikiTile } from './WikiTile'
 import { MusicTile } from './MusicTile'
@@ -105,6 +108,9 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
     return { left, right: arrange(items, settings.gridOrder).right }
   }, [items, settings.gridOrder, settings.attentionFirst, state.open])
   const byKey = useMemo(() => new Map(items.map((i) => [i.key, i])), [items])
+  // Every mini app / web app in the grid has a creation date for the picker's list.
+  const pluginKeys = items.flatMap((i) => (i.kind === 'plugin' ? [i.key] : [])).join(' ')
+  useEffect(() => seenApps(pluginKeys ? pluginKeys.split(' ') : []), [pluginKeys])
 
   const save = (next: GridOrder, extra?: Partial<DeckSettings>) => patchSettings({ ...extra, gridOrder: { left: [], right: pruned(next, new Set(byKey.keys())).right } })
   // The tile that was just dropped: its column scrolls it into view once it is drawn in its new place.
@@ -128,6 +134,7 @@ export function Grid({ sessions, members, state, settings, openAgent }: { sessio
           landed={landed}
           onDrop={onDrop}
           onPlace={(k, add) => {
+            touchApp(k)
             // A web app: its tile shown (a new one registered first), at the foot of this column.
             const web = webAppOf(k)
             if (web !== null) {
@@ -299,6 +306,10 @@ function plugin(k: (typeof PLUGIN_KEYS)[number], settings: DeckSettings, focused
       return <BroadcastTile />
     case 'spend':
       return <SpendTile />
+    case 'sleepgod':
+      return <SleepgodTile />
+    case 'reminders':
+      return <RemindersTile session={focused} />
     case 'mol':
     case 'lesson':
       // A cell per Molecule tile, and per Lesson tile: the grid makes those itself.
@@ -429,6 +440,7 @@ function GridCell({ cell, side, across, onDrop, children }: { cell: Item | null;
       data-needy={cell?.needy ? '1' : undefined}
       data-key={cell?.key}
       style={tall > 1 ? { gridRow: `span ${tall}` } : undefined}
+      onPointerDownCapture={cell?.kind === 'plugin' ? () => touchApp(cell.key) : undefined}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(mimeOf(side))) return
         e.preventDefault()

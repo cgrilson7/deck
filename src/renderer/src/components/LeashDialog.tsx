@@ -43,7 +43,7 @@ export function LeashDialog({ ask, onClose }: { ask: LeashAsk; onClose: () => vo
         <p className="leash-why">
           {target.kind === 'beta'
             ? 'Its next tool call waits until you resume it. A note is typed into the alpha; leave it empty to pause quietly.'
-            : 'Its next tool call waits in the deck until you resume it. A note is typed into the alpha; leave it empty to pause quietly.'}
+            : 'Its next tool call waits in the workshop until you resume it. A note is typed into the alpha; leave it empty to pause quietly.'}
         </p>
         <textarea ref={box} className="leash-text" rows={3} value={text} spellCheck placeholder="A note for the alpha (optional)" onChange={(e) => setText(e.target.value)} />
         <div className="leash-actions">

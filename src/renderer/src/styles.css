@@ -96,6 +96,26 @@ button {
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--line);
 }
+/* Install update (UpdateButton): accent while there is one, red when the build failed. */
+.update-btn.is-available,
+.update-btn.is-building,
+.update-btn.is-installing {
+  color: var(--accent);
+}
+.update-btn.is-error {
+  color: var(--red);
+}
+.update-btn:disabled {
+  cursor: progress;
+}
+.update-btn .spin {
+  animation: update-spin 900ms linear infinite;
+}
+@keyframes update-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .bar-btn.icon {
   width: 28px;
   padding: 0;
@@ -215,7 +235,9 @@ button {
 }
 .wordmark {
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex: none;
   color: var(--accent);
 }
 .count {
@@ -1814,6 +1836,141 @@ button {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+/* The right +: every mini app and web app as ONE LIST (PlusTile.tsx): name, created, last used, open + go to. */
+.app-list {
+  display: flex;
+  flex-direction: column;
+}
+.app-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 118px 118px 236px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  font-size: 12.5px;
+}
+.app-row:not(.app-row-head):hover {
+  background: color-mix(in srgb, var(--ink) 5%, var(--fill));
+}
+.app-row-head {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
+  background: var(--overlay);
+  border-bottom-color: var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.app-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  justify-self: start;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.app-sort:hover,
+.app-sort.on {
+  color: var(--ink);
+}
+.app-col-state {
+  justify-self: start;
+}
+.app-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--hue);
+  background: color-mix(in srgb, var(--hue) 16%, var(--fill));
+}
+.app-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.app-name b {
+  font-weight: 600;
+}
+.app-name small {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-date {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-actions .pill {
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+.app-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--green);
+}
+.app-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.app-remove {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  border-radius: var(--radius);
+  color: var(--muted);
+  opacity: 0;
+}
+.app-row:hover .app-remove,
+.app-remove:focus-visible {
+  opacity: 1;
+}
+.app-remove:hover {
+  color: var(--red);
+}
+.app-row-confirm {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  background: color-mix(in srgb, var(--red) 8%, var(--fill));
+}
+/* The picker's "go to": the tile it brought into view flashes. */
+.cell.cell-flash {
+  outline: 3px solid transparent;
+  outline-offset: -1px;
+  border-radius: var(--radius);
+  animation: cell-flash 1.6s ease-out;
+}
+@keyframes cell-flash {
+  0%,
+  40% {
+    outline-color: var(--accent);
+  }
+  100% {
+    outline-color: transparent;
+  }
 }
 /* The launcher's session form and parked list inside the picker (SessionForm.tsx) */
 .picker-cards {
@@ -7735,6 +7892,75 @@ button.foxlog-chip:hover {
   color: var(--muted);
   font-size: 12px;
 }
+/* The Sleepgod tile (SleepgodTile.tsx): four numbers from the ring, two by two. */
+.sleepgod-spin {
+  animation: gt-spin 900ms linear infinite;
+}
+.sleepgod-glyph {
+  color: var(--accent);
+}
+.sleepgod-muted {
+  color: var(--muted);
+}
+.sleepgod-warn {
+  color: var(--yellow);
+}
+.sleepgod-empty {
+  font-size: 12px;
+  margin: 8px 10px;
+}
+.sleepgod-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
+  gap: 8px 12px;
+  padding: 6px 10px 8px;
+  overflow: hidden;
+}
+.sleepgod-metric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sleepgod-label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sleepgod-value {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.sleepgod-value small {
+  margin-left: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.sleepgod-dim {
+  color: var(--muted);
+}
+.sleepgod-note {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sleepgod-spark {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: 26px;
+  margin-top: 3px;
+  color: var(--accent);
+}
 /* The Spend tile (SpendTile.tsx): four window chips, a stacked bar chart, the projects. */
 .spend-glyph {
   color: var(--accent);
@@ -8146,3 +8372,196 @@ button.foxlog-chip:hover {
 .trash-card.lap {
   border-color: var(--green);
 }
+
+/* The Reminders tile + pane (Reminders.tsx): to do, notes, the running log, by project. */
+.reminders {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  min-height: 0;
+}
+.rm-pane { min-width: 0; flex: 1; width: 100%; outline: none; }
+.rm-head { gap: 6px; }
+.rm-tabs { display: flex; gap: 2px; flex: 0 0 auto; }
+.rm-tabs button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  padding: 1px 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rm-tabs button:hover { color: var(--ink); }
+.rm-tabs button.on { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, var(--fill)); }
+.reminders .spacer, .rm-edit-row .spacer, .rm-meta .spacer { flex: 1 1 auto; }
+.rm-select {
+  min-width: 0;
+  max-width: 110px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+.rm-pane .rm-select { max-width: 200px; font-size: 12px; }
+.rm-select option { color: var(--ink); background: var(--panel); }
+.rm-problem {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--blocked);
+  border-bottom: 1px solid var(--line);
+}
+.rm-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+  font-size: 12px;
+}
+.rm-pane .rm-list { padding: 12px 20px 20px; font-size: 14px; }
+.rm-empty { padding: 16px 4px; color: var(--muted); text-align: center; }
+.rm-more { display: block; margin: 8px auto 0; }
+.rm-group + .rm-group { margin-top: 8px; }
+.rm-group h4 {
+  margin: 4px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.rm-pane .rm-group h4 { font-size: 12px; margin-top: 12px; }
+.rm-count { margin-left: 6px; font-weight: 400; opacity: 0.8; }
+
+.rm-row { border-radius: 4px; }
+.rm-row:hover { background: color-mix(in srgb, var(--ink) 5%, var(--fill)); }
+.rm-line { display: flex; align-items: baseline; gap: 5px; padding: 2px 2px; min-width: 0; }
+.rm-check {
+  flex: 0 0 auto;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--panel);
+  cursor: pointer;
+}
+.rm-check:hover { border-color: var(--accent); }
+.rm-row.is-done .rm-check { background: var(--green); border-color: var(--green); }
+.rm-flag {
+  flex: 0 0 auto;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--muted) 45%, transparent);
+  cursor: pointer;
+}
+.rm-flag:hover:not(:disabled) { color: var(--ink); }
+.rm-p-high > .rm-line .rm-flag, .rm-flag.rm-p-high { color: var(--blocked); }
+.rm-p-high > .rm-line .rm-flag svg, .rm-flag.rm-p-high svg { fill: currentColor; }
+.rm-p-normal > .rm-line .rm-flag, .rm-flag.rm-p-normal { color: var(--muted); }
+.rm-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.rm-p-high > .rm-line .rm-text { font-weight: 600; }
+.rm-p-low > .rm-line .rm-text { color: var(--muted); }
+.rm-row.is-done .rm-text { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+.rm-has-detail { color: var(--muted); }
+.rm-due, .rm-chip, .rm-by, .rm-time { flex: 0 0 auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.rm-due.is-today { color: var(--busy); font-weight: 600; }
+.rm-due.is-late { color: var(--blocked); font-weight: 600; }
+.rm-chip { font-family: var(--mono); max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.rm-by { padding: 0 4px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 12%, var(--fill)); max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.rm-pane .rm-due, .rm-pane .rm-chip, .rm-pane .rm-by, .rm-pane .rm-time { font-size: 11px; }
+
+.rm-edit { display: flex; flex-direction: column; gap: 4px; padding: 2px 4px 6px 20px; }
+.rm-field {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font: inherit;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, var(--fill));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 5px;
+}
+.rm-field:focus, .rm-composer textarea:focus { outline: none; border-color: var(--accent); }
+.rm-edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.rm-seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.rm-seg button { border: 0; background: transparent; color: var(--muted); font: inherit; padding: 0 5px; cursor: pointer; }
+.rm-seg button.on { color: var(--ink); background: color-mix(in srgb, var(--ink) 12%, var(--fill)); }
+.rm-date { display: flex; align-items: center; gap: 3px; }
+.rm-date input { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 0 2px; }
+.rm-del {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  padding: 0 3px;
+  cursor: pointer;
+}
+.rm-del:hover { color: var(--blocked); }
+.rm-del.is-armed { color: var(--panel); background: var(--blocked); }
+
+.rm-note { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.rm-note-body { overflow-wrap: anywhere; cursor: text; }
+.rm-note-body p { margin: 0 0 4px; }
+.rm-meta { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); }
+.rm-day { margin-bottom: 4px; }
+.rm-day-label { font-size: 10px; color: var(--muted); padding: 2px 0; }
+.rm-pane .rm-day-label { font-size: 12px; }
+.rm-logline { display: flex; align-items: baseline; gap: 5px; padding: 1px 0; min-width: 0; }
+.rm-logtick { flex: 0 0 auto; align-self: center; color: var(--green); }
+.rm-logtext { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.rm-logline .rm-del { visibility: hidden; }
+.rm-logline:hover .rm-del, .rm-logline .rm-del.is-armed { visibility: visible; }
+
+.rm-composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--line);
+}
+.rm-composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 1px 8px;
+}
+.rm-pane .rm-composer { padding: 10px 20px; }
+.rm-pane .rm-composer textarea { font-size: 14px; line-height: 22px; }

@@ -38,7 +38,7 @@ interface TokenReply {
 const b64url = (b: Buffer): string => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
 const PAGE = (body: string) =>
-  `<!doctype html><meta charset="utf-8"><title>deck</title><body style="font:15px -apple-system,sans-serif;color:#333;background:#f6f3ea;display:grid;place-items:center;height:100vh;margin:0"><p>${body}</p>`
+  `<!doctype html><meta charset="utf-8"><title>Foxtrot's Workshop</title><body style="font:15px -apple-system,sans-serif;color:#333;background:#f6f3ea;display:grid;place-items:center;height:100vh;margin:0"><p>${body}</p>`
 
 export class SpotifyAuth {
   private readonly path: string
@@ -88,7 +88,7 @@ export class SpotifyAuth {
           this.cancelPending(new Error(err ?? 'state mismatch'))
           return
         }
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(PAGE('Spotify is connected to deck. You can close this tab.'))
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(PAGE("Spotify is connected to Foxtrot's Workshop. You can close this tab."))
         this.settle()
         resolve(got)
       })
