@@ -17,10 +17,12 @@ export interface MenuHandlers {
   spotifyAccount(): SpotifyAccount | null
   spotifyConnect(): void
   spotifyDisconnect(): void
+  /** The screen recorder's frame: open it, or (open) stop the take / close it. */
+  recorder(): void
 }
 
 /** Rebuilt on every settings change (the checkmarks in View) and whenever the recent-folder list changes. */
-export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, spotifyConnect, spotifyDisconnect }: MenuHandlers): void {
+export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, spotifyConnect, spotifyDisconnect, recorder }: MenuHandlers): void {
   const s = settings()
   const acct = spotifyAccount()
   const recentItems: MenuItemConstructorOptions[] = recent().map((cwd) => ({
@@ -156,6 +158,11 @@ export function buildMenu({ run, settings, patch, ui, recent, spotifyAccount, sp
             { label: 'Open Space (disk)', accelerator: 'CmdOrCtrl+Shift+S', click: () => ui({ type: 'toggleSpace' }) },
             { label: 'Show Space Tile', type: 'checkbox', checked: s.showSpace, click: () => patch({ showSpace: !settings().showSpace }) }
           ]
+        },
+        {
+          label: 'Screen Recorder (Reels, 9:16)',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => recorder()
         },
         {
           label: 'Broadcast',

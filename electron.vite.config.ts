@@ -11,15 +11,18 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
-    resolve: { alias: shared }
+    resolve: { alias: shared },
+    // The window's bridge, and the screen recorder frame's (main/recorder.ts).
+    build: { rollupOptions: { input: { index: resolve('src/preload/index.ts'), recorder: resolve('src/preload/recorder.ts') } } }
   },
   renderer: {
     plugins: [react()],
     resolve: { alias: shared },
-    // Two pages: the window (index.html) and the phone (phone.html, served by main/remote.ts).
+    // Three pages: the window (index.html), the phone (phone.html, served by main/remote.ts) and the
+    // screen recorder's frame (recorder.html, a window of its own: main/recorder.ts).
     build: {
       rollupOptions: {
-        input: { index: resolve('src/renderer/index.html'), phone: resolve('src/renderer/phone.html') }
+        input: { index: resolve('src/renderer/index.html'), phone: resolve('src/renderer/phone.html'), recorder: resolve('src/renderer/recorder.html') }
       }
     },
     // Under `npm run dev` the phone loads its page from Vite too (main redirects there), so listen

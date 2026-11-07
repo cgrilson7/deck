@@ -1427,6 +1427,8 @@ export interface DeckApi {
   openExternal(url: string): void
   /** A terminal link's way out: a URL, or a file path / file:// URL (resolved against `cwd`), opened in the `linkBrowser` app. */
   openInBrowser(target: string, cwd?: string): void
+  /** The screen recorder's 9:16 frame (main/recorder.ts): open it, or stop its take / close it. */
+  toggleRecorder(): void
   /**
    * Detect whether `text` is English or Spanish and translate it to the other one. `hint` is the
    * box it was typed into; it only breaks ties when detection is unsure. `fixed`: the text is

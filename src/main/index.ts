@@ -47,6 +47,7 @@ import { LessonWatch, lessonFigure, lintLessonFile, readCurriculum, readLesson }
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
+import { Recorder } from './recorder'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
@@ -77,6 +78,7 @@ if (!app.requestSingleInstanceLock({ profile })) {
 }
 
 let win: BrowserWindow | null = null
+let recorder: Recorder | null = null
 let manager: SessionManager | null = null
 let settings: SettingsStore | null = null
 let store: VocabStore | null = null
@@ -227,7 +229,8 @@ function menuHandlers() {
     recent: () => manager?.recent() ?? [],
     spotifyAccount: () => spotifyAuth?.account() ?? null,
     spotifyConnect: () => void spotifyAuth?.connect().catch((e: Error) => send('deck:error', e.message)),
-    spotifyDisconnect: () => spotifyAuth?.disconnect()
+    spotifyDisconnect: () => spotifyAuth?.disconnect(),
+    recorder: () => recorder?.toggle()
   }
 }
 
@@ -263,6 +266,16 @@ app.whenReady().then(async () => {
   // The deck's Claude Code plugin: `--plugin-dir` on every session, so each has the wolfpack
   // skill (`/deck:wolfpack`) and DECK_WOLFPACK points at the CLI it drives (plugin/scripts/wolfpack.mjs).
   const pluginDir = join(shipped, 'plugin')
+  // The screen recorder: a 9:16 frame of its own over the screen, filming for Reels (main/recorder.ts).
+  recorder = new Recorder(
+    userData,
+    join(pluginDir, 'native', 'recaudio.swift'),
+    env,
+    () => ({ url: process.env.ELECTRON_RENDERER_URL ? `${process.env.ELECTRON_RENDERER_URL}/recorder.html` : undefined, file: join(__dirname, '../renderer/recorder.html') }),
+    join(__dirname, '../preload/recorder.js'),
+    () => win
+  )
+  ipcMain.on('rec:toggle', () => recorder?.toggle())
 
   // Foxtrot watches every session from the top bar: state and transcripts in, a running log out.
   foxtrot = new Foxtrot(userData, (e) => send('fox:entry', e))

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Clapperboard } from 'lucide-react'
 import { UpdateButton } from './components/UpdateButton'
 import type { AgentView, DeckState } from '@shared/types'
 import { DocPane } from './components/DocPane'
@@ -748,6 +748,10 @@ export default function App() {
           </button>
           <UpdateButton />
           <PhonePair />
+          <button className="bar-btn" onClick={() => window.deck.toggleRecorder()} title="Screen recorder: a 9:16 frame for Reels / Stories you drag anywhere, with the Mac's sound (⌘⇧O)">
+            <Clapperboard size={13} />
+            <span>record</span>
+          </button>
           <span className="spacer" />
           {error && <span className="error">{error}</span>}
           <UsageMeter focusId={focused?.id ?? null} />
