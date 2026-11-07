@@ -161,6 +161,7 @@ export class Marathon {
   private prevBall: number | null = null
   /** A play may start: false after a jump until the ball has been dead (no live ball) again. */
   private armed = true
+  private prevClock: number | null = null
   private view: MarathonState
   private clockAt = 0
   private clockSaved = 0
@@ -277,6 +278,7 @@ export class Marathon {
 
   private idle(connected: boolean): void {
     this.clockAt = 0
+    this.prevClock = null
     this.live = false
     this.prevSpot = null
     this.prevBall = null
@@ -293,6 +295,19 @@ export class Marathon {
       this.save()
     }
     const hasBall = ball !== NO_BALL && Number.isFinite(ball)
+    // THE ROUND CLOCK WENT BACK UP: a new round, or a save state loaded (slot 2, the start of a round, is how
+    // Colin goes again after his offense). Forget the old round — its spot and its stale ball — so the first
+    // play is counted from the new round's own spot (read this poll), not dropped as a jump.
+    if (this.prevClock !== null && clock > this.prevClock + 0.5) {
+      this.live = false
+      this.armed = true
+      this.prevSpot = spot
+      this.prevBall = null
+      this.prevClock = clock
+      this.publish({ connected: true, inGame: clock > 0, onOffense: offense === 0, live: false })
+      return
+    }
+    this.prevClock = clock
     // A jump no run makes: a state load, a menu. Drop the play under way, start clean.
     if (hasBall && this.prevBall !== null && this.prevBall !== NO_BALL && Math.abs(ball - this.prevBall) > JUMP_YD) {
       this.live = false
