@@ -21,7 +21,6 @@ const KEYMAP: Record<string, Ps2Button> = {
   e: 'l2',
   r: 'r2',
   Enter: 'start',
-  Shift: 'select',
   Backspace: 'select'
 }
 
@@ -33,8 +32,8 @@ const typing = (t: EventTarget | null) => {
 /**
  * PCSX2 full size in the CENTER column (the PS1 pane's rules: Esc closes, a session click or focus change
  * closes it). The picture is PCSX2's own window, mirrored; the keyboard and the pad below play it while the
- * deck stays in front. Dressed as "FOXTROT PLAYS …" (FoxtrotPlays: the 9:16 stage for Reels / Stories, its
- * DualShock 2 lit orange as buttons go down, and playable by pointer); record lays the recorder over it.
+ * deck stays in front. Dressed as the RUSHING ATTACK MARATHON (FoxtrotPlays: the 9:16 stage for Reels / Stories, its
+ * marathon board and its DualShock 2 lit orange as buttons go down, and playable by pointer); record lays the recorder over it.
  * FULL SCREEN (⤢, F, a double-click): the game over everything, the session dock along the bottom.
  */
 export function Ps2Pane({ onClose, sessions, focusSlot }: { onClose: () => void; sessions: SessionView[]; focusSlot: number | null }) {
@@ -78,7 +77,13 @@ export function Ps2Pane({ onClose, sessions, focusSlot }: { onClose: () => void;
         else onClose()
         return
       }
-      if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return
+      // A ⌘ / ⌃ / ⌥ chord is the Mac's (⌘⇧4, a menu shortcut): let go of everything first, since whatever takes
+      // the keyboard next (the screenshot overlay) can swallow the key-ups and leave a button held in PCSX2.
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Meta' || e.key === 'Control' || e.key === 'Alt') {
+        m.releaseAll()
+        return
+      }
+      if (typing(e.target)) return
       if (e.key === 'f' || e.key === 'F') {
         e.preventDefault()
         setTheater((t) => !t)
@@ -97,7 +102,9 @@ export function Ps2Pane({ onClose, sessions, focusSlot }: { onClose: () => void;
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     window.addEventListener('blur', blur)
+    document.addEventListener('visibilitychange', blur)
     return () => {
+      document.removeEventListener('visibilitychange', blur)
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
@@ -130,6 +137,24 @@ export function Ps2Pane({ onClose, sessions, focusSlot }: { onClose: () => void;
         {st && st.running && !st.trusted && <span className="badge pokemon-err">keys need Accessibility for Foxtrot&apos;s Workshop</span>}
         {v.error && <span className="badge pokemon-err">{v.error}</span>}
         <span className="spacer" />
+        <button
+          className="ghost"
+          title="Take the last counted play back off the marathon (a miscount)"
+          onClick={() => {
+            if (confirm('Take the last counted play off the marathon?')) void window.deck.marathonUndo()
+          }}
+        >
+          undo play
+        </button>
+        <button
+          className="ghost"
+          title="Start the marathon over: yards, touchdowns and the clock back to zero"
+          onClick={() => {
+            if (confirm('Start the Rushing Attack marathon over from zero? The yards, touchdowns and clock are cleared.')) void window.deck.marathonReset()
+          }}
+        >
+          reset
+        </button>
         <button className="ghost" title="Record the 9:16 frame: the screen recorder laid exactly over it" onClick={record}>
           <Circle size={11} className="fp-rec-dot" /> record
         </button>
@@ -180,7 +205,7 @@ export function Ps2Pane({ onClose, sessions, focusSlot }: { onClose: () => void;
         <SessionDock sessions={sessions} focusSlot={focusSlot} onPick={goTo} onExit={() => setTheater(false)} />
       ) : (
         <div className="pokemon-row pokemon-keys fp-keys">
-          <span className="pokemon-hint">arrows pad · Z ✕ · X ○ · A □ · S △ · Q W L1 R1 · E R L2 R2 · ⏎ start · ⇧ select · F full screen · Esc closes · the controller plays PCSX2 directly and lights the pad</span>
+          <span className="pokemon-hint">arrows pad · Z ✕ · X ○ · A □ · S △ · Q W L1 R1 · E R L2 R2 · ⏎ start · ⌫ select · F full screen · Esc closes · the controller plays PCSX2 directly and lights the pad</span>
         </div>
       )}
     </section>

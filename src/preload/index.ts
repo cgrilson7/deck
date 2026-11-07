@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { GameboyRequest, Ps1Disc, Ps1DiscInfo, Ps2Button, Ps2Status, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
+import type { MarathonState, GameboyRequest, Ps1Disc, Ps1DiscInfo, Ps2Button, Ps2Status, GbSpriteReq, MolRequest, LessonFile, LessonRequest, AgentView, DeckApi, DeckUsage, DeckUpdate, DeckCommand, DeckSettings, NewSessionRequest, DeckState, DirListing, DocOpen, DocWrite, FileDoc, FoxEntry, GitChanges, GitDiff, Lang, QuixoteIndex, QuixoteSection, Gamecast, ReaderBook, SleepgodSummary, SpendReport, RemoteInfo, SavedForm, SavedWord, Screen, SpotifyAccount, SpotifyCommand, SpotifyItem, SpaceItem, SpaceStatus, TrashGame, SpotifyLibrary, SpotifyState, StoredWord, StudioInfo, StudioJob, StudioModel, StudioRequest, Transcript, TranslateResult, UiEvent, VocabChange, VocabResult, VocabStats, VocabWord, WeatherNow, WeatherPlace, WikiBackdrop, WikiHit, WikiPicture, WikiSummary, WordSchedule } from '@shared/types'
 import type { RemindersState } from '@shared/reminders'
 
 const api: DeckApi = {
@@ -219,6 +219,14 @@ const api: DeckApi = {
   ps2Key: (button: Ps2Button, down: boolean) => ipcRenderer.send('ps2:key', button, down),
   ps2ReleaseAll: () => ipcRenderer.send('ps2:releaseAll'),
   ps2Record: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.send('ps2:record', rect),
+  marathon: () => ipcRenderer.invoke('marathon:get') as Promise<MarathonState>,
+  onMarathon: (cb) => {
+    const h = (_e: unknown, s: MarathonState) => cb(s)
+    ipcRenderer.on('marathon:update', h)
+    return () => ipcRenderer.removeListener('marathon:update', h)
+  },
+  marathonReset: () => ipcRenderer.invoke('marathon:reset') as Promise<MarathonState>,
+  marathonUndo: () => ipcRenderer.invoke('marathon:undo') as Promise<MarathonState>,
   molResolve: (target) => ipcRenderer.invoke('mol:resolve', target),
   molLibrary: () => ipcRenderer.invoke('mol:library'),
   molShot: (bytes, tile) => ipcRenderer.invoke('mol:shot', bytes, tile),

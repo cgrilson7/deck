@@ -48,6 +48,7 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path'
 import { existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { Recorder } from './recorder'
+import { Marathon } from './marathon'
 import { randomUUID } from 'node:crypto'
 import { AgentTracker } from './agents'
 import { Posture, registerPoseScheme } from './posture'
@@ -356,6 +357,14 @@ app.whenReady().then(async () => {
     recorder.cover({ x: c.x + r.x, y: c.y + r.y, width: r.width, height: r.height })
   })
   app.on('will-quit', () => pcsx2.dispose())
+  // The Rushing Attack marathon: Madden's RAM over PCSX2's PINE socket, 26.2 miles counted play by play.
+  const marathon = new Marathon(userData)
+  marathon.onUpdate = (s) => send('marathon:update', s)
+  marathon.start()
+  ipcMain.handle('marathon:get', () => marathon.state())
+  ipcMain.handle('marathon:reset', () => marathon.reset())
+  ipcMain.handle('marathon:undo', () => marathon.undo())
+  app.on('will-quit', () => marathon.stop())
   // The capture's second way in (lib/ps2 tries getUserMedia with the source id first): a getDisplayMedia()
   // from the window is answered with PCSX2's game window, never a picker and never any other window.
   session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => {

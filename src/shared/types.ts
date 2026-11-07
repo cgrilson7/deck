@@ -1577,6 +1577,11 @@ export interface DeckApi {
   ps2ReleaseAll(): void
   /** Lay the screen recorder's frame over this rectangle of the deck window (CSS px, the "Foxtrot Plays" 9:16 stage). */
   ps2Record(rect: { x: number; y: number; width: number; height: number }): void
+  /** The Rushing Attack marathon: the count so far, pushed on every change; reset / undo the last play. */
+  marathon(): Promise<MarathonState>
+  onMarathon(cb: (s: MarathonState) => void): () => void
+  marathonReset(): Promise<MarathonState>
+  marathonUndo(): Promise<MarathonState>
   /** The Molecule tile: a target (library name, PDB id, AF-<uniprot>, a name, smiles:, a path) → its structure text. Main fetches and caches. */
   molResolve(target: string): Promise<MolStructure>
   /** The built-in library, for the empty tile's chips. */
@@ -1656,6 +1661,27 @@ export interface MolLibraryItem {
 export interface MolRequest {
   id: string
   body: Record<string, unknown>
+}
+
+/** The Rushing Attack marathon (main/marathon.ts): Colin's rushing yards toward 26.2 miles, read off Madden's RAM. */
+export interface MarathonState {
+  /** PCSX2's PINE socket answers. */
+  connected: boolean
+  /** Rushing Attack is on (its clock is running). */
+  inGame: boolean
+  /** Colin has the ball this round. */
+  onOffense: boolean
+  /** One of Colin's plays is under way. */
+  live: boolean
+  yards: number
+  /** Touchdowns: Colin's plays that ended at the goal line. */
+  tds: number
+  /** The marathon clock: time Rushing Attack rounds were running, summed (whole seconds; it runs while `inGame`). */
+  activeMs: number
+  goal: number
+  plays: number
+  last: { yards: number; at: number; td?: boolean } | null
+  startedAt: number
 }
 
 export type Ps2Button = 'up' | 'down' | 'left' | 'right' | 'cross' | 'circle' | 'square' | 'triangle' | 'start' | 'select' | 'l1' | 'r1' | 'l2' | 'r2' | 'l3' | 'r3' | 'lup' | 'ldown' | 'lleft' | 'lright'

@@ -7,7 +7,7 @@ import { FoxtrotPlays, stageRect } from './FoxtrotPlays'
 import { CellTools } from '../lib/celltools'
 
 /**
- * PCSX2 as a grid cell, dressed as "FOXTROT PLAYS …" (the 9:16 stage, scaled to the cell: make the cell
+ * PCSX2 as a grid cell, dressed as the RUSHING ATTACK MARATHON (the 9:16 stage, scaled to the cell: make the cell
  * taller with ↕ to see it large). Its picture is PCSX2's window, live; the pad lights with the real
  * controller. Click it and the pane takes the center column to play; ● lays the recorder over it.
  */
