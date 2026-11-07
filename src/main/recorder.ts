@@ -37,6 +37,10 @@ const MIN_H = 420
 
 const run = promisify(execFile)
 
+// A coordinate for Electron: Math.round(-0.3) is -0, which V8 does not count as an int32, and
+// setPosition throws "conversion failure" in main (a drag to the screen's left or top edge did it).
+const int = (n: number): number => Math.round(n) | 0
+
 export class Recorder {
   private win: BrowserWindow | null = null
   private readonly dir: string
@@ -233,7 +237,7 @@ export class Recorder {
     })
     // The border or the bar dragged: the window's new top-left corner.
     ipcMain.on('rec:move', (e, x: number, y: number) => {
-      if (mine(e) && Number.isFinite(x) && Number.isFinite(y)) this.win!.setPosition(Math.round(x), Math.round(y))
+      if (mine(e) && Number.isFinite(x) && Number.isFinite(y)) this.win!.setPosition(int(x), int(y))
     })
     // The corner handle: the filmed rectangle's new height, the top-left corner staying put.
     ipcMain.on('rec:resize', (e, height: number) => {
@@ -249,8 +253,14 @@ export class Recorder {
     // What to film: the display under the frame's middle, as a desktop capture source.
     ipcMain.handle('rec:source', async (e) => {
       if (!mine(e)) throw new Error('not the recorder')
+      // Screen capture without the Screen Recording permission fails in the page as a bare "Permission denied".
+      const screenStatus = systemPreferences.getMediaAccessStatus('screen')
+      if (screenStatus === 'denied' || screenStatus === 'restricted') {
+        void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+        throw new Error('screen recording is off for the deck: turn it on in the System Settings pane just opened, then quit and reopen the deck')
+      }
       const b = this.win!.getBounds()
-      const display = screen.getDisplayNearestPoint({ x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) })
+      const display = screen.getDisplayNearestPoint({ x: int(b.x + b.width / 2), y: int(b.y + b.height / 2) })
       const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
       const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0]
       if (!src) throw new Error('no screen to capture (System Settings ▸ Privacy & Security ▸ Screen Recording)')
@@ -260,6 +270,13 @@ export class Recorder {
     ipcMain.handle('rec:audioOn', async (e) => {
       if (!mine(e)) return 'not the recorder'
       // Recording any input (BlackHole is one) takes the microphone permission.
+      // macOS asks only once: after a "no" (status 'denied') askForMediaAccess answers false without a prompt,
+      // so open the Microphone pane of System Settings where it can be turned on.
+      const status = systemPreferences.getMediaAccessStatus('microphone')
+      if (status === 'denied' || status === 'restricted') {
+        void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+        return 'microphone access is off for the deck: turn it on in the System Settings pane just opened, then try again'
+      }
       if (!(await systemPreferences.askForMediaAccess('microphone'))) return 'microphone access is off for the deck (System Settings ▸ Privacy & Security ▸ Microphone)'
       return this.routeAudio()
     })

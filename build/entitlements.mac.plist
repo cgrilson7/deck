@@ -13,5 +13,9 @@
        no prompt, askForMediaAccess answers false. -->
   <key>com.apple.security.device.camera</key>
   <true/>
+  <!-- The screen recorder: recording any audio input (BlackHole for the Mac's sound, or the microphone)
+       is refused the same silent way without this. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
 </dict>
 </plist>

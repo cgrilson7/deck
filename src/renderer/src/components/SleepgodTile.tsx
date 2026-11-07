@@ -1,7 +1,7 @@
-// The Sleepgod tile: heart rate, steps, skin temperature and last night's sleep from the sleepgod
-// server (~/sleepgod), four numbers at a glance. Main does the asking (main/sleepgod.ts). The numbers
-// are as of the ring's last sync, about every 30 minutes, unless its live view is running, when the
-// heart rate is live. The refresh button syncs now. ↗ opens the server's own pages, which hold the detail.
+// The Sleepgod tile: TWO numbers from the sleepgod server (~/sleepgod), last night's sleep and today's
+// steps; nothing else (no heart rate, no temperature: Colin's rule). Main does the asking
+// (main/sleepgod.ts). The numbers are as of the ring's last sync, about every 30 minutes. The refresh
+// button syncs now. ↗ opens the server's own pages, which hold the detail.
 
 import { useCallback, useEffect, useState } from 'react'
 import { ExternalLink, HeartPulse, RefreshCw } from 'lucide-react'
@@ -21,30 +21,12 @@ const wall = (iso: string): string => {
 }
 const old = (unix: number | null, now: number): boolean => unix !== null && now - unix > 2 * 3600
 
-function Spark({ values }: { values: number[] }) {
-  if (values.length < 2) return null
-  const W = 100
-  const H = 22
-  const lo = Math.min(...values)
-  const span = Math.max(Math.max(...values) - lo, 1)
-  const pts = values.map((v, i) => `${((i / (values.length - 1)) * W).toFixed(1)},${(H - 2 - ((v - lo) / span) * (H - 4)).toFixed(1)}`)
-  return (
-    <svg className="sleepgod-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={pts.join(' ')} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function Metric(props: { label: string; value: string; unit?: string; note: string; title?: string; dim?: boolean; spark?: number[] }) {
+function Metric(props: { label: string; value: string; note: string; title?: string }) {
   return (
     <div className="sleepgod-metric" title={props.title}>
       <div className="sleepgod-label">{props.label}</div>
-      <div className={props.dim ? 'sleepgod-value sleepgod-dim' : 'sleepgod-value'}>
-        {props.value}
-        {props.unit && <small>{props.unit}</small>}
-      </div>
+      <div className="sleepgod-value">{props.value}</div>
       <div className="sleepgod-note">{props.note}</div>
-      {props.spark && <Spark values={props.spark} />}
     </div>
   )
 }
@@ -79,9 +61,6 @@ export function SleepgodTile() {
   const syncError = refused ?? (clicked && !syncing ? (data?.sync.failure ?? null) : null)
 
   const stop = (e: React.SyntheticEvent): void => e.stopPropagation()
-  const hr = data?.heart_rate
-  const live = hr?.live_bpm != null
-  const temp = data?.temperature
   const sleep = data?.sleep
   const stale = data ? old(data.last_sync, data.now) : false
   const stages = sleep?.stages
@@ -110,32 +89,16 @@ export function SleepgodTile() {
       ) : (
         <div className="sleepgod-grid">
           <Metric
-            label={live ? 'Heart rate · live' : 'Heart rate'}
-            value={String(live ? hr?.live_bpm : (hr?.bpm ?? '–'))}
-            unit="bpm"
-            dim={live ? hr?.live_settling : false}
-            note={live ? (hr?.live_settling ? 'sensor settling' : 'updating on each beat') : hr?.at ? `at ${clock(hr.at)}, today ${hr.low}–${hr.high}` : 'no reading today'}
-            spark={hr?.recent}
+            label="Sleep last night"
+            value={sleep ? hm(sleep.asleep_min) : '–'}
+            note={sleep ? `${wall(sleep.onset)}–${wall(sleep.wake)} · score ${sleep.score}` : 'no night found'}
+            title={sleep ? `${sleep.waso_min} min awake.${stages ? ` The ring's unverified stage estimate: ${stages}.` : ''}` : undefined}
           />
           <Metric
             label="Steps today"
             value={(data.steps.today ?? 0).toLocaleString()}
             note={`${(data.steps.distance_m / 1609.34).toFixed(2)} mi · ~${data.steps.kcal} kcal`}
             title={`${(data.steps.distance_m / 1000).toFixed(2)} km, ${data.steps.active_hours} active hour(s). Calories are the ring's estimate.`}
-          />
-          <Metric
-            label="Skin temperature"
-            value={temp?.celsius != null ? temp.celsius.toFixed(1) : '–'}
-            unit="°C"
-            note={temp?.at ? `at ${clock(temp.at)}, unverified` : 'no reading today'}
-            title="Finger skin, not core temperature. Unverified on this ring, and only meaningful against your own normal."
-            spark={temp?.recent}
-          />
-          <Metric
-            label="Sleep last night"
-            value={sleep ? hm(sleep.asleep_min) : '–'}
-            note={sleep ? `${wall(sleep.onset)}–${wall(sleep.wake)} · score ${sleep.score}` : 'no night found'}
-            title={sleep ? `Resting HR ${Math.round(sleep.resting_hr)}, ${sleep.waso_min} min awake.${stages ? ` The ring's unverified stage estimate: ${stages}.` : ''}` : undefined}
           />
         </div>
       )}

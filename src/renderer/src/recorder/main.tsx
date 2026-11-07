@@ -72,9 +72,18 @@ interface Take {
   cancel(): void
 }
 
+// Which capture failed: the page's own error is a bare "Permission denied" for any of them.
+async function step<T>(what: string, f: () => Promise<T>): Promise<T> {
+  try {
+    return await f()
+  } catch (e) {
+    throw new Error(`${what}: ${(e as Error).message}`)
+  }
+}
+
 async function startTake(opts: { sound: boolean; mic: boolean; onWarn(w: string): void; onSaved(path: string): void; onError(e: string): void }): Promise<Take> {
   const src = await window.rec.source()
-  const screenStream = await navigator.mediaDevices.getUserMedia({
+  const screenStream = await step('screen capture (System Settings ▸ Privacy & Security ▸ Screen Recording)', () => navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       mandatory: {
@@ -85,7 +94,7 @@ async function startTake(opts: { sound: boolean; mic: boolean; onWarn(w: string)
         maxFrameRate: 60
       }
     } as unknown as MediaTrackConstraints
-  })
+  }))
   const video = document.createElement('video')
   video.muted = true
   video.srcObject = screenStream
@@ -127,7 +136,7 @@ async function startTake(opts: { sound: boolean; mic: boolean; onWarn(w: string)
         const bh = inputs.find((d) => /blackhole/i.test(d.label))
         if (!bh) opts.onWarn('no system sound: BlackHole 2ch is not an input')
         else {
-          const s = await navigator.mediaDevices.getUserMedia({ audio: { ...plain, deviceId: { exact: bh.deviceId } } })
+          const s = await step('system sound via BlackHole (System Settings ▸ Privacy & Security ▸ Microphone)', () => navigator.mediaDevices.getUserMedia({ audio: { ...plain, deviceId: { exact: bh.deviceId } } }))
           extra.push(s)
           audioCtx.createMediaStreamSource(s).connect(dest)
         }
@@ -140,7 +149,7 @@ async function startTake(opts: { sound: boolean; mic: boolean; onWarn(w: string)
       const pick = def && !/blackhole/i.test(def.label) ? def : inputs.find((d) => d.deviceId !== 'default' && !/blackhole/i.test(d.label))
       if (!pick) opts.onWarn('no microphone found')
       else {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: pick.deviceId }, echoCancellation: true, noiseSuppression: true } })
+        const s = await step('microphone (System Settings ▸ Privacy & Security ▸ Microphone)', () => navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: pick.deviceId }, echoCancellation: true, noiseSuppression: true } }))
         extra.push(s)
         audioCtx.createMediaStreamSource(s).connect(dest)
       }

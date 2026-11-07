@@ -47,7 +47,8 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
-        "NSCameraUsageDescription": "The Posture tile watches how you sit (nothing leaves the Mac)."
+        "NSCameraUsageDescription": "The Posture tile watches how you sit (nothing leaves the Mac).",
+        "NSMicrophoneUsageDescription": "The screen recorder records the Mac's sound (through BlackHole) and, if you ask, your microphone."
       }
     }
   },
