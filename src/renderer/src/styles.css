@@ -6461,9 +6461,16 @@ button.foxlog-chip:hover {
   gap: 26px;
   font-family: 'Press Start 2P', monospace;
 }
+.fp-kicker {
+  margin-bottom: -12px;
+  text-align: center;
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: var(--fp-ink);
+}
 .fp-title {
   text-align: center;
-  font-size: 40px;
+  font-size: 34px;
   line-height: 1.1;
   color: var(--fp-fox);
   white-space: nowrap;
@@ -6520,7 +6527,7 @@ button.foxlog-chip:hover {
   box-shadow: 0 0 18px color-mix(in srgb, var(--fp-fox) 60%, transparent);
   transition: width 400ms ease-out;
 }
-/* Foxtrot stands on the bar where the marathon is, running while a play is live. */
+/* The runner stands on the bar where the marathon is, striding while a play is live. */
 .fp-runner {
   position: absolute;
   bottom: calc(100% - 8px);
@@ -6529,6 +6536,20 @@ button.foxlog-chip:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.fp-runner-icon {
+  display: block;
+  width: 74px;
+  height: 74px;
+  fill: var(--fp-fox);
+  filter: drop-shadow(3px 3px 0 #000) drop-shadow(0 0 10px color-mix(in srgb, var(--fp-fox) 45%, transparent));
+}
+.fp-runner-icon.live {
+  animation: fp-stride 360ms ease-in-out infinite alternate;
+}
+@keyframes fp-stride {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(-6px) rotate(-3deg); }
 }
 .fp-gain {
   position: absolute;

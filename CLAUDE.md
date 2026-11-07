@@ -995,8 +995,10 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   on, only the deck running. Sessions outside the deck have no door. Not on the phone.
 - **The Rushing Attack marathon** (`components/FoxtrotPlays.tsx`, `lib/ps2pad.ts`, `lib/marathon.ts`, `main/marathon.ts`; the PS2
   tile AND pane): PCSX2's mirror dressed as a 9:16 stage for Reels / Stories, laid out at 1080×1920 and CSS-scaled to its box (so
-  `lib/ps2`'s canvases size by `getBoundingClientRect`): the game's picture; the board — RUSHING ATTACK MARATHON, the race clock,
-  yards rushed, touchdowns, miles, and Foxtrot running along a bar to 26.2 miles (46,112 yd); and a DualShock 2 — Evan-Amos's
+  `lib/ps2`'s canvases size by `getBoundingClientRect`): the game's picture; the board — "Colin runs Maine's" (small, grey) over 2026 RUSHING
+  ATTACK MARATHON, the race clock, yards rushed, touchdowns, miles, and a football player running along a bar to 26.2 miles
+  (46,112 yd) — Freepik's Flaticon icon 53336 traced to one path (`assets/runner-icon.ts`; its free licence wants the credit
+  "Icon by Freepik, flaticon.com" where it shows: `assets/CREDITS-runner.md`); and a DualShock 2 — Evan-Amos's
   public-domain Commons photo (`assets/ds2.webp`, cable erased; `assets/CREDITS-ds2.md`) with a hotspot per button in the photo's
   own pixels (`SPOTS`; L1/L2/R1/R2 are tabs over its back edge, the ¾ view hides them) — lit orange while down: the real controller
   through the Gamepad API (standard mapping, sticks lean) merged with what the deck is holding (`ps2().holding`); in the pane the
@@ -1004,7 +1006,8 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   READS ONLY, only for SLUS-21000, at the addresses mapped in ~/rushing-attack-247/trainer/rushing-attack-map.md (ball, spot,
   dead-ball flag, offense, round clock; all static). A play's yards = the ball's last live value − the spot on the poll before it
   went live (never the spot's change: a TD resets it backwards); only Colin's (offense 0); none starts at clock 0; a >15 yd jump
-  between polls (a state load) drops the play and none starts until the ball is dead again; a TD = ending at ≥ 49.5 (the goal is
+  between polls drops the play and none starts until the ball is dead again; the round clock going back UP (a new round, or a
+  save state such as slot 2 loaded after his offense) forgets the old round and counts the first play from the new spot; a TD = ending at ≥ 49.5 (the goal is
   50). The clock sums the time a round's clock runs. `userData/marathon.json` keeps it all; the pane's head has undo play / reset
   (both confirm). "record" (`ps2Record` → `Recorder.cover`) opens the screen recorder with its filmed inside exactly over the stage.
 - **Screen recorder** (`main/recorder.ts`, `src/renderer/src/recorder/`, `src/preload/recorder.ts`, `plugin/native/recaudio.swift`;
