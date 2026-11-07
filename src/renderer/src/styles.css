@@ -6350,6 +6350,212 @@ button.foxlog-chip:hover {
     inset 0 2px 3px rgba(255, 255, 255, 0.12);
 }
 
+/* ---- FOXTROT PLAYS (FoxtrotPlays.tsx): the PS2 as a 9:16 stage made to be filmed for Reels / Stories. Laid out
+   at 1080×1920 and scaled to its box by a transform, so every size below is in the FILE's pixels. The game's
+   picture, Foxtrot idling beside "FOXTROT PLAYS" + the game, and a DualShock 2 whose buttons light Foxtrot's
+   coat orange as they go down. A physical object, so its colours are its own (scoped here), like the GBC's. */
+.fp-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: #050506;
+}
+.fp-host.pokemon-stage {
+  padding: 8px;
+  align-items: stretch;
+  background: #050506;
+}
+.fp-box {
+  position: relative;
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.fp {
+  --fp-ink: #8c8d96;
+  --fp-cream: #fbf1dd;
+  --fp-fox: #f08a3c;
+  --fp-fox-hi: #ffb067;
+  --fp-fox-deep: #9d5021;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1080px;
+  height: 1920px;
+  transform-origin: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 30% at 50% 60%, rgba(240, 138, 60, 0.14), transparent 70%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0 3px, transparent 3px 14px),
+    linear-gradient(180deg, #1b1c20, #08080a);
+  color: var(--fp-cream);
+}
+.fp-top {
+  position: absolute;
+  top: 70px;
+  right: 60px;
+  display: flex;
+  gap: 18px;
+}
+.fp-top .ps2-lamp {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+.fp-screen {
+  position: absolute;
+  left: 36px;
+  top: 160px;
+  width: 1008px;
+  height: 756px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #050506;
+  box-shadow:
+    0 0 0 8px #26272c,
+    0 0 0 10px #3a3b42,
+    0 24px 60px rgba(0, 0, 0, 0.7);
+}
+.fp-screen .ps2-canvas {
+  position: absolute;
+  inset: 0;
+}
+.fp-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  font-size: 34px;
+  color: var(--fp-ink);
+  text-align: center;
+  padding: 40px;
+}
+.fp-pick {
+  font-size: 34px;
+  gap: 24px;
+}
+.fp-pick .pokemon-hint {
+  font-size: 30px;
+}
+.fp-pick .pill {
+  font-size: 30px;
+  padding: 12px 26px;
+  border-radius: 40px;
+}
+.fp-title {
+  position: absolute;
+  left: 60px;
+  right: 60px;
+  top: 966px;
+  height: 210px;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+}
+.fp-fox {
+  flex: 0 0 auto;
+  padding-bottom: 6px;
+  border-bottom: 6px solid var(--fp-fox-deep);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6));
+}
+.fp-words {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.15;
+}
+.fp-plays {
+  font-size: 34px;
+  letter-spacing: 4px;
+  color: var(--fp-fox);
+  text-shadow: 4px 4px 0 var(--fp-fox-deep);
+}
+.fp-game {
+  color: var(--fp-cream);
+  white-space: nowrap;
+  /* A pixel outline and a hard drop, the title-card way. */
+  text-shadow:
+    -3px 0 0 #000, 3px 0 0 #000, 0 -3px 0 #000, 0 3px 0 #000,
+    6px 6px 0 var(--fp-fox-deep);
+}
+.fp-pad {
+  position: absolute;
+  left: 60px;
+  top: 1196px;
+  width: 960px;
+  height: 690px;
+}
+.ds2 {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.75));
+  user-select: none;
+}
+/* A hotspot is invisible until its button is down; then the button is lit from inside (screen keeps the
+   photo's face and symbol) and glows. */
+.ds2-spot .ds2-lit,
+.ds2-spot .ds2-glow,
+.ds2-ring {
+  opacity: 0;
+  transition: opacity 50ms;
+}
+.ds2.playable .ds2-spot .ds2-lit {
+  fill: transparent;
+  opacity: 1;
+}
+.ds2-spot.on .ds2-lit {
+  fill: var(--fp-fox);
+  opacity: 0.82;
+  mix-blend-mode: screen;
+}
+.ds2-spot.on .ds2-glow,
+.ds2-stick.moved .ds2-glow {
+  fill: var(--fp-fox);
+  opacity: 0.55;
+}
+.ds2-stick.moved .ds2-ring {
+  fill: none;
+  stroke: var(--fp-fox-hi);
+  stroke-width: 9;
+  opacity: 1;
+}
+.ds2-sh rect {
+  fill: #151517;
+  stroke: #000;
+  stroke-width: 3;
+  transition: fill 50ms;
+}
+.ds2-sh text {
+  fill: var(--fp-ink);
+  font: 700 30px system-ui, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+.ds2-sh.on rect {
+  fill: var(--fp-fox);
+  stroke: var(--fp-fox-hi);
+  filter: drop-shadow(0 0 14px var(--fp-fox));
+}
+.ds2-sh.on text {
+  fill: #2a1206;
+}
+.fp-rec-dot {
+  color: #ff453a;
+  fill: #ff453a;
+}
+.fp-keys {
+  justify-content: center;
+}
+
 /* ---- The Game Boy, dressed as a Game Boy Color in Dandelion yellow, whatever the theme: a dark bezel around
    the screen with its red power lamp, the cross pad, SELECT / START on their slant, B and A, the speaker
    slots. Our own drawing, no marks. */

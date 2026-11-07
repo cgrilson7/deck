@@ -348,6 +348,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('ps2:launch', (_e, path: string) => pcsx2.launch(String(path ?? '')))
   ipcMain.on('ps2:key', (_e, button: string, down: boolean) => void pcsx2.key(button as never, !!down).catch(() => {}))
   ipcMain.on('ps2:releaseAll', () => void pcsx2.releaseAll().catch(() => {}))
+  // "Foxtrot Plays" → the recorder: its frame laid exactly over the 9:16 stage (a rect in the deck window's CSS px).
+  ipcMain.on('ps2:record', (e, r: { x: number; y: number; width: number; height: number }) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w || !recorder || ![r?.x, r?.y, r?.width, r?.height].every(Number.isFinite)) return
+    const c = w.getContentBounds()
+    recorder.cover({ x: c.x + r.x, y: c.y + r.y, width: r.width, height: r.height })
+  })
   app.on('will-quit', () => pcsx2.dispose())
   // The capture's second way in (lib/ps2 tries getUserMedia with the source id first): a getDisplayMedia()
   // from the window is answered with PCSX2's game window, never a picker and never any other window.

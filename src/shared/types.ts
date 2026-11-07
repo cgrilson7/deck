@@ -1575,6 +1575,8 @@ export interface DeckApi {
   /** A pad button down / up in PCSX2 (posted to its process: the deck stays in front). */
   ps2Key(button: Ps2Button, down: boolean): void
   ps2ReleaseAll(): void
+  /** Lay the screen recorder's frame over this rectangle of the deck window (CSS px, the "Foxtrot Plays" 9:16 stage). */
+  ps2Record(rect: { x: number; y: number; width: number; height: number }): void
   /** The Molecule tile: a target (library name, PDB id, AF-<uniprot>, a name, smiles:, a path) → its structure text. Main fetches and caches. */
   molResolve(target: string): Promise<MolStructure>
   /** The built-in library, for the empty tile's chips. */
@@ -1666,6 +1668,8 @@ export interface Ps2Status {
   trusted: boolean
   error: string | null
   discs: { name: string; path: string }[]
+  /** The game PCSX2 has up: its window title (PCSX2 names the window after the GameDB title), else the disc it was started on. */
+  game: string | null
 }
 
 /** A PS1 disc under `ps1DiscDir`: `path` is the .cue (or the single-file image); `files` everything the core loads, as psx:// URLs. */

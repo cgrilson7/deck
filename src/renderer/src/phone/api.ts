@@ -359,6 +359,7 @@ export const api: DeckApi = {
   ps2Launch: notHere,
   ps2Key: noop,
   ps2ReleaseAll: noop,
+  ps2Record: noop,
   molResolve: notHere,
   molLibrary: () => Promise.resolve([]),
   molShot: notHere,

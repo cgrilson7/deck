@@ -218,6 +218,7 @@ const api: DeckApi = {
   ps2Launch: (path: string) => ipcRenderer.invoke('ps2:launch', path) as Promise<void>,
   ps2Key: (button: Ps2Button, down: boolean) => ipcRenderer.send('ps2:key', button, down),
   ps2ReleaseAll: () => ipcRenderer.send('ps2:releaseAll'),
+  ps2Record: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.send('ps2:record', rect),
   molResolve: (target) => ipcRenderer.invoke('mol:resolve', target),
   molLibrary: () => ipcRenderer.invoke('mol:library'),
   molShot: (bytes, tile) => ipcRenderer.invoke('mol:shot', bytes, tile),

@@ -80,7 +80,7 @@ class Ps2Mirror {
     window.clearInterval(this.poll)
     cancelAnimationFrame(this.raf)
     this.closeStream()
-    window.deck.ps2ReleaseAll()
+    this.releaseAll()
   }
 
   /** Ask main where PCSX2 is; (re)start the capture when its window changed. */
@@ -159,9 +159,12 @@ class Ps2Mirror {
     for (const canvas of this.canvases) {
       const box = canvas.parentElement
       if (!box) continue
+      // The box as it is ON SCREEN (the "Foxtrot Plays" stage is a CSS-scaled 1080×1920), so a small tile
+      // never paints a full-size canvas.
       const dpr = window.devicePixelRatio || 1
-      const bw = Math.max(1, Math.round(box.clientWidth * dpr))
-      const bh = Math.max(1, Math.round(box.clientHeight * dpr))
+      const r = box.getBoundingClientRect()
+      const bw = Math.max(1, Math.round(r.width * dpr))
+      const bh = Math.max(1, Math.round(r.height * dpr))
       if (canvas.width !== bw || canvas.height !== bh) {
         canvas.width = bw
         canvas.height = bh
@@ -178,14 +181,40 @@ class Ps2Mirror {
     }
   }
 
+  // What the DECK is holding (keyboard, the drawn pad), for the pad drawing's lights (lib/ps2pad.ts adds the gamepad).
+  private readonly held = new Set<Ps2Button>()
+  private readonly heldListeners = new Set<() => void>()
+
+  get holding(): ReadonlySet<Ps2Button> {
+    return this.held
+  }
+  onHeld(cb: () => void): () => void {
+    this.heldListeners.add(cb)
+    return () => {
+      this.heldListeners.delete(cb)
+    }
+  }
+  private heldChanged(): void {
+    for (const l of this.heldListeners) l()
+  }
+
   press(b: Ps2Button): void {
     window.deck.ps2Key(b, true)
+    if (!this.held.has(b)) {
+      this.held.add(b)
+      this.heldChanged()
+    }
   }
   release(b: Ps2Button): void {
     window.deck.ps2Key(b, false)
+    if (this.held.delete(b)) this.heldChanged()
   }
   releaseAll(): void {
     window.deck.ps2ReleaseAll()
+    if (this.held.size) {
+      this.held.clear()
+      this.heldChanged()
+    }
   }
 
   async launch(path: string): Promise<void> {

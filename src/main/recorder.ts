@@ -117,6 +117,16 @@ export class Recorder {
     if (this.isOpen()) this.win!.close()
   }
 
+  /** Open the frame (if it is not up) with its filmed inside exactly over this screen rectangle (a 9:16 stage of the deck's). */
+  cover(r: { x: number; y: number; width: number; height: number }): void {
+    if (!this.isOpen()) this.open()
+    const h = Math.max(MIN_H, r.height)
+    const w = Math.round(h * ASPECT)
+    // `| 0`: Math.round can give -0 at a screen edge, which setBounds refuses as not an int32.
+    this.win!.setBounds({ x: Math.round(r.x + (r.width - w) / 2 - REC_PAD) | 0, y: Math.round(r.y - REC_PAD) | 0, width: w + 2 * REC_PAD, height: Math.round(h) + 2 * REC_PAD + REC_BAR })
+    this.win!.show()
+  }
+
   // ---- sound -------------------------------------------------------------------------
 
   private compileAudio(): Promise<string> {

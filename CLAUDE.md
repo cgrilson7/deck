@@ -993,6 +993,15 @@ github.com/cgrilson7/casa, private) and will run on the mini.
   same view at reading size in the CENTER, taking turns with the others (Esc closes). THE DOOR (`POST /reminders`, `hooks.onReminders`, a
   field; `DECK_REMINDERS` derived beside mol.mjs in `hooks.ts`, so an older session uses `$(dirname "$DECK_MOL")/reminders.mjs`) needs no tile
   on, only the deck running. Sessions outside the deck have no door. Not on the phone.
+- **Foxtrot Plays** (`components/FoxtrotPlays.tsx`, `lib/ps2pad.ts`; the PS2 tile AND pane): PCSX2's mirror dressed as a 9:16
+  stage for Reels / Stories, laid out at 1080×1920 and CSS-scaled to its box (so `lib/ps2`'s canvases size by
+  `getBoundingClientRect`): the game's picture, Foxtrot idling beside "FOXTROT PLAYS" over the game's name — `Ps2Status.game`,
+  PCSX2's window title (it titles the window with the GameDB name), else the disc on its command line — and a DualShock 2 — Evan-Amos's
+  public-domain Commons photo (`assets/ds2.webp`, cable erased; `assets/CREDITS-ds2.md`) with a hotspot per button in the
+  photo's own pixels (`SPOTS`; L1/L2/R1/R2 are tabs over its back edge, the ¾ view hides them) — whose buttons light Foxtrot's
+  orange while down: the real controller through the Gamepad API (standard
+  mapping, sticks lean) merged with what the deck is holding (`ps2().holding`); in the pane the drawing plays too. "record"
+  (`ps2Record` → `Recorder.cover`) opens the screen recorder with its filmed inside exactly over the stage.
 - **Screen recorder** (`main/recorder.ts`, `src/renderer/src/recorder/`, `src/preload/recorder.ts`, `plugin/native/recaudio.swift`;
   ⌘⇧O, View ▸ Screen Recorder, the top bar's `record`): FILMS THE DECK FOR INSTAGRAM REELS / STORIES, 1080×1920. The
   FRAME is a window of its own — transparent, frameless, always on top, on every Space, `setContentProtection` — a dark

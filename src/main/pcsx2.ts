@@ -180,7 +180,31 @@ export class Pcsx2 {
     } catch (err) {
       error = (err as Error).message
     }
-    return { installed, running: pid !== null, window, trusted, error, discs: this.listDiscs() }
+    return { installed, running: pid !== null, window, trusted, error, discs: this.listDiscs(), game: pid ? await this.game(pid, window?.title ?? '') : null }
+  }
+
+  private gameCache: { pid: number; disc: string | null } | null = null
+
+  /**
+   * The game that is up, for "Foxtrot Plays …": PCSX2 titles its game window with the GameDB name
+   * ("Madden NFL 2005"); a window still titled PCSX2 (the game list, a BIOS boot) falls back to the disc
+   * named on its command line, read once per pid.
+   */
+  private async game(pid: number, title: string): Promise<string | null> {
+    const t = title.replace(/\s*\[[A-Z]{4}-\d{5}\]\s*/g, ' ').replace(/\s+/g, ' ').trim()
+    if (t && !/^pcsx2\b/i.test(t)) return t
+    if (this.gameCache?.pid !== pid) {
+      let disc: string | null = null
+      try {
+        const { stdout } = await promisify(execFile)('/bin/ps', ['-o', 'args=', '-p', String(pid)])
+        const m = /\s--\s+(.+?)\s*$/.exec(stdout) ?? /\s(\/\S.*\.(?:iso|chd|cso|gz))\s*$/i.exec(stdout)
+        if (m) disc = basename(m[1], extname(m[1]))
+      } catch {
+        /* gone */
+      }
+      this.gameCache = { pid, disc }
+    }
+    return this.gameCache.disc
   }
 
   /** The PS2 discs under the disc folder (four folders deep). */
